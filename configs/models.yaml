@@ -1,0 +1,55 @@
+# Study A model inventory — open pre/post pairs.
+# VERIFY param counts / repo availability with `huggingface-cli` + model card before provisioning.
+# tier: cheap (validate pipeline) -> mid -> giant (multi-node).
+# serving_dtype: prefer bf16 for the base leg (calibration is logit-sensitive; fp8 perturbs it).
+
+families:
+  qwen:
+    tier: cheap
+    base_repo: Qwen/Qwen3.5-35B-A3B-Base
+    post_api: { provider: openrouter, model: qwen/qwen3.5-35b-a3b, logprobs: true }
+    params: { total: 35B, active: 3B, moe: true }
+    serving: { dtype: bfloat16, tensor_parallel_size: 1, gpu: "1xH100-80", est_cost_usd: 5 }
+
+  llama:
+    tier: mid
+    base_repo: meta-llama/Llama-4-Maverick-17B-128E
+    post_api: { provider: openrouter, model: meta-llama/llama-4-maverick, logprobs: true }
+    params: { total: 400B, active: 17B, experts: 128, moe: true }
+    serving: { dtype: bfloat16, tensor_parallel_size: 8, expert_parallel: true, gpu: "8xH100-80", est_cost_usd: 60 }
+
+  glm:
+    tier: mid
+    base_repo: zai-org/GLM-4.5-Base
+    post_api: { provider: openrouter, model: z-ai/glm-4.5, logprobs: false }  # post lacks logprobs on OR
+    params: { total: 355B, active: 32B, moe: true }
+    serving: { dtype: bfloat16, tensor_parallel_size: 8, expert_parallel: true, gpu: "8xH200", est_cost_usd: 85 }
+
+  deepseek:
+    tier: giant
+    base_repo: deepseek-ai/DeepSeek-V4-Pro-Base
+    post_api: { provider: deepseek, model: deepseek-v4-pro, base_url: "https://api.deepseek.com", logprobs: true }
+    params: { total: 671B, active: 37B, moe: true }   # VERIFY
+    serving: { dtype: bfloat16, tensor_parallel_size: 8, pipeline_parallel_size: 2, gpu: "16xH100 (2 nodes)", est_cost_usd: 160 }
+
+  mistral:
+    tier: giant
+    base_repo: mistralai/Mistral-Large-3-675B-Base-2512
+    post_api: { provider: mistral, model: mistral-large-2512, base_url: "https://api.mistral.ai/v1", logprobs: false }
+    params: { total: 675B }   # VERIFY dense vs MoE
+    serving: { dtype: bfloat16, tensor_parallel_size: 8, pipeline_parallel_size: 2, gpu: "16xH100 (2 nodes)", est_cost_usd: 160 }
+
+  kimi:
+    tier: giant
+    base_repo: moonshotai/Kimi-K2-Base
+    post_api: { provider: openrouter, model: moonshotai/kimi-k2-thinking, logprobs: true }
+    params: { total: 1T, active: 32B, moe: true }
+    serving: { dtype: bfloat16, tensor_parallel_size: 8, pipeline_parallel_size: 2, gpu: "16xH200 (2 nodes)", est_cost_usd: 280 }
+
+# Compliance scale + single-token labels for token-slicing (verify per tokenizer).
+scale:
+  levels: [very_low, low, moderate, high, very_high]
+  answer_tokens: [" A", " B", " C", " D", " E"]   # A=very_low ... E=very_high
+elicitation:
+  base: { method: token_slice, fewshot_source: judex-corpus/leaf_exemplars, fewshot_k: 4, temperature: 0 }
+  post: { method: verbalized_plus_logprobs_where_available, temperature: 0 }
