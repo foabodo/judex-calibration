@@ -1,5 +1,5 @@
 # Study A model inventory — open pre/post pairs.
-# VERIFY param counts / repo availability with `huggingface-cli` + model card before provisioning.
+# VERIFY param counts / repo availability with `hf` + model card before provisioning.
 # tier: cheap (validate pipeline) -> mid -> giant (multi-node).
 # serving_dtype: prefer bf16 for the base leg (calibration is logit-sensitive; fp8 perturbs it).
 

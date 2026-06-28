@@ -35,7 +35,7 @@ this is the first paid step (~$5–10 for Qwen).
 ```bash
 pip install --upgrade vastai
 # API key from https://cloud.vast.ai/cli/
-security add-generic-password -s vastai-api-key -w '<YOUR_KEY>'      # one-time: stash in Keychain
+security add-generic-password -U -a "$USER" -s vastai-api-key -w '<YOUR_KEY>'      # one-time: stash in Keychain
 vastai set api-key "$(security find-generic-password -s vastai-api-key -w)"
 ```
 
@@ -45,9 +45,9 @@ vastai set api-key "$(security find-generic-password -s vastai-api-key -w)"
    makes the in-container download fail silently with a 401).
 2. Verify your read token can fetch them, then store it in Keychain:
 ```bash
-security add-generic-password -s hf-token -w '<HF_READ_TOKEN>'        # one-time
+security add-generic-password -U -a "$USER" -s hf-token -w '<HF_READ_TOKEN>'        # one-time
 HF_TOKEN=$(security find-generic-password -s hf-token -w) \
-  huggingface-cli download Qwen/Qwen3.5-35B-A3B-Base --revision main --dry-run   # confirms access
+  hf download Qwen/Qwen3.5-35B-A3B-Base --revision main --dry-run   # confirms access
 ```
 (Optional: also add it under **Account → Environment Variables** in the console so every instance
 gets it regardless of template.)

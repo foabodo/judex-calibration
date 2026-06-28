@@ -59,7 +59,7 @@ If the open models are *also* inaccurate on AIReg, their `T*` will peg too and t
 
 ## 2. Model inventory & serving feasibility
 
-> **VERIFY at download time** — exact param counts, architectures, and HF repo availability for the 2026 checkpoints below are best-estimate; confirm with `huggingface-cli` and the model card before provisioning. Sizes drive everything.
+> **VERIFY at download time** — exact param counts, architectures, and HF repo availability for the 2026 checkpoints below are best-estimate; confirm with `hf` and the model card before provisioning. Sizes drive everything.
 
 | Family | Base repo (HF) | Post (API) | ~Total / active | bf16 weights | Min GPU (bf16) | Tier |
 |---|---|---|---|---|---|---|
@@ -222,7 +222,7 @@ Keep it a sibling submodule like the other three. Per project convention, `devel
 Claude Code on the Mac is the orchestrator. The remote GPU box is treated as an external resource it drives over SSH/HTTP.
 
 ### 6.1 Permissions (`judex-calibration/.claude/settings.local.json`)
-Allowlist the recurring read-only/local calls to cut prompts: `huggingface-cli`, `ssh <box>`, `curl http://localhost:8000/*`, `vllm` (on the box via ssh), `python scripts/*`, and the Keychain pattern `security find-generic-password -s *-api-key -w`. (See `/fewer-permission-prompts`.)
+Allowlist the recurring read-only/local calls to cut prompts: `hf`, `ssh <box>`, `curl http://localhost:8000/*`, `vllm` (on the box via ssh), `python scripts/*`, and the Keychain pattern `security find-generic-password -s *-api-key -w`. (See `/fewer-permission-prompts`.)
 
 ### 6.2 Serving = an HTTP endpoint you call from the Mac
 Inference is OpenAI-compatible HTTP from the Mac — **not** the box's CLI, and **SSH is optional**. The four serving modes (A serverless, B one-click template, C custom on-demand `vllm serve` — *primary*, D offline in-process) are in `scripts/serve_vllm_vastai.md`; the base leg requires **Mode C** (base weights + `/v1/completions` logprobs + bf16). The single `vllm serve` launch can be the instance's `--onstart-cmd`, so the box boots already serving; Claude Code then polls `curl http://<host>:<port>/v1/models` and elicits.
@@ -236,7 +236,7 @@ Inference is OpenAI-compatible HTTP from the Mac — **not** the box's CLI, and 
 6. **Tear down the box** (cost is wall-clock).
 
 ### 6.4 Secrets
-Post-model API keys stay in macOS Keychain (`security find-generic-password -s <provider>-api-key -w`, exported in-shell, never printed). HF token likewise (`huggingface-cli login` on the box, or `HF_TOKEN` from Keychain).
+Post-model API keys stay in macOS Keychain (`security find-generic-password -s <provider>-api-key -w`, exported in-shell, never printed). HF token likewise (`hf login` on the box, or `HF_TOKEN` from Keychain).
 
 ### 6.5 Memory / handoff
 Record run-ids, fitted `τ_oc`, the Q1–Q4 verdicts, and any negative results in a `judex-calibration` project memory + a `spec/handoff_*.md`, consistent with the existing JUDEX cadence.
