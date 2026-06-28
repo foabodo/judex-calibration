@@ -1,0 +1,76 @@
+{
+  "gt_cells": 120,
+  "proxy_note": "AIReg-Bench paper raters, NOT the six pre/post annotators",
+  "models": [
+    {
+      "model": "pro",
+      "n": 120,
+      "argmax_acc": 0.6583333333333333,
+      "within1_acc": 0.9666666666666667,
+      "mae": 0.375
+    },
+    {
+      "model": "gpt5",
+      "n": 120,
+      "argmax_acc": 0.6083333333333333,
+      "within1_acc": 0.975,
+      "mae": 0.4166666666666667
+    },
+    {
+      "model": "grok4",
+      "n": 120,
+      "argmax_acc": 0.55,
+      "within1_acc": 0.9416666666666667,
+      "mae": 0.5083333333333333
+    },
+    {
+      "model": "grok3_mini",
+      "n": 120,
+      "argmax_acc": 0.4666666666666667,
+      "within1_acc": 0.875,
+      "mae": 0.6583333333333333
+    },
+    {
+      "model": "sonnet",
+      "n": 120,
+      "argmax_acc": 0.4583333333333333,
+      "within1_acc": 0.9583333333333334,
+      "mae": 0.5833333333333334
+    },
+    {
+      "model": "4o",
+      "n": 120,
+      "argmax_acc": 0.45,
+      "within1_acc": 0.925,
+      "mae": 0.625
+    },
+    {
+      "model": "o3",
+      "n": 120,
+      "argmax_acc": 0.38333333333333336,
+      "within1_acc": 0.975,
+      "mae": 0.6416666666666667
+    },
+    {
+      "model": "flash",
+      "n": 120,
+      "argmax_acc": 0.375,
+      "within1_acc": 0.9666666666666667,
+      "mae": 0.6583333333333333
+    },
+    {
+      "model": "o3_mini",
+      "n": 120,
+      "argmax_acc": 0.36666666666666664,
+      "within1_acc": 0.775,
+      "mae": 0.875
+    },
+    {
+      "model": "gemma",
+      "n": 120,
+      "argmax_acc": 0.3333333333333333,
+      "within1_acc": 0.9166666666666666,
+      "mae": 0.7583333333333333
+    }
+  ]
+}
