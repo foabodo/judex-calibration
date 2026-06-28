@@ -6,22 +6,26 @@
 
 **You call the model as an OpenAI-compatible HTTP API from your Mac.** You do not drive the
 server's CLI for inference, and SSH is *optional* (a private alternative to exposing the port).
-The only "CLI" is the one `vllm serve` launch — and that can be the instance's on-start command,
-so the box boots already serving. Our `elicit_post.py` / `elicit_base.py` speak OpenAI-compatible
-HTTP, so they work against any endpoint below by setting `--base-url`.
+The model + vLLM flags are passed as the container's `--args`, so the box boots already serving (no
+hand-run CLI). Our `elicit_post.py` / `elicit_base.py` speak OpenAI-compatible HTTP, so they work
+against any endpoint below by setting `--base-url`.
 
 ## The four options (and which fits Study A)
 
 | Mode | What | Fits Study A? |
 |---|---|---|
 | **A. Serverless** (`openai.vast.ai` proxy, autoscaling, scale-to-zero) | easiest, pay-per-use | **Post leg only** — instruct/chat; usually no base weights and no `/v1/completions`+logprobs |
-| **B. One-click model template** (the vast.ai/model page) | rent a preconfigured instance, send requests | **Post leg only** — preconfigured for the *instruct* model |
-| **C. Custom on-demand + your own `vllm serve`** ← **PRIMARY** | rent raw GPU, launch vLLM with the **base** repo + flags, hit `IP:port` | **Yes** — the only path that gives base weights + `/v1/completions` logprobs + bf16 + full generation control for the reason→answer two-stage |
-| **D. Offline in-process** (no server) | run a script on the box: `vllm.LLM(...).generate(..., prompt_logprobs=...)`, copy results back | **Fallback** — most direct logit access if HTTP logprobs misbehave |
+| **B. One-click model template** (the vast.ai/model marketplace) | rent a preconfigured instance | **Neither leg** — the marketplace is **instruct-only; there is NO base model hosted** (e.g. `vast.ai/model/qwen35-35b-a3b` = instruct, no `-base`) |
+| **C. Custom on-demand, generic `vllm/vllm-openai` image, `--model <HF repo>`** ← **PRIMARY (both legs)** | rent raw GPU; vLLM pulls the repo from **Hugging Face** at container start; hit `IP:port` | **Yes** — base weights + `/v1/completions` logprobs + bf16 + reason→answer control; same channel for base AND post |
+| **D. Offline in-process** (no server) | run a script on the box: `vllm.LLM(...).generate(..., logprobs=20)`, copy results back | **Fallback** — most direct logit access if HTTP logprobs misbehave |
 
-Base token-slicing (the core of Study A) needs base weights **and** logprobs **and** bf16 **and**
-two-stage control — A/B give none of these, so **use Mode C** (Mode D as fallback). The post leg
-can use A/B/C interchangeably.
+**vast.ai hosts no base checkpoint**, so we do not use the model marketplace (A/B) at all — **both
+legs use Mode C** with `--model <HF repo>` (base AND post pulled from Hugging Face, keeping them in
+the same token-slice channel). Consequences for provisioning:
+- The **HF download is the dominant wall-clock/cost** (the box pulls weights at start, not your Mac) — filter offers for **`inet_down`** (bandwidth) and **`disk_space`**, and set a generous health-poll timeout.
+- Needs a working **`HF_TOKEN`** and an **accepted license** for each gated repo (a gated 401 fails the in-container pull silently).
+- **Avoid re-downloading:** reuse one box for both legs (SSH-restart vLLM on the post repo), and for the **giants** mount a **persistent volume as the HF cache** (`HF_HOME=/data` on the volume) so weights survive teardown/relaunch.
+- (Optional cheaper post leg: `elicit_post.py` can still hit the post model via OpenRouter *verbalized* — no GPU — but that is a different channel from the base token-slice; only use it if you accept the cross-channel confound.)
 
 ---
 
@@ -38,15 +42,19 @@ can use A/B/C interchangeably.
 ```bash
 export VAST_API_KEY=$(security find-generic-password -s vastai-api-key -w)   # add to Keychain
 export HF_TOKEN=$(security find-generic-password -s hf-token -w)
-vastai search offers 'gpu_name=H100_SXM num_gpus=1 disk_space>200 inet_down>500' --order 'dph'
-# Boot already serving the BASE model; expose container :8000 to a public port.
+# static_ip+direct_port_count = reachable endpoint; inet_down+disk = the HF pull is the cost driver.
+vastai search offers \
+  'compute_cap>=800 gpu_ram>=80 num_gpus=1 static_ip=true direct_port_count>1 inet_down>1000 disk_space>200 cuda_vers>=12.4 rentable=true' \
+  --order dph
+# The vllm/vllm-openai image takes the model + flags as container --args; vLLM pulls the BASE repo
+# from HF at start. --args must be LAST. Expose container :8000 to a public port.
 vastai create instance <OFFER_ID> --image vllm/vllm-openai:latest --disk 200 \
   --env "-p 8000:8000 -e HF_TOKEN=$HF_TOKEN" \
-  --onstart-cmd 'vllm serve Qwen/Qwen3.5-35B-A3B-Base --dtype bfloat16 --port 8000 \
-                 --max-model-len 8192 --gpu-memory-utilization 0.92'
+  --args --model Qwen/Qwen3.5-35B-A3B-Base --dtype bfloat16 --max-model-len 8192 --gpu-memory-utilization 0.92
 vastai show instance <INSTANCE_ID>     # read the public host:port mapped to 8000
 ```
-Giants later: add `--tensor-parallel-size 8 [--pipeline-parallel-size 2] --enable-expert-parallel`.
+Giants later: append `--tensor-parallel-size 8 [--pipeline-parallel-size 2] --enable-expert-parallel`
+to the `--args`, raise `--disk`, and mount a persistent volume as the HF cache (`-e HF_HOME=/data`).
 
 ### 2. Reach the endpoint from the Mac — pick ONE
 - **Direct (default):** use the public `http://<host>:<port>` from `show instance`. No SSH.
