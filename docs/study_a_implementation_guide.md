@@ -93,6 +93,14 @@ Storage: HF download egress is free; use the GPU provider's NVMe scratch (usuall
 
 ---
 
+## 3a. Methodology updates (2026-06-27, user decisions)
+
+These supersede the corresponding defaults below:
+1. **Live post runs use reasoning ON** (the deployed behavior). Reasoning is disabled only for cheap smoke tests. So the post leg is *not* the cheap OpenRouter verbalized path for the live study.
+2. **Token-slicing for BOTH variants** — base *and* post served on **vast.ai vLLM** with logit access, so pre/post are compared in the **same channel** (removes the cross-channel confound; the `qwen3.5-35b-a3b` OpenRouter post leg stays only as a verbalized smoke/fallback, since OpenRouter routes give no logprobs for it).
+3. **Base models also reason** — give the base a few-shot **chain-of-thought** scaffold before the answer, so the pre/post comparison is matched on reasoning condition (isolating post-training, not reasoning-vs-not). Token-slice the answer logits *after* the reasoning span in both legs (requires a forced `</think>`/`Answer:` scaffold + logprobs at the answer position).
+4. Implication: `elicit_base.py` and the post token-slice path both target vast.ai vLLM (reasoning + answer-position logit read), not OpenRouter, for live runs.
+
 ## 4. Methodology
 
 ### 4.1 The 120 evaluation cells and GT

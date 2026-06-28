@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "judex-calibration"
+version = "0.1.0"
+description = "Study A — open pre/post-pair calibration for the JUDEX closed evaluators"
+requires-python = ">=3.9"
+dependencies = ["numpy", "pyyaml"]
+
+# Analysis reuses judex-evaluator's calibration tooling. Either install it editable:
+#   pip install -e ../judex-evaluator
+# or rely on the sys.path shim in study_a.py (points at ../judex-evaluator/src).
+
+[tool.setuptools.packages.find]
+where = ["src"]
