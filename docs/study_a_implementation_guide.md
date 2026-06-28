@@ -71,6 +71,7 @@ If the open models are *also* inaccurate on AIReg, their `T*` will peg too and t
 | Kimi | `moonshotai/Kimi-K2-Base` | `moonshotai/Kimi-K2-Thinking` (OpenRouter→Novita) | ~1T / 32B MoE | ~2 TB | 16×H200 / 24×H100 | giant |
 
 **Serving notes**
+- **vast.ai hosts no base models** — its "Models" marketplace is instruct-only. So we do NOT use it; we rent a **generic GPU + `vllm/vllm-openai` and pull every repo (base *and* post) from HF via `--model`**. This makes the **HF download the dominant cost**: filter offers for `inet_down` + `disk_space`, gate the HF token/license, reuse one box across a family's two legs, and for the giants use a **persistent volume** (`HF_HOME`/`--download-dir`) so 0.7–2 TB isn't re-pulled per launch. Full walkthrough: `docs/vast_quickstart.md`.
 - MoE: use vLLM `--enable-expert-parallel` with `--tensor-parallel-size`/`--pipeline-parallel-size`. Giants need **2 nodes** (pipeline-parallel) or B200-class single node.
 - **Quantization confound:** fp8 halves the cluster but perturbs exactly the logits we measure. Calibration is logit-shape-sensitive. **Prefer bf16 for the base leg.** If fp8 is unavoidable for the giants, run the §4.4 token-slice-validity check to bound the quant effect before trusting `T*_pre`.
 - Inference is *tiny* (120 cells × a few short forward passes). **GPU cost is dominated by download + load time, not inference** — so minimize wall-clock on the box (pre-stage weights to a persistent volume, serve, run, tear down).

@@ -17,8 +17,9 @@
 # vast CLI flags can still evolve — verify with `vastai --help` if create/show output shifts.
 set -euo pipefail
 
-# static_ip=true + direct_port_count>1 are REQUIRED for the public IP:port to work.
-OFFER_QUERY=${VAST_OFFER_QUERY:-'compute_cap>=800 gpu_ram>=80 num_gpus=1 static_ip=true direct_port_count>1 cuda_vers>=12.4 disk_space>200 rentable=true'}
+# static_ip=true + direct_port_count>1 are REQUIRED for the public IP:port. Weights pull from HF
+# every launch (vast hosts no base), so inet_down (bandwidth) + disk_space gate the wall-clock cost.
+OFFER_QUERY=${VAST_OFFER_QUERY:-'compute_cap>=800 gpu_ram>=80 num_gpus=1 static_ip=true direct_port_count>1 inet_down>1000 disk_space>200 cuda_vers>=12.4 rentable=true'}
 DISK=${VAST_DISK:-200}
 PORT=8000
 MAXLEN=${VLLM_MAX_MODEL_LEN:-8192}

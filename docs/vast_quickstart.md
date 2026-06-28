@@ -11,9 +11,19 @@ reason for going to vLLM at all — it needs **base weights + `/v1/completions` 
 which the one-click/serverless paths don't give. Phase 0 (the free accuracy gate) is already done;
 this is the first paid step (~$5–10 for Qwen).
 
-> Versions: pin **Qwen/Qwen3.5-35B-A3B-Base** + **Qwen/Qwen3.5-35B-A3B** (the vast.ai *model page*
-> is Qwen**3.6** instruct — make sure the **base** sibling exists for whichever version you serve).
-> Use **bf16** throughout (fp8 perturbs the very logits we measure).
+> **vast.ai hosts NO base model — we download BOTH variants from Hugging Face.** The vast "Models"
+> marketplace/templates are instruct-only (`vast.ai/model/qwen35-35b-a3b` = the instruct/thinking
+> model; there is no `-base`). So we do **not** use the model marketplace at all: we rent a generic
+> GPU with the vanilla `vllm/vllm-openai` image and let vLLM pull each repo from HF via `--model`:
+> - post: `Qwen/Qwen3.5-35B-A3B` — https://huggingface.co/Qwen/Qwen3.5-35B-A3B
+> - base: `Qwen/Qwen3.5-35B-A3B-Base` — https://huggingface.co/Qwen/Qwen3.5-35B-A3B-Base
+>
+> Consequences (baked into the steps below): the **HF download is now the dominant wall-clock/cost**,
+> so filter offers for **bandwidth + disk**; ensure the **HF token works and the model license is
+> accepted**; prefer **reusing one box for both legs** (or a persistent volume for the giants) to
+> avoid re-downloading. Use **bf16** throughout (fp8 perturbs the very logits we measure). The base
+> (non-instruct) model has no chat template — serve + call it on **`/v1/completions` only** (which is
+> exactly the token-slice channel we use).
 
 ---
 
@@ -29,10 +39,15 @@ security add-generic-password -s vastai-api-key -w '<YOUR_KEY>'      # one-time:
 vastai set api-key "$(security find-generic-password -s vastai-api-key -w)"
 ```
 
-## 3. Add your Hugging Face token
-Store once in Keychain; it'll be injected per-instance via the template env.
+## 3. Hugging Face token + accept the model license
+1. On https://huggingface.co/Qwen/Qwen3.5-35B-A3B-Base **and** the post repo, click through / accept
+   the license if the repo is gated (Qwen is usually Apache-2.0/ungated, but confirm — a gated repo
+   makes the in-container download fail silently with a 401).
+2. Verify your read token can fetch them, then store it in Keychain:
 ```bash
 security add-generic-password -s hf-token -w '<HF_READ_TOKEN>'        # one-time
+HF_TOKEN=$(security find-generic-password -s hf-token -w) \
+  huggingface-cli download Qwen/Qwen3.5-35B-A3B-Base --revision main --dry-run   # confirms access
 ```
 (Optional: also add it under **Account → Environment Variables** in the console so every instance
 gets it regardless of template.)
@@ -57,10 +72,11 @@ vastai create template --name study-a-vllm-base --image vllm/vllm-openai:latest 
 
 ## 5. Find a suitable GPU offer
 Qwen 35B/3B bf16 ≈ 70 GB → 1×H100-80. **`static_ip=true` and `direct_port_count>1` are required**
-for the public `IP:port` to work.
+for the public `IP:port`; **`inet_down`** matters because the ~70 GB HF pull is now the gating cost;
+**`disk_space>200`** to hold the weights (≥400 if you reuse one box for both legs — step 9).
 ```bash
 vastai search offers \
-  'compute_cap>=800 gpu_ram>=80 num_gpus=1 static_ip=true direct_port_count>1 cuda_vers>=12.4 rentable=true' \
+  'compute_cap>=800 gpu_ram>=80 num_gpus=1 static_ip=true direct_port_count>1 inet_down>1000 disk_space>200 cuda_vers>=12.4 rentable=true' \
   --order dph    # cheapest $/hr first; note the OFFER_ID
 ```
 
@@ -93,15 +109,23 @@ Quick sanity before the full run: `curl -s "$URL/v1/completions" -H 'Content-Typ
 return `logprobs` — if it doesn't, fall back to Mode D (offline `LLM.generate`, see serve_vllm_vastai.md).
 
 ## 9. Switch to the POST leg
-Cheapest: **destroy the base instance** (step 11), then edit the template's `--model` to
-`Qwen/Qwen3.5-35B-A3B` and **add `--reasoning-parser qwen3`** (post reasons natively — the live
-methodology), launch a fresh instance, repeat steps 6–7, then:
+Because both repos come from HF, re-provisioning means a second ~70 GB download. Two options:
+- **Reuse one box (recommended — avoids the second download):** keep the instance (size it
+  `disk_space>400` in step 5), `ssh` in, stop the base vLLM server, and relaunch on the post repo:
+  ```bash
+  ssh root@<host> -p <ssh_port>
+  pkill -f 'vllm serve' ; sleep 3
+  vllm serve Qwen/Qwen3.5-35B-A3B --dtype bfloat16 --port 8000 --max-model-len 8192 \
+    --gpu-memory-utilization 0.92 --reasoning-parser qwen3   # post reasons natively (live methodology)
+  ```
+- **Fresh instance:** destroy the base box (step 11), edit the template `--model` →
+  `Qwen/Qwen3.5-35B-A3B` + add `--reasoning-parser qwen3`, launch, repeat steps 6–7.
+
+Then collect the post leg:
 ```bash
 .../python scripts/run_qwen_phase1.py --post-url "$URL" \
   --post-model Qwen/Qwen3.5-35B-A3B --out runs/phase1_qwen      # writes post.json
 ```
-(Advanced, saves a re-download: keep the box, `ssh` in, stop the base server, relaunch
-`vllm serve Qwen/Qwen3.5-35B-A3B … --reasoning-parser qwen3` on the same disk.)
 
 ## 10. Analyse — the Q1–Q4 report
 ```bash
@@ -131,6 +155,14 @@ instances (base then post) for Qwen ≈ **$5–10** total.
 - **OOM / won't load:** raise `--disk`, lower `--gpu-memory-utilization` or `--max-model-len`, or pick
   a bigger-VRAM offer. Giants (later families) need `--tensor-parallel-size 8 [--pipeline-parallel-size 2] --enable-expert-parallel`.
 - **Endpoint unreachable:** the offer lacked `static_ip=true` / `direct_port_count>1`; re-pick.
+- **Weights download from HF every launch (vast caches nothing for us):** size `--disk` for the repo
+  (~70 GB Qwen; ≥400 GB to hold base+post on one box), prefer high-`inet_down` offers, and gate the
+  HF token/license (step 3). vLLM downloads into the container HF cache; for very large repos set
+  `-e HF_HOME=/workspace/hf` (a big mounted path) so the cache lands on the rented disk, not `/`.
+- **Giants (later families) need a caching strategy:** re-pulling 0.7–2 TB from HF per launch is slow
+  and costly. Use a vast **persistent volume**: download each base/post once onto the volume, then
+  attach it to instances (point `HF_HOME`/`--download-dir` at it) so subsequent launches skip the
+  download. For one-off Qwen this isn't worth it — just reuse one box (step 9).
 - **Keys:** never echo them; always `security find-generic-password -s <name> -w` inline.
 - **Permissions:** add `vastai`, `curl http://*/v1/*` (and `ssh` only if you tunnel) to
   `.claude/settings.local.json` to cut prompts.
