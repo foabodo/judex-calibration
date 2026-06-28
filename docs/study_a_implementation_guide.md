@@ -181,7 +181,7 @@ judex-calibration/
 │   ├── elicit_base.py             # vLLM token-slicing (§4.2)
 │   ├── elicit_post.py             # API verbalized + logprob (§4.3)
 │   ├── aireg.py                   # AIReg cell + GT loader (reuse judex-evaluator)
-│   ├── study_a.py                 # per-family fits, τ_oc, cross-family stability
+│   ├── study_a.py                 # Q1/Q2 per-family fits, τ_oc; Q3 cross-family stability; Q4 closed_side_check
 │   └── decorrelated_dispersion.py # exploratory-extension wiring into judex-evaluator
 ├── scripts/
 │   ├── phase0_accuracy_precheck.py   # FREE gate (existing AIReg LLM annotations)

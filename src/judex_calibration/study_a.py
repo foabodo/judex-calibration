@@ -101,6 +101,45 @@ def fit_tau_oc(post: Dict[str, List[float]], pre: Dict[str, List[float]], cells:
     return min(GRID, key=lambda T: sum(wasserstein_1(apply_temperature(p, T), q) for p, q in pairs) / len(pairs))
 
 
+def closed_side_check(preds: Dict[str, List[float]], cells: List[Cell], T: float, bins: int = 10) -> dict:
+    """Q4: apply the open-derived constant ``T`` to closed-evaluator (Claude/GPT)
+    predictions on AIReg. The transfer is legitimate iff Murphy **Reliability**
+    improves **without** destroying Resolution or RPS (temperature preserves
+    argmax, so accuracy is unchanged by construction)."""
+    by_label = {c.item_label: c for c in cells}
+    base, cal = [], []
+    for label, probs in preds.items():
+        c = by_label.get(label)
+        if c is None:
+            continue
+        gt = ComplianceDistribution.from_values(c.gt_probs, c.gt_labels)
+        pred = _pred_dist(probs, c.gt_labels)
+        base.append(_metric_item(label, pred, gt))
+        cal.append(_metric_item(label, apply_temperature(pred, T), gt))
+    if not base:
+        return {"n": 0}
+    mb, mc = murphy_decomposition(base), murphy_decomposition(cal)
+
+    def agg(items):
+        return {"mean_rps": sum(i.rps for i in items) / len(items),
+                "mean_w1": sum(i.w1 for i in items) / len(items),
+                "argmax_acc": sum(i.argmax_agreement for i in items) / len(items)}
+
+    ab, ac = agg(base), agg(cal)
+    return {
+        "n": len(base), "T": T,
+        "uncalibrated": {**{k: round(mb[k], 5) for k in ("reliability", "resolution", "uncertainty")},
+                         **{k: round(v, 5) for k, v in ab.items()}},
+        "calibrated": {**{k: round(mc[k], 5) for k in ("reliability", "resolution", "uncertainty")},
+                       **{k: round(v, 5) for k, v in ac.items()}},
+        "reliability_improvement": round(mb["reliability"] - mc["reliability"], 5),
+        "resolution_change": round(mc["resolution"] - mb["resolution"], 5),
+        "rps_change": round(ac["mean_rps"] - ab["mean_rps"], 5),
+        # transfer is defensible iff reliability drops and RPS does not get worse
+        "verdict_ok": bool(mc["reliability"] < mb["reliability"] and ac["mean_rps"] <= ab["mean_rps"] + 1e-9),
+    }
+
+
 def cross_family(families: Dict[str, Dict[str, Dict[str, List[float]]]], cells: List[Cell]) -> dict:
     """families = {family: {'pre': preds, 'post': preds}}. Returns per-family scores + tau_oc spread."""
     rows = {}

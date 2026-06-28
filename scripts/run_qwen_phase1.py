@@ -30,6 +30,8 @@ def main():
     ap.add_argument("--no-reason", action="store_true", help="skip CoT (smoke only)")
     ap.add_argument("--budget", type=int, default=2048)
     ap.add_argument("--analyze-only", action="store_true")
+    ap.add_argument("--closed-run", default="stage9-gemini-gpt-medium",
+                    help="JUDEX run whose closed-evaluator (Claude/GPT) AIReg preds get the Q4 check")
     args = ap.parse_args()
 
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
@@ -52,6 +54,15 @@ def main():
             variants[v] = study_a.load_predictions(p)
     if variants:
         report = study_a.cross_family({"qwen": variants}, cells)
+        # Q4 — apply the open-derived constant (median tau_oc) to the closed evaluators on AIReg.
+        T = report.get("tau_oc_summary", {}).get("tau_oc_median")
+        if T is not None:
+            mr = (Path(__file__).resolve().parents[2]
+                  / "judex-evaluator" / "runs" / args.closed_run / "metrics_report.json")
+            if mr.exists():
+                closed = {it["item_label"]: it["prediction"]["probabilities"]
+                          for it in json.loads(mr.read_text())["items"]}
+                report["closed_side_check_Q4"] = study_a.closed_side_check(closed, cells, T)
         (out / "study_a_report.json").write_text(json.dumps(report, indent=2))
         print(json.dumps(report, indent=2))
 
