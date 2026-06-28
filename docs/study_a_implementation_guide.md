@@ -15,13 +15,20 @@ We need **overconfidence-correcting recalibration for the closed JUDEX evaluator
 
 **What the open pre/post pairs uniquely add:** the pre-trained variant is (assumed) well-calibrated; the post-trained variant is overconfident. Running *both* on AIReg-Bench (which has independent human GT) lets us measure the **clean post-training overconfidence**, holding base capability fixed — the one signal neither the internal dispersion nor the accuracy-contaminated supervised fit can give. The base models also serve as a **decorrelated reference** to fix the dispersion-≈-identity failure.
 
-### Scientific questions
-- **Q1 (premise check):** Is `T*_pre ≈ 1` per family on this task? If the bases are *not* well-calibrated on EU-AI-Act compliance, the whole premise is task-invalid — better to learn this for ~$10 on the cheap model first.
-- **Q2 (transferability):** Measure the clean post-training overconfidence temperature `τ_oc` per family. Do the six `τ_oc` **cluster**? Tight cluster ⇒ overconfidence is roughly model-agnostic in temperature units ⇒ a **transferred constant T for the closed evaluators is justified, and we learn its value**. Scatter ⇒ it isn't.
-- **Q3 (decorrelated dispersion):** Does adding base-model distributions to the dispersion replicate pool make `dispersion_calibration_recovery` (already in `judex-evaluator`) recover the supervised optimum for the closed evaluators?
+### Scientific questions (answered in order)
+
+Study A is **not** the generic JUDEX calibration arm. That arm fits temperatures against GT for models we control. Study A tests whether a **portable constant** derived from open hybrid pairs is scientifically defensible for **closed** models (Claude/GPT) whose base variants are inaccessible.
+
+- **Q1 — Premise validation:** are base/pretrained models well-calibrated on EU-AI-Act ordinal compliance, i.e. is their supervised temperature fit `T*_pre ≈ 1`? If not, the premise is task-invalid — learn this for ~$10 on the cheap model first.
+- **Q2 — Post-training effect:** for each post-trained model, how much temperature softening (`τ_oc`) is needed to recover calibration **while retaining the post-training accuracy gain**?
+- **Q3 — Transfer legitimacy:** is `τ_oc` **stable across model families**? Tight clustering ⇒ overconfidence is roughly model-agnostic in temperature units ⇒ a transferred constant for the closed evaluators is defensible, and we learn its value. Scatter ⇒ it is not.
+- **Q4 — Closed-side sanity check:** when the open-derived constant is applied to Claude/GPT JUDEX outputs on AIReg, does the **Murphy Reliability** term improve **without destroying Resolution or RPS**?
 
 ### Load-bearing caveat (the accuracy gate)
 If the open models are *also* inaccurate on AIReg, their `T*` will peg too and the study is uninformative — same failure as the closed evaluators. **Phase 0 is a free accuracy pre-check that gates all spend.**
+
+### Exploratory extension (out of core scope; free once base elicitations exist)
+- **Decorrelated dispersion:** the base models are also *decorrelated, well-calibrated* references, so adding their distributions to the GT-free dispersion replicate pool could fix the dispersion-≈-identity failure (`dispersion_calibration_recovery` in `judex-evaluator`, §4.7). This is a **different production mechanism** (a live reference, not a transferred constant), so it is deliberately outside Study A's four-question core — pursue only if Q3 shows `τ_oc` is unstable (i.e. a single constant won't do).
 
 ---
 
@@ -149,12 +156,12 @@ For each family, against AIReg GT, fit **both** objectives (we proved neither is
 - `τ_oc` — the clean post-training overconfidence temperature: the T that maps **post → pre calibration** (or `T*_post` directly if Q1 confirms `T*_pre ≈ 1`).
 - Always alongside: **argmax accuracy** per model (the gate) and the **Murphy decomposition** (is the addressable error Reliability or Resolution?).
 
-### 4.6 Cross-family stability & decision (Q2)
+### 4.6 Cross-family stability & decision (Q3 + Q4)
 - Plot/serialize the six `(T*_pre, T*_post, τ_oc, accuracy)`.
 - **Document-clustered bootstrap** (reuse the pattern; resample the 24 docs) CIs on `τ_oc` and on the cross-family spread.
 - **Decision rule:** if `τ_oc` clusters tightly *and* the bases clear the accuracy gate, adopt `median(τ_oc)` as the transferred constant for the closed evaluators (config flip in `judex-evaluator/pipeline.yaml`, the seam already merged). Else, report negative.
 
-### 4.7 Decorrelated dispersion (Q3)
+### 4.7 Decorrelated dispersion (exploratory extension — see §0)
 Add the base-model distributions to the dispersion replicate pool for the closed evaluators (a *decorrelated, well-calibrated* reference, fixing the correlated-overconfidence blindness) and re-run `dispersion_calibration_recovery` on the existing `stage9-gemini-gpt-medium` / `phase23-deference-fix-native` runs. **Pitfall:** do not match the evaluator's *width* to a base model's width (a well-calibrated weak model is appropriately wide; copying it over-widens). Use base disagreement only as *added dispersion*.
 
 ---
@@ -175,7 +182,7 @@ judex-calibration/
 │   ├── elicit_post.py             # API verbalized + logprob (§4.3)
 │   ├── aireg.py                   # AIReg cell + GT loader (reuse judex-evaluator)
 │   ├── study_a.py                 # per-family fits, τ_oc, cross-family stability
-│   └── decorrelated_dispersion.py # Q3 wiring into judex-evaluator
+│   └── decorrelated_dispersion.py # exploratory-extension wiring into judex-evaluator
 ├── scripts/
 │   ├── phase0_accuracy_precheck.py   # FREE gate (existing AIReg LLM annotations)
 │   ├── run_family.sh                 # one family end-to-end (serve→elicit→teardown)
@@ -219,7 +226,7 @@ Allowlist the recurring read-only/local calls to cut prompts: `huggingface-cli`,
 Post-model API keys stay in macOS Keychain (`security find-generic-password -s <provider>-api-key -w`, exported in-shell, never printed). HF token likewise (`huggingface-cli login` on the box, or `HF_TOKEN` from Keychain).
 
 ### 6.5 Memory / handoff
-Record run-ids, fitted `τ_oc`, the Q1/Q2/Q3 verdicts, and any negative results in a `judex-calibration` project memory + a `spec/handoff_*.md`, consistent with the existing JUDEX cadence.
+Record run-ids, fitted `τ_oc`, the Q1–Q4 verdicts, and any negative results in a `judex-calibration` project memory + a `spec/handoff_*.md`, consistent with the existing JUDEX cadence.
 
 ---
 
