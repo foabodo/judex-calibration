@@ -1,5 +1,9 @@
 # Serving Qwen base/post on vast.ai for Study A
 
+> For the linear account→data→shutdown walkthrough (custom template, exact commands, troubleshooting)
+> see **`docs/vast_quickstart.md`**. This file is the *modes reference* it draws on.
+
+
 **You call the model as an OpenAI-compatible HTTP API from your Mac.** You do not drive the
 server's CLI for inference, and SSH is *optional* (a private alternative to exposing the port).
 The only "CLI" is the one `vllm serve` launch — and that can be the instance's on-start command,

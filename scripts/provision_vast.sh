@@ -12,13 +12,13 @@
 #   .../python scripts/run_qwen_phase1.py --base-url "$ID_URL" --base-model Qwen/Qwen3.5-35B-A3B-Base --out runs/phase1_qwen
 #   scripts/provision_vast.sh down <instance_id>
 #
-# NOTE: vast CLI flags + the vLLM image's launch convention evolve. If the `--onstart-cmd`
-# launch doesn't take (image expects the model as container args instead), see the current
-# vast vLLM guide and adjust ONSTART/-—args; the rest of the wrapper (search/poll/url/down)
-# is image-agnostic.
+# See docs/vast_quickstart.md for the full account->shutdown walkthrough. The vllm/vllm-openai
+# image takes the model + vLLM flags as container --args (confirmed by the vast vLLM guide);
+# vast CLI flags can still evolve — verify with `vastai --help` if create/show output shifts.
 set -euo pipefail
 
-OFFER_QUERY=${VAST_OFFER_QUERY:-'gpu_name=H100_SXM num_gpus=1 disk_space>200 inet_down>500 rentable=true'}
+# static_ip=true + direct_port_count>1 are REQUIRED for the public IP:port to work.
+OFFER_QUERY=${VAST_OFFER_QUERY:-'compute_cap>=800 gpu_ram>=80 num_gpus=1 static_ip=true direct_port_count>1 cuda_vers>=12.4 disk_space>200 rentable=true'}
 DISK=${VAST_DISK:-200}
 PORT=8000
 MAXLEN=${VLLM_MAX_MODEL_LEN:-8192}
@@ -34,15 +34,18 @@ case "$cmd" in
   up)
     MODEL=${1:?usage: up <hf_model_repo> [post]}; VARIANT=${2:-base}
     HF_TOKEN=${HF_TOKEN:-$(security find-generic-password -s hf-token -w 2>/dev/null || true)}
+    # The vllm/vllm-openai image takes the model + vLLM flags as container --args (NOT an
+    # on-start command); --raw must precede --args (which consumes the rest of the line).
     EXTRA=""; [ "$VARIANT" = "post" ] && EXTRA="--reasoning-parser qwen3"
-    ONSTART="vllm serve $MODEL --dtype bfloat16 --port $PORT --max-model-len $MAXLEN --gpu-memory-utilization $GPU_UTIL $EXTRA"
 
     echo ">> searching offers: $OFFER_QUERY" >&2
     OFFER=$(vastai search offers "$OFFER_QUERY" --order dph --raw \
             | python3 -c 'import sys,json; d=json.load(sys.stdin); print((d if isinstance(d,list) else d.get("offers",[]))[0]["id"])')
     echo ">> creating instance on offer $OFFER serving $MODEL ($VARIANT)" >&2
     IID=$(vastai create instance "$OFFER" --image vllm/vllm-openai:latest --disk "$DISK" \
-            --env "-p $PORT:$PORT -e HF_TOKEN=$HF_TOKEN" --onstart-cmd "$ONSTART" --raw \
+            --env "-p $PORT:$PORT -e HF_TOKEN=$HF_TOKEN" --raw \
+            --args --model "$MODEL" --dtype bfloat16 --max-model-len "$MAXLEN" \
+                   --gpu-memory-utilization "$GPU_UTIL" $EXTRA \
           | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("new_contract") or d.get("id") or "")')
     [ -n "$IID" ] || { echo "!! could not parse instance id from create" >&2; exit 1; }
     echo ">> instance=$IID — waiting for the vLLM endpoint (model download+load can take many minutes)..." >&2
