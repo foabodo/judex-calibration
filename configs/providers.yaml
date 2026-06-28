@@ -1,0 +1,21 @@
+# Post-trained API providers for Study A elicitation.
+# Keys live in macOS Keychain: security find-generic-password -s <keychain_key> -w
+post_providers:
+  qwen:
+    provider: openrouter
+    base_url: https://openrouter.ai/api/v1
+    model: qwen/qwen3.5-35b-a3b        # verified in OR catalog; logprobs+top_logprobs supported, 262k ctx
+    keychain_key: openrouter-api-key
+    temperature: 0
+    reasoning_enabled: false           # qwen3.5-35b-a3b is a THINKING model; disable for Phase 1
+                                        # (else empty content; reasoning burns the budget). ~$0.0001/cell.
+    channel: verbalized                # token-slice NOT viable via OpenRouter for this model:
+                                        # thinking => first token is reasoning, and routed providers
+                                        # (NextBit/DeepInfra/AkashML) don't return logprobs. For
+                                        # same-channel pre/post token-slicing, serve qwen POST on vLLM too.
+
+
+# 5-level ordinal scale; single-token answer letters (A=very_low ... E=very_high).
+scale:
+  labels: [very_low, low, moderate, high, very_high]
+  answer_letters: ["A", "B", "C", "D", "E"]
