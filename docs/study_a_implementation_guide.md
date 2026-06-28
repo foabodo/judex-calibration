@@ -80,24 +80,39 @@ If the open models are *also* inaccurate on AIReg, their `T*` will peg too and t
 
 ## 3. Cost estimates
 
-GPU spot rates (2026, rough): H100-80 ≈ $2.5/GPU-hr, H200 ≈ $3.5, B200 ≈ $5.5. Per-model wall-clock = weight download + load + 120-cell run (+buffer).
+**Design change vs the old table:** vast hosts no base, and the same-channel design serves **both**
+variants on vast vLLM — so each family now pays **two HF downloads** (base + post), and **download
+wall-clock dominates** (inference is minutes). The old "~$750 base + ~$50 post-API" no longer holds.
 
-| Family | GPUs × hrs (bf16) | Est. base-serving cost |
-|---|---|---|
-| Qwen 35B | 1×H100 × 2h | **~$5** |
-| Llama 400B | 8×H100 × 3h | ~$60 |
-| GLM 355B | 8×H200 × 3h | ~$85 |
-| DeepSeek 671B | 16×H100 × 4h | ~$160 |
-| Mistral 675B | 16×H100 × 4h | ~$160 |
-| Kimi 1T | 16×H200 × 5h | ~$280 |
-| **Base total (bf16)** | | **~$750** |
-| fp8 on the 3 giants instead | | ~$450–500 (with quant-confound risk) |
-| Post API (6 models × 120 cells, single-pass) | | ~$20–80 (reasoning models cost more) |
-| **Study A total** | | **~$800–1,200** (×1.5 buffer for re-runs → up to ~$1.5k) |
+Assumptions: bf16 = 2 bytes/param; each variant pulled once; **one box reused for both legs**; HF pull
+≈ **400 MB/s** (`HF_HUB_ENABLE_HF_TRANSFER=1` on a high-`inet_down` offer — **±2× is the biggest
+swing**); vast spot ≈ **$2/H100-GPU-hr, $2.75/H200-GPU-hr** (on-demand clouds ~30% higher); GPU count =
+min bf16 fit (671–675B and 1T do **not** fit 16×H100 → H200).
 
-**Minimum-viable path: ~$70.** Run **Phase 0 (free)** then **Qwen ($5) + Llama ($60)** end-to-end first. If those two families validate the pipeline *and* clear the accuracy gate, commit to the giants; if not, stop having spent ~$70 instead of ~$1k.
+| Family | bf16 weights (base+post) | GPUs | wall-clock (both legs) | cost (vast spot) |
+|---|---|---|---|---|
+| Qwen 35B-A3B | 0.14 TB | 1×H100 | ~1 h | **~$5** |
+| Llama-4 400B | 1.6 TB | 8×H100 | ~2.5 h | ~$40 |
+| GLM-4.5 355B | 1.4 TB | 8×H200 | ~2.5 h | ~$50 |
+| DeepSeek 671B | 2.7 TB | 16×H200 | ~3.7 h | ~$165 |
+| Mistral 675B | 2.7 TB | 16×H200 | ~3.7 h | ~$165 |
+| Kimi-K2 1T | 4.0 TB | 16×H200 | ~4.7 h | ~$210 |
+| **Both-legs subtotal** | | | | **~$635** |
+| **+ ×1.4 buffer** (failed offers, slow CDN, re-runs) | | | | **~$890** |
 
-Storage: HF download egress is free; use the GPU provider's NVMe scratch (usually included). A persistent volume to cache the giants between sessions is optional (~$0.10/GB-mo — a 2 TB cache ≈ $200/mo; only if re-running).
+**Range: ~$650 (vast spot + fast CDN, no re-runs) → ~$1,500 (on-demand rates + slow CDN + buffer);
+plan ~$900–1,100.** Download throughput and spot pricing are the two big swings.
+
+**Cheaper alternative (~$550–800):** keep the **post leg on OpenRouter** (verbalized, no GPU) and
+GPU-serve only the **6 base** variants from HF (≈$480 +buffer ~$670, + post API ~$50). Halves the
+giant downloads but reintroduces the **cross-channel confound** (base token-slice vs post verbalized).
+
+**Minimum-viable: ~$50–90.** Phase 0 (free, done) → Qwen both legs (~$5–10) → Llama both legs
+(~$40–80); validate pipeline + accuracy gate before committing to the giants.
+
+Notes: **fp8** would ~halve the giants' download + VRAM (≈ −$250) but perturbs the logits we measure —
+bf16 only. A **persistent HF-cache volume** does *not* help a single clean run (base≠post, each pulled
+once); it only saves re-downloads on re-runs (~$0.10/GB-mo; a 4 TB Kimi cache ≈ $400/mo).
 
 ---
 
