@@ -7,9 +7,9 @@
 
 ## 0. Why this exists (carry-over from the calibration thread)
 
-We need **overconfidence-correcting recalibration for the closed JUDEX evaluators (Claude, GPT) on future out-of-sample documents with no ground truth**. Three GT-free routes were exhausted:
+We need **overconfidence-correcting recalibration for the closed JUDEX evaluators (Gemini, GPT) on future out-of-sample documents with no ground truth**. Three GT-free routes were exhausted:
 
-- **DACA** — wrong objective (top-1 ECE), argmax-agreement filter discards ambiguous cells, and no open base sibling for Claude/GPT. Abandoned.
+- **DACA** — wrong objective (top-1 ECE), argmax-agreement filter discards ambiguous cells, and no open base sibling for Gemini/GPT. Abandoned.
 - **Internal permutation-gleaning dispersion** — merged to `judex-evaluator` develop as infra (`mode: noop`), but on the live runs it fits **T ≈ 1.0 (identity)** because the two evaluators are *correlated and confidently-wrong-in-agreement*, so their own re-draws don't reveal the overconfidence.
 - **Supervised temperature scaling** — works (Murphy Reliability 0.028 → 0.0045) but T pegs at ~19 and is wildly per-doc unstable, because the accuracy deficit (44–52% argmax) makes RPS-min *and* Reliability-min both flatten to the marginal. **Objective swap does not help in isolation** — verified.
 
@@ -17,12 +17,12 @@ We need **overconfidence-correcting recalibration for the closed JUDEX evaluator
 
 ### Scientific questions (answered in order)
 
-Study A is **not** the generic JUDEX calibration arm. That arm fits temperatures against GT for models we control. Study A tests whether a **portable constant** derived from open hybrid pairs is scientifically defensible for **closed** models (Claude/GPT) whose base variants are inaccessible.
+Study A is **not** the generic JUDEX calibration arm. That arm fits temperatures against GT for models we control. Study A tests whether a **portable constant** derived from open hybrid pairs is scientifically defensible for **closed** models (Gemini/GPT) whose base variants are inaccessible.
 
 - **Q1 — Premise validation:** are base/pretrained models well-calibrated on EU-AI-Act ordinal compliance, i.e. is their supervised temperature fit `T*_pre ≈ 1`? If not, the premise is task-invalid — learn this for ~$10 on the cheap model first.
 - **Q2 — Post-training effect:** for each post-trained model, how much temperature softening (`τ_oc`) is needed to recover calibration **while retaining the post-training accuracy gain**?
 - **Q3 — Transfer legitimacy:** is `τ_oc` **stable across model families**? Tight clustering ⇒ overconfidence is roughly model-agnostic in temperature units ⇒ a transferred constant for the closed evaluators is defensible, and we learn its value. Scatter ⇒ it is not.
-- **Q4 — Closed-side sanity check:** when the open-derived constant is applied to Claude/GPT JUDEX outputs on AIReg, does the **Murphy Reliability** term improve **without destroying Resolution or RPS**?
+- **Q4 — Closed-side sanity check:** when the open-derived constant is applied to Gemini/GPT JUDEX outputs on AIReg, does the **Murphy Reliability** term improve **without destroying Resolution or RPS**?
 
 ### Load-bearing caveat (the accuracy gate)
 If the open models are *also* inaccurate on AIReg, their `T*` will peg too and the study is uninformative — same failure as the closed evaluators. **Phase 0 is a free accuracy pre-check that gates all spend.**
@@ -244,10 +244,10 @@ Record run-ids, fitted `τ_oc`, the Q1–Q4 verdicts, and any negative results i
 
 ## 8. Risks & honest caveats
 
-1. **Accuracy gate may moot the study** — if the open models are also inaccurate on EU-AI-Act compliance, every `T*` pegs (as it did for Claude+GPT). Phase 0 + Phase 1 are designed to fail cheap.
+1. **Accuracy gate may moot the study** — if the open models are also inaccurate on EU-AI-Act compliance, every `T*` pegs (as it did for Gemini/GPT). Phase 0 + Phase 1 are designed to fail cheap.
 2. **fp8 quantization confound** — fp8 corrupts the logits we measure; prefer bf16 on the base leg, or bound the effect via §4.4.
 3. **Model availability/sizes** — the 2026 base checkpoints and exact architectures must be verified at download; sizing/cost shifts if they differ.
-4. **Transfer to closed evaluators is an assumption** — tested only indirectly (cross-family clustering + applying `median(τ_oc)` to Claude/GPT on AIReg and checking the Murphy Reliability drop). More grounded than DACA's, not a proof.
+4. **Transfer to closed evaluators is an assumption** — tested only indirectly (cross-family clustering + applying `median(τ_oc)` to Gemini/GPT on AIReg and checking the Murphy Reliability drop). More grounded than DACA's, not a proof.
 5. **Base-model prompt sensitivity** — base models are format-fragile; few-shot count/wording affects the token-sliced distribution. Hold the few-shot block fixed across families; treat it as part of the measurement instrument.
 6. **Calibration/validation firewall** — AIReg is the validation set. A single transferred scalar T for *production* (future docs) is legitimate; for *reporting AIReg numbers* fit T on a held-out split / CV to avoid tuning-on-test.
 7. **The post panel will change** — per the user, adopting these six replaces some current JUDEX post-trained raters. Re-pin the exemplar/annotator panel deliberately; keep the calibration corpus rebuild separate from this study.

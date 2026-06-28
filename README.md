@@ -2,7 +2,7 @@
 
 Study A — **open pre/post-pair calibration** for the JUDEX closed evaluators.
 
-Measures the *clean post-training overconfidence temperature* by running the **pre-trained (base)** and **post-trained** variants of six open models on the AIReg-Bench validation cells (independent human GT), to decide whether a **transferred constant temperature** can correct closed-evaluator (Claude/GPT) overconfidence on out-of-sample documents — where DACA, internal-dispersion, and accuracy-contaminated supervised fits all failed.
+Measures the *clean post-training overconfidence temperature* by running the **pre-trained (base)** and **post-trained** variants of six open models on the AIReg-Bench validation cells (independent human GT), to decide whether a **transferred constant temperature** can correct closed-evaluator (Gemini/GPT) overconfidence on out-of-sample documents — where DACA, internal-dispersion, and accuracy-contaminated supervised fits all failed.
 
 - **Base leg:** vLLM on rented GPU, token-sliced logits over the 5 compliance levels.
 - **Post leg:** API from local macOS (Claude Code orchestrates).

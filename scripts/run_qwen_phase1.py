@@ -31,7 +31,7 @@ def main():
     ap.add_argument("--budget", type=int, default=2048)
     ap.add_argument("--analyze-only", action="store_true")
     ap.add_argument("--closed-run", default="stage9-gemini-gpt-medium",
-                    help="JUDEX run whose closed-evaluator (Claude/GPT) AIReg preds get the Q4 check")
+                    help="JUDEX run whose closed-evaluator (Gemini/GPT) AIReg preds get the Q4 check")
     args = ap.parse_args()
 
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)

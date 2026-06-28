@@ -102,7 +102,7 @@ def fit_tau_oc(post: Dict[str, List[float]], pre: Dict[str, List[float]], cells:
 
 
 def closed_side_check(preds: Dict[str, List[float]], cells: List[Cell], T: float, bins: int = 10) -> dict:
-    """Q4: apply the open-derived constant ``T`` to closed-evaluator (Claude/GPT)
+    """Q4: apply the open-derived constant ``T`` to closed-evaluator (Gemini/GPT)
     predictions on AIReg. The transfer is legitimate iff Murphy **Reliability**
     improves **without** destroying Resolution or RPS (temperature preserves
     argmax, so accuracy is unchanged by construction)."""
