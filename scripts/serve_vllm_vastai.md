@@ -23,6 +23,10 @@ can use A/B/C interchangeably.
 
 ## Mode C — primary runbook (one model per box; bf16; logprobs on by default)
 
+> **One-command wrapper:** `scripts/provision_vast.sh up <hf_repo> [post]` does steps 1–2 (search →
+> create with `--onstart-cmd` → poll health) and prints the base URL; `… down <id>` tears it down.
+> The manual steps below are the reference it automates.
+>
 > vast CLI flags evolve — verify against `vastai --help` / docs. Cost is dominated by weight
 > download + load, not the (few-minute) 120-cell inference, so minimize wall-clock.
 
