@@ -208,19 +208,16 @@ Claude Code on the Mac is the orchestrator. The remote GPU box is treated as an 
 ### 6.1 Permissions (`judex-calibration/.claude/settings.local.json`)
 Allowlist the recurring read-only/local calls to cut prompts: `huggingface-cli`, `ssh <box>`, `curl http://localhost:8000/*`, `vllm` (on the box via ssh), `python scripts/*`, and the Keychain pattern `security find-generic-password -s *-api-key -w`. (See `/fewer-permission-prompts`.)
 
-### 6.2 Background serving pattern
-`vllm serve` is long-running. Launch it on the box and keep Claude Code free:
-- Start serving in the background (Claude Code `Bash` with `run_in_background: true`, command = `ssh <box> 'vllm serve … '`), poll `curl …/health` until ready, then elicit.
-- Or a tmux session on the box; Claude Code polls health and streams the run.
+### 6.2 Serving = an HTTP endpoint you call from the Mac
+Inference is OpenAI-compatible HTTP from the Mac — **not** the box's CLI, and **SSH is optional**. The four serving modes (A serverless, B one-click template, C custom on-demand `vllm serve` — *primary*, D offline in-process) are in `scripts/serve_vllm_vastai.md`; the base leg requires **Mode C** (base weights + `/v1/completions` logprobs + bf16). The single `vllm serve` launch can be the instance's `--onstart-cmd`, so the box boots already serving; Claude Code then polls `curl http://<host>:<port>/v1/models` and elicits.
 
-### 6.3 Per-family runbook (`scripts/run_family.sh <family>`)
-1. Provision box (or reuse), `huggingface-cli download <base_repo>` to NVMe.
-2. `vllm serve` (bf16) in background; wait for `/health`.
-3. Open SSH tunnel `localhost:8000 → box:8000`.
-4. `python -m judex_calibration.elicit_base --family <f> --out runs/<run-id>/`.
-5. `python -m judex_calibration.elicit_post --family <f>` (API from Mac; keys via Keychain).
-6. `python -m judex_calibration.study_a --family <f>` → per-family `T*_pre/T*_post/τ_oc/accuracy/murphy`.
-7. **Tear down the box** (cost is wall-clock).
+### 6.3 Per-family runbook (see `scripts/serve_vllm_vastai.md` for full commands)
+1. Provision an on-demand box that boots serving the **base** repo (Mode C `--onstart-cmd`, bf16).
+2. Reach it **directly** at the public `http://<host>:<port>` (or an optional SSH tunnel); poll `/v1/models`.
+3. `run_qwen_phase1.py --base-url … --base-model <base_repo>` → base distributions (token-slice).
+4. Relaunch the box on the **post** repo; `run_qwen_phase1.py --post-url … --post-model <post_repo>`.
+5. `run_qwen_phase1.py --analyze-only` → per-family `T*_pre/T*_post/τ_oc/accuracy/murphy` + Q4 closed-side.
+6. **Tear down the box** (cost is wall-clock).
 
 ### 6.4 Secrets
 Post-model API keys stay in macOS Keychain (`security find-generic-password -s <provider>-api-key -w`, exported in-shell, never printed). HF token likewise (`huggingface-cli login` on the box, or `HF_TOKEN` from Keychain).
