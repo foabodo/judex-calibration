@@ -59,33 +59,39 @@ Console: **Templates → + New Template** and set:
 - **Environment variables:** `HF_TOKEN = <your token>` (or rely on the account-level env var)
 - **Launch arguments** (the container args appended to the vLLM server) — **base** leg:
   ```
-  --model Qwen/Qwen3.5-35B-A3B-Base --dtype bfloat16 --max-model-len 8192 --gpu-memory-utilization 0.92
+  --model Qwen/Qwen3.5-35B-A3B-Base --dtype bfloat16 --max-model-len 32768 --gpu-memory-utilization 0.92
   ```
+  (`--max-model-len 32768`: the AIReg evidence is the full TechOps doc ≈ 14 k tokens, so 8192 would
+  reject our prompts. **Disk Space: 192 GB** — image + ~70 GB weights + HF cache/headroom; this also
+  fits both base+post if you reuse the box. **Launch mode: Docker ENTRYPOINT** — the image entrypoint
+  serves these args; leave the **on-start script empty**.)
 - Save as e.g. `study-a-vllm-base`.
 
 CLI equivalent (or just use `scripts/provision_vast.sh`, which does search→create→poll→print-URL):
 ```bash
 vastai create template --name study-a-vllm-base --image vllm/vllm-openai:latest \
   --env '-p 8000:8000 -e HF_TOKEN=<token>' \
-  --args --model Qwen/Qwen3.5-35B-A3B-Base --dtype bfloat16 --max-model-len 8192 --gpu-memory-utilization 0.92
+  --args --model Qwen/Qwen3.5-35B-A3B-Base --dtype bfloat16 --max-model-len 32768 --gpu-memory-utilization 0.92
 ```
 
 ## 5. Find a suitable GPU offer
-Qwen 35B/3B bf16 ≈ 70 GB → 1×H100-80. **`static_ip=true` and `direct_port_count>1` are required**
-for the public `IP:port`; **`inet_down`** matters because the ~70 GB HF pull is now the gating cost;
-**`disk_space>200`** to hold the weights (≥400 if you reuse one box for both legs — step 9).
+Qwen 35B-A3B bf16 ≈ 70 GB weights, **but our full-document prompts (~14 k tokens) need a 32 k-context
+KV cache too** — so size by VRAM: **1×H200 (141 GB), `num_gpus=1`**, not an 80 GB card. `static_ip=true`
++ `direct_port_count>1` give the public `IP:port`; `inet_down` gates the ~70 GB HF pull;
+`reliability>0.98` keeps a host from dropping mid-download; `inet_down_cost` low avoids per-GB
+bandwidth charges; `disk_space>192` holds weights + cache (192 GB also fits both legs on one box).
 ```bash
 vastai search offers \
-  'compute_cap>=800 gpu_ram>=80 num_gpus=1 static_ip=true direct_port_count>1 inet_down>1000 disk_space>200 cuda_vers>=12.4 rentable=true' \
+  'gpu_ram>=140 num_gpus=1 static_ip=true direct_port_count>1 inet_down>1000 inet_down_cost<0.05 reliability>0.98 disk_space>192 cuda_vers>=12.4 rentable=true' \
   --order dph    # cheapest $/hr first; note the OFFER_ID
 ```
 
 ## 6. Launch the base instance (from the template / CLI)
 Console: open the template → pick the offer → **Rent**. Or CLI:
 ```bash
-vastai create instance <OFFER_ID> --image vllm/vllm-openai:latest --disk 200 \
+vastai create instance <OFFER_ID> --image vllm/vllm-openai:latest --disk 192 \
   --env "-p 8000:8000 -e HF_TOKEN=$(security find-generic-password -s hf-token -w)" \
-  --args --model Qwen/Qwen3.5-35B-A3B-Base --dtype bfloat16 --max-model-len 8192 --gpu-memory-utilization 0.92
+  --args --model Qwen/Qwen3.5-35B-A3B-Base --dtype bfloat16 --max-model-len 32768 --gpu-memory-utilization 0.92
 # note the INSTANCE_ID it prints
 ```
 
@@ -109,17 +115,18 @@ Quick sanity before the full run: `curl -s "$URL/v1/completions" -H 'Content-Typ
 return `logprobs` — if it doesn't, fall back to Mode D (offline `LLM.generate`, see serve_vllm_vastai.md).
 
 ## 9. Switch to the POST leg
-Because both repos come from HF, re-provisioning means a second ~70 GB download. Two options:
-- **Reuse one box (recommended — avoids the second download):** keep the instance (size it
-  `disk_space>400` in step 5), `ssh` in, stop the base vLLM server, and relaunch on the post repo:
+Both repos come from HF, so the post weights download regardless (reusing a box saves only
+re-provisioning, not the download). Two options:
+- **Fresh instance (recommended with ENTRYPOINT mode):** destroy the base box (step 11), set the
+  template `--model` → `Qwen/Qwen3.5-35B-A3B` and add `--reasoning-parser qwen3`, launch, repeat 6–7.
+- **Reuse one box (needs the SSH launch mode, not ENTRYPOINT):** the 192 GB disk holds both models;
+  `ssh` in, stop the base server, relaunch on the post repo:
   ```bash
   ssh root@<host> -p <ssh_port>
   pkill -f 'vllm serve' ; sleep 3
-  vllm serve Qwen/Qwen3.5-35B-A3B --dtype bfloat16 --port 8000 --max-model-len 8192 \
+  vllm serve Qwen/Qwen3.5-35B-A3B --dtype bfloat16 --port 8000 --max-model-len 32768 \
     --gpu-memory-utilization 0.92 --reasoning-parser qwen3   # post reasons natively (live methodology)
   ```
-- **Fresh instance:** destroy the base box (step 11), edit the template `--model` →
-  `Qwen/Qwen3.5-35B-A3B` + add `--reasoning-parser qwen3`, launch, repeat steps 6–7.
 
 Then collect the post leg:
 ```bash

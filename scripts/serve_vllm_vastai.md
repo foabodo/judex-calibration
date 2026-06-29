@@ -38,19 +38,21 @@ the same token-slice channel). Consequences for provisioning:
 > vast CLI flags evolve — verify against `vastai --help` / docs. Cost is dominated by weight
 > download + load, not the (few-minute) 120-cell inference, so minimize wall-clock.
 
-### 1. Provision an on-demand instance (Qwen 35B/3B ~70 GB bf16 → 1×H100-80)
+### 1. Provision an on-demand instance (Qwen 35B-A3B: ~70 GB weights, but 32k context → 1×H200)
 ```bash
 export VAST_API_KEY=$(security find-generic-password -s vastai-api-key -w)   # add to Keychain
 export HF_TOKEN=$(security find-generic-password -s hf-token -w)
-# static_ip+direct_port_count = reachable endpoint; inet_down+disk = the HF pull is the cost driver.
+# gpu_ram>=140 (H200): 70 GB weights + a 32k-context KV cache for the ~14k-token full-document prompts
+# won't fit 80 GB. static_ip+direct_port_count = reachable endpoint; inet_down/reliability/inet_down_cost
+# guard the HF pull (the cost driver).
 vastai search offers \
-  'compute_cap>=800 gpu_ram>=80 num_gpus=1 static_ip=true direct_port_count>1 inet_down>1000 disk_space>200 cuda_vers>=12.4 rentable=true' \
+  'gpu_ram>=140 num_gpus=1 static_ip=true direct_port_count>1 inet_down>1000 inet_down_cost<0.05 reliability>0.98 disk_space>192 cuda_vers>=12.4 rentable=true' \
   --order dph
 # The vllm/vllm-openai image takes the model + flags as container --args; vLLM pulls the BASE repo
 # from HF at start. --args must be LAST. Expose container :8000 to a public port.
-vastai create instance <OFFER_ID> --image vllm/vllm-openai:latest --disk 200 \
-  --env "-p 8000:8000 -e HF_TOKEN=$HF_TOKEN" \
-  --args --model Qwen/Qwen3.5-35B-A3B-Base --dtype bfloat16 --max-model-len 8192 --gpu-memory-utilization 0.92
+vastai create instance <OFFER_ID> --image vllm/vllm-openai:latest --disk 192 \
+  --env "-p 8000:8000 -e HF_TOKEN=$HF_TOKEN -e HF_HUB_ENABLE_HF_TRANSFER=1" \
+  --args --model Qwen/Qwen3.5-35B-A3B-Base --dtype bfloat16 --max-model-len 32768 --gpu-memory-utilization 0.92
 vastai show instance <INSTANCE_ID>     # read the public host:port mapped to 8000
 ```
 Giants later: append `--tensor-parallel-size 8 [--pipeline-parallel-size 2] --enable-expert-parallel`
@@ -74,7 +76,7 @@ curl -s http://<host>:<port>/v1/models   # health: lists the served model id
 ### 4. Swap to the post model on the same box, re-run
 ```bash
 # stop the base server, then relaunch (post reasons natively — live methodology):
-vllm serve Qwen/Qwen3.5-35B-A3B --dtype bfloat16 --port 8000 --max-model-len 8192 \
+vllm serve Qwen/Qwen3.5-35B-A3B --dtype bfloat16 --port 8000 --max-model-len 32768 \
   --gpu-memory-utilization 0.92 --reasoning-parser qwen3
 .../python scripts/run_qwen_phase1.py --post-url http://<host>:<port> \
   --post-model Qwen/Qwen3.5-35B-A3B --out runs/phase1_qwen
@@ -93,7 +95,7 @@ Use if the served `/v1/completions` logprobs/echo prove unreliable. Reads token-
 directly in-process, then copy the JSON back with `scp`.
 ```python
 from vllm import LLM, SamplingParams
-llm = LLM(model="Qwen/Qwen3.5-35B-A3B-Base", dtype="bfloat16", max_model_len=8192)
+llm = LLM(model="Qwen/Qwen3.5-35B-A3B-Base", dtype="bfloat16", max_model_len=32768)
 # stage 2 answer prompts already end in the ANSWER_SCAFFOLD; read top logprobs at the answer token:
 out = llm.generate(answer_prompts, SamplingParams(temperature=0, max_tokens=1, logprobs=20))
 # out[i].outputs[0].logprobs[0] -> {token_id: Logprob}; map A..E, softmax (same as elicit_base).

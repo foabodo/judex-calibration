@@ -19,10 +19,12 @@ set -euo pipefail
 
 # static_ip=true + direct_port_count>1 are REQUIRED for the public IP:port. Weights pull from HF
 # every launch (vast hosts no base), so inet_down (bandwidth) + disk_space gate the wall-clock cost.
-OFFER_QUERY=${VAST_OFFER_QUERY:-'compute_cap>=800 gpu_ram>=80 num_gpus=1 static_ip=true direct_port_count>1 inet_down>1000 disk_space>200 cuda_vers>=12.4 rentable=true'}
-DISK=${VAST_DISK:-200}
+# Qwen-trial defaults (override via env for giants): single H200, sized for the ~14k-token
+# full-document prompts (32k context) — gpu_ram>=140, not 80. reliability/inet_down_cost guard the pull.
+OFFER_QUERY=${VAST_OFFER_QUERY:-'gpu_ram>=140 num_gpus=1 static_ip=true direct_port_count>1 inet_down>1000 inet_down_cost<0.05 reliability>0.98 disk_space>192 cuda_vers>=12.4 rentable=true'}
+DISK=${VAST_DISK:-192}
 PORT=8000
-MAXLEN=${VLLM_MAX_MODEL_LEN:-8192}
+MAXLEN=${VLLM_MAX_MODEL_LEN:-32768}
 GPU_UTIL=${VLLM_GPU_UTIL:-0.92}
 POLL_TRIES=${VAST_POLL_TRIES:-120}   # x30s ≈ 60 min for download+load
 
