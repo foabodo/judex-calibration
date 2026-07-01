@@ -167,9 +167,11 @@ def calibration_block(report: dict, *, accuracy_gate=None, bootstrap_ci=None) ->
     (a fixed transferred constant is a supervised-derived scalar) — NOT ``mode: "dispersion"``,
     which stamps ``gt_free_dispersion_fit`` provenance and would be a false audit trail.
 
-    NB (seam gap, see guide §4.6/§4.8): the merged pipeline seam applies calibration to ALL
-    families. This constant is meant for the CLOSED evaluators (Gemini/GPT) only; adopt it
-    only once the family-scoped seam lands, else it over-corrects the base/annotator raters.
+    NB (see guide §4.6 + docs/integration_remediation_2026_07_01.md): the merged pipeline seam is
+    GLOBAL, but at evaluation time it only ever sees the closed evaluator pair (Gemini/GPT) — the
+    open raters run at construction, not here. So for two closed families + one clustered constant,
+    this block drops into the global ``calibration`` key as-is. Family-scoping is an OPTIONAL
+    refinement (per-family T if tau_oc does not cluster, a different evaluator pair, or Phase-3).
     """
     summary = report.get("tau_oc_summary", {})
     temperature = summary.get("tau_oc_median")
@@ -188,7 +190,7 @@ def calibration_block(report: dict, *, accuracy_gate=None, bootstrap_ci=None) ->
             "n_families": summary.get("n_families"),
             "accuracy_gate": accuracy_gate,
             "bootstrap_ci": bootstrap_ci,
-            "target_families": "closed_evaluators_only (Gemini/GPT); requires family-scoped seam",
+            "target_families": "closed_evaluators (Gemini/GPT); global seam adequate for a clustered constant, else family-scoped",
         },
     }
 

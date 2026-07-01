@@ -38,28 +38,42 @@ Scope: `judex-calibration` code/docs + umbrella acknowledgment. No paid experime
 
 ## Seam — result integration back into the evaluator (spec; NOT implemented here)
 
-The guide §4.6 assumed a "config flip in `judex-evaluator/pipeline.yaml`, the seam already merged."
-The seam **exists** but is **global**: `pipeline.yaml → calibration = {mode, temperature}` is consumed by
-`judex.calibration.calibrate_distribution`, whose **only** live call site is
-`judex.evaluation.permutation_glean` (Phase-1 gleaning), passed the whole `configs` bundle with **no
-`family_id`** — so a naive flip applies the constant to **every** family (base/annotator raters *and*
-the closed Gemini/GPT evaluators). Study A's τ_oc is meant for the **closed evaluators only**.
+The guide §4.6 assumed adopting the constant is just "a config flip in `judex-evaluator/pipeline.yaml`,
+the seam already merged." The seam **exists** but is **global**: `pipeline.yaml → calibration =
+{mode, temperature}` is consumed by `judex.calibration.calibrate_distribution`, whose only live call
+site is the Phase-1 gleaning loop in `judex.evaluation` (`evaluation.py` ~L331), passed the whole
+`configs` bundle with **no `family_id`** — so one value is applied identically to every family that runs.
 
-**To adopt `median(τ_oc)` without over-correcting the open raters, the evaluator needs (in a
-separate, approved change — it re-touches the stabilized evaluator, and is only needed at Study A
-Phase 4):**
-1. **Family-scoped calibration.** Allow `calibration` to carry per-family overrides, e.g.
-   `calibration: {mode: noop, by_family: {openai_gpt: {mode: temperature, temperature: T}, google_gemini_*: {...}}}`, resolved inside `calibrate_distribution(distribution, config, family_id=...)`.
-2. **Plumb `family_id`** into `calibrate_distribution`. `permutation_glean` has no `family_id` in scope
-   today; `evaluate_single_family` (`evaluation.py`) does and threads it via `usage_context`, so pass it
-   down into `permutation_glean` → `calibrate_distribution`.
-3. **Decide the application point.** The sole call site is the Phase-1 gleaning seam. A post-training
-   *overconfidence* correction on the **reconciled final** distribution arguably belongs at **Phase-3
-   synthesis** (`cross_family._call_phase3_synthesis_with_retries`), which is currently **uncalibrated**.
-   Choose Phase-1-only vs Phase-3 (or both) deliberately.
+**Correction (what "every family" actually means here).** At *evaluation* time the only families that
+reach `calibrate_distribution` are the **cross-family evaluator pair** — the two **closed** evaluators
+JUDEX judges with (Gemini Pro + GPT in production; some arms run an Anthropic + OpenAI pair instead).
+The six **open annotator raters run at construction time only** (they produce the corpus exemplars) and
+are **never** in the evaluation calibration path — so a global flip does **not** touch the open raters.
+An earlier draft of this note said it would; that was inaccurate.
 
-Until that lands, `pipeline_calibration_block.json` is the correct **artifact**; do not paste it into the
-global `calibration` key (it would recalibrate the open families too).
+**So for the simplest intended case — two closed evaluator families and one well-clustered constant —
+the existing GLOBAL seam is adequate:** set `calibration: {mode: temperature, temperature: median(τ_oc)}`
+and both closed evaluators are softened, which is the intent. `pipeline_calibration_block.json` drops
+straight in.
+
+**Family-scoping is an OPTIONAL refinement, not a blocker.** It earns its keep only under one of three
+triggers (each a separate, approved evaluator change — it re-touches the stabilized evaluator, and is
+relevant only at Study A Phase 4):
+1. **τ_oc does not cluster (Q3 negative).** A single global scalar can't express Gemini ≠ GPT; you'd want
+   per-family temperatures. If Q3 clusters tightly, one global constant is exactly right — no scoping needed.
+2. **A run uses a different evaluator pair.** Because some arms swap the pair (e.g. Anthropic + GPT), a
+   global constant softens whatever pair that run uses; scope it if you want the transferred constant
+   pinned to specific closed families regardless of the run's pair.
+3. **Application point.** The sole call site is Phase-1 gleaning (per-family, pre-reconciliation). A
+   post-training *overconfidence* correction on the **reconciled final** distribution arguably belongs at
+   **Phase-3 synthesis** (`cross_family._call_phase3_synthesis_with_retries`), currently **uncalibrated**.
+   This is orthogonal to scoping — decide Phase-1-only vs Phase-3 (or both) deliberately.
+
+**If you do scope it**, the mechanism is: allow `calibration` to carry per-family overrides, e.g.
+`calibration: {mode: noop, by_family: {openai_gpt: {mode: temperature, temperature: T}, google_gemini_*: {...}}}`,
+resolved inside `calibrate_distribution(distribution, config, family_id=...)`; plumb `family_id` down —
+`permutation_glean` has none in scope today, but `evaluate_single_family` does and threads it via
+`usage_context`, so pass it into `permutation_glean → calibrate_distribution`.
 
 **Decorrelated-dispersion extension (§4.7).** `judex.experiments.dispersion_calibration_recovery(items,
 replicates_by_item)` exists and is runnable today against the `stage9-gemini-gpt-medium` /
