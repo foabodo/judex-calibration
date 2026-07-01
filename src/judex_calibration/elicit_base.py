@@ -60,24 +60,89 @@ def _letters_from_topk(top: Dict[str, float]) -> Dict[str, float]:
     return found
 
 
+def _objlist_to_map(items) -> Dict[str, float]:
+    """[{token|tok_str, logprob|prob}, ...] -> {token_string: logprob}."""
+    out: Dict[str, float] = {}
+    if not isinstance(items, list):
+        return out
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        tok = item.get("token", item.get("tok_str"))
+        if tok is None:
+            continue
+        if item.get("logprob") is not None:
+            out[str(tok)] = float(item["logprob"])
+        elif item.get("prob"):
+            out[str(tok)] = math.log(max(float(item["prob"]), 1e-12))
+    return out
+
+
+def _first_position_token_logprobs(logprobs) -> Dict[str, float]:
+    """{token_string: logprob} for the FIRST generated position, across server shapes.
+
+    Accepts (a) vLLM / llama-cpp-python legacy completions where ``top_logprobs[0]`` is a
+    ``{token: logprob}`` dict; (b) OpenAI chat-style where ``content[0].top_logprobs`` is a
+    list of ``{token, logprob}``; (c) llama.cpp ``top_probs`` / object-list variants (incl.
+    a ``prob`` field). Returns {} if none match (caller then tries the echo fallback). This
+    keeps the token-slice identical whether served by vLLM (vast) or a Metal server (Mac).
+    """
+    if not isinstance(logprobs, dict):
+        return {}
+    content = logprobs.get("content")
+    if isinstance(content, list) and content and isinstance(content[0], dict):
+        mapped = _objlist_to_map(content[0].get("top_logprobs"))
+        if mapped:
+            return mapped
+    for key in ("top_logprobs", "top_probs"):
+        seq = logprobs.get(key)
+        if isinstance(seq, list) and seq:
+            first = seq[0]
+            if isinstance(first, dict) and not ("token" in first or "tok_str" in first):
+                mapped = {str(k): float(v) for k, v in first.items() if v is not None}   # {token: logprob}
+            elif isinstance(first, dict):
+                mapped = _objlist_to_map([first])                                          # single object
+            elif isinstance(first, list):
+                mapped = _objlist_to_map(first)                                            # list of objects
+            else:
+                mapped = {}
+            if mapped:
+                return mapped
+    return {}
+
+
 def answer_logits_topk(base_url: str, model: str, answer_prompt: str, top_k: int = 20) -> Dict[str, float]:
+    """Read the answer-position distribution over A..E, server-agnostically.
+
+    Parses logprobs from vLLM, llama.cpp / llama-cpp-python, and chat-style responses
+    (see ``_first_position_token_logprobs``), so the same token-slice works against a
+    local Apple-Silicon Metal server (Mac smoke) and vLLM (vast).
+    """
     out = _completions(base_url, {
         "model": model, "prompt": answer_prompt, "max_tokens": 1, "temperature": 0, "logprobs": top_k,
     })
-    top = out["choices"][0]["logprobs"]["top_logprobs"][0]  # {token: logprob} at the answer position
-    return _letters_from_topk(top)
+    logprobs = out["choices"][0].get("logprobs") or {}
+    return _letters_from_topk(_first_position_token_logprobs(logprobs))
 
 
 def answer_logits_echo(base_url: str, model: str, answer_prompt: str) -> Dict[str, float]:
-    """Fallback: prompt-logprob of each appended letter (echo). 5 calls."""
+    """Fallback: prompt-logprob of each appended letter (echo). 5 calls.
+
+    Uses the OpenAI-legacy ``echo`` + ``prompt``-logprob path (vLLM). Servers that do not
+    support echo (e.g. llama.cpp) return an unexpected shape; each letter degrades to -50.0
+    rather than raising, so the caller keeps its top-K result.
+    """
     out: Dict[str, float] = {}
     for L in LETTERS:
-        r = _completions(base_url, {
-            "model": model, "prompt": answer_prompt + " " + L, "max_tokens": 0,
-            "temperature": 0, "logprobs": 0, "echo": True,
-        })
-        lp = r["choices"][0]["logprobs"]["token_logprobs"]
-        out[L] = float(lp[-1]) if lp and lp[-1] is not None else -50.0
+        try:
+            r = _completions(base_url, {
+                "model": model, "prompt": answer_prompt + " " + L, "max_tokens": 0,
+                "temperature": 0, "logprobs": 0, "echo": True,
+            })
+            lp = r["choices"][0]["logprobs"]["token_logprobs"]
+            out[L] = float(lp[-1]) if lp and lp[-1] is not None else -50.0
+        except Exception:
+            out[L] = -50.0
     return out
 
 
@@ -94,9 +159,11 @@ def elicit_cell(base_url: str, model: str, evidence_text: str, criterion_text: s
     answer_prompt = prompt + reasoning + ANSWER_SCAFFOLD
     found = answer_logits_topk(base_url, model, answer_prompt)
     method = "topk"
-    if len(found) < len(LETTERS):  # a letter missed top-K -> exact via echo
-        found = answer_logits_echo(base_url, model, answer_prompt)
-        method = "echo"
+    if len(found) < len(LETTERS):  # a letter missed top-K -> try exact via echo (server permitting)
+        echo = answer_logits_echo(base_url, model, answer_prompt)
+        # adopt echo only if it recovered strictly more real letters (servers w/o echo return all -50)
+        if sum(1 for L in LETTERS if echo.get(L, -50.0) > -49.0) > len(found):
+            found, method = echo, "echo"
     logits = [found.get(L, -50.0) for L in LETTERS]
     return {"labels": list(LABELS), "probabilities": _softmax(logits),
             "channel": "token_slice", "method": method, "covered": len(found),

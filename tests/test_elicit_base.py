@@ -48,5 +48,43 @@ class ElicitBaseTests(unittest.TestCase):
             self.assertAlmostEqual(p, 0.2, places=6)  # uniform logits -> uniform dist
 
 
+class ServerShapeTests(unittest.TestCase):
+    """The answer-position logprob read must parse vLLM, llama.cpp, and chat-style shapes
+    identically (the Mac smoke serves via a Metal server, not vLLM)."""
+
+    LP = {" A": -3.0, " B": -1.0, "C": -0.5, "D": -2.0, "E": -4.0}  # C is the argmax (moderate)
+
+    def _elicit(self, logprobs_payload):
+        def fake(base_url, body, timeout=600):
+            return {"choices": [{"logprobs": logprobs_payload}]}
+        eb._completions = fake
+        return eb.elicit_cell("http://x", "m", "evidence", "criterion", reason=False)
+
+    def _assert_moderate(self, out):
+        self.assertEqual(out["covered"], 5)
+        self.assertAlmostEqual(sum(out["probabilities"]), 1.0, places=6)
+        self.assertEqual(out["probabilities"].index(max(out["probabilities"])), 2)  # C -> moderate
+
+    def test_vllm_dict_top_logprobs(self):
+        self._assert_moderate(self._elicit({"top_logprobs": [self.LP]}))
+
+    def test_chat_style_content(self):
+        tl = [{"token": t.strip(), "logprob": lp} for t, lp in self.LP.items()]
+        self._assert_moderate(self._elicit({"content": [{"top_logprobs": tl}]}))
+
+    def test_llamacpp_top_probs_objlist(self):
+        objs = [{"token": t.strip(), "logprob": lp} for t, lp in self.LP.items()]
+        self._assert_moderate(self._elicit({"top_probs": [objs]}))
+
+    def test_prob_field_converted_to_logprob(self):
+        objs = [{"token": t.strip(), "prob": math.exp(lp)} for t, lp in self.LP.items()]
+        self._assert_moderate(self._elicit({"content": [{"top_logprobs": objs}]}))
+
+    def test_unparseable_logprobs_degrades_uniform(self):
+        # a shape we don't recognise -> no letters -> echo returns all -50 -> uniform (no crash)
+        out = self._elicit({"unexpected": True})
+        self.assertAlmostEqual(sum(out["probabilities"]), 1.0, places=6)
+
+
 if __name__ == "__main__":
     unittest.main()
