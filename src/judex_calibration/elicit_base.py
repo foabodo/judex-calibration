@@ -104,12 +104,17 @@ def elicit_cell(base_url: str, model: str, evidence_text: str, criterion_text: s
 
 
 def run_variant(base_url: str, model: str, cells, out_path: str, *,
-                fewshot: str = "", reason: bool = True, budget: int = 2048) -> dict:
-    """Elicit every cell, write {item_label: [p...]} JSON for study_a; returns the map."""
+                fewshot="", reason: bool = True, budget: int = 2048) -> dict:
+    """Elicit every cell, write {item_label: [p...]} JSON for study_a; returns the map.
+
+    ``fewshot`` may be a fixed string (same block for every cell) or a callable
+    ``cell -> str`` (e.g. a per-Article block from ``fewshot.build_fewshot_by_criterion``).
+    """
     preds: Dict[str, List[float]] = {}
     for c in cells:
+        fs = fewshot(c) if callable(fewshot) else fewshot
         d = elicit_cell(base_url, model, c.evidence_text, c.criterion_text,
-                        fewshot=fewshot, reason=reason, budget=budget)
+                        fewshot=fs, reason=reason, budget=budget)
         preds[c.item_label] = d["probabilities"]
     with open(out_path, "w") as f:
         json.dump(preds, f, indent=2)

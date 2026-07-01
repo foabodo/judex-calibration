@@ -3,6 +3,15 @@
 **Repo:** `judex/judex-calibration` (new) · **Driver:** Claude Code on local macOS · **Compute:** rented remote GPU (vLLM)
 **Status:** plan / runbook. No spend until Phase 0 gate passes.
 
+> **2026-07-01 integration remediation applied** (see `docs/integration_remediation_2026_07_01.md`):
+> the pipeline now runs against the current role-repo develop tips (corpus `dab1db2`, ground-truth
+> `fcf17a9`, evaluator `cb71d05`). GT is loaded canonically + reproducibly (`aireg.py` synthesizes the
+> manifest-verified cumulative-consistency bundle — no gitignored run dependency); few-shot is drawn for
+> real from the corpus store (`fewshot.py`, k from `models.yaml`); `study_a` emits a drop-in evaluator
+> calibration block. The evaluator-side **family-scoped** seam is specified but not yet built (see §4.6
+> and the remediation doc) — the transferred constant must not be pasted into the *global* `calibration`
+> key.
+
 ---
 
 ## 0. Why this exists (carry-over from the calibration thread)
@@ -37,8 +46,9 @@ If the open models are *also* inaccurate on AIReg, their `T*` will peg too and t
 ```
   ┌──────────────────────── local macOS (Claude Code) ────────────────────────┐
   │  judex-calibration repo · orchestration · analysis · reuses judex-evaluator │
-  │     calibration.py (fit_temperature, fit_dispersion_temperature,            │
-  │     dispersion_calibration_recovery, murphy_decomposition) + AIReg GT       │
+  │     calibration.py (fit_temperature, apply_temperature,                     │
+  │     fit_dispersion_temperature) + experiments.py (murphy_decomposition,     │
+  │     dispersion_calibration_recovery) + canonical AIReg GT (ground_truth.py) │
   └───────────────┬───────────────────────────────────────┬───────────────────┘
                   │ HTTPS (SSH tunnel)                      │ HTTPS (API keys, Keychain)
                   ▼                                         ▼
@@ -52,7 +62,7 @@ If the open models are *also* inaccurate on AIReg, their `T*` will peg too and t
 ```
 
 - **Base (pre-trained) leg:** served by vLLM on a rented box, one model per session (these don't co-reside). Distributions obtained by **token-slicing logits over the 5 compliance-level tokens** — base models can't verbalize a distribution, so we read logprobs directly.
-- **Post (post-trained) leg:** API from the Mac, exactly as the existing JUDEX rater path. Where the provider exposes `logprobs` (OpenRouter: qwen3-235b-thinking, llama-4-maverick, deepseek-v4-pro, kimi-k2-thinking — confirmed), we also collect a token-sliced post distribution so pre vs post is measured in the *same* channel.
+- **Post (post-trained) leg:** API from the Mac, exactly as the existing JUDEX rater path. Where the provider exposes `logprobs` (OpenRouter: qwen3.5-35b-a3b, llama-4-maverick, deepseek-v4-pro, kimi-k2-thinking — confirmed), we also collect a token-sliced post distribution so pre vs post is measured in the *same* channel.
 - **Analysis** runs entirely local, reusing the merged `judex-evaluator` calibration tooling.
 
 ---
@@ -128,7 +138,7 @@ These supersede the corresponding defaults below:
 
 ### 4.1 The 120 evaluation cells and GT
 - Cells: 24 examinees × 5 Articles (9,10,12,14,15), `item_label` like `"Art 9 / Scenario A | Use 1"`.
-- GT: `judex-evaluator/data/external/aireg_bench/judex_annotations/distributional_annotations.csv` (3 human raters, distributional `p_1..p_5`) → reconcile to the item-level GT distribution exactly as `judex-evaluator` already does (reuse its loader). **AIReg is the VALIDATION set; never used as ICL.**
+- GT: loaded by `aireg.load_cells()` through the evaluator's **manifest-verified** `synthesize_aireg_bench_ground_truth(judex-ground-truth/data/distributional_labels/, LABELS)` — the current canonical `mgmfrm_anchored_projection` (cumulative-consistency) bundle, git-tracked and reproducible on a fresh clone. The item_label→document join comes from `judex-corpus/step3_4/ground_truth.json` and evidence from `judex-corpus/step5/documents/`. **Do NOT read GT from a run's `metrics_report.json`** — `runs/` is gitignored and a run embeds the GT that was canonical at run time (stale after any re-fit). **AIReg is the VALIDATION set; never used as ICL.**
 
 ### 4.2 Base-model elicitation — MCQA token-slicing (vLLM)
 Base models need **few-shot** framing to follow the answer format. **Draw few-shot examples from the exemplar/calibration corpus** (`judex-corpus/leaf_exemplars`) — disjoint from AIReg, so the firewall holds.
@@ -160,7 +170,7 @@ Serve: `vllm serve <base_repo> --dtype bfloat16 --tensor-parallel-size N [--enab
 
 ### 4.3 Post-model elicitation
 - Verbalized 5-way distribution via the existing JUDEX rater contract (API from Mac).
-- Where `logprobs` exists (OpenRouter: qwen3-235b-thinking, llama-4-maverick, deepseek-v4-pro, kimi-k2-thinking), also collect a token-sliced post distribution (same letters) so pre vs post is measured in the **same channel** — removes the verbalized-vs-logit confound.
+- Where `logprobs` exists (OpenRouter: qwen3.5-35b-a3b, llama-4-maverick, deepseek-v4-pro, kimi-k2-thinking), also collect a token-sliced post distribution (same letters) so pre vs post is measured in the **same channel** — removes the verbalized-vs-logit confound.
 
 ### 4.4 Token-slice validity check (the original "Phase 1")
 For the post models that expose **both** verbalized and logprob channels, compare `INV_SOFTMAX(verbalized)` vs token-sliced logits (W1/KL). This empirically tests whether the two channels agree — the assumption the whole base-vs-post comparison rests on. Run it before trusting cross-channel comparisons.
@@ -175,7 +185,7 @@ For each family, against AIReg GT, fit **both** objectives (we proved neither is
 ### 4.6 Cross-family stability & decision (Q3 + Q4)
 - Plot/serialize the six `(T*_pre, T*_post, τ_oc, accuracy)`.
 - **Document-clustered bootstrap** (reuse the pattern; resample the 24 docs) CIs on `τ_oc` and on the cross-family spread.
-- **Decision rule:** if `τ_oc` clusters tightly *and* the bases clear the accuracy gate, adopt `median(τ_oc)` as the transferred constant for the closed evaluators (config flip in `judex-evaluator/pipeline.yaml`, the seam already merged). Else, report negative.
+- **Decision rule:** if `τ_oc` clusters tightly *and* the bases clear the accuracy gate, adopt `median(τ_oc)` as the transferred constant for the closed evaluators. `study_a.calibration_block()` emits a drop-in `pipeline.yaml → calibration` block (`mode: temperature`; written to `runs/<run>/pipeline_calibration_block.json`). **Seam caveat:** the merged `pipeline.yaml` calibration seam is **global** (applied to every family at the Phase-1 gleaning site, no `family_id`), so pasting the constant into the top-level `calibration` key would over-correct the open base/annotator raters too. Applying it to the **closed evaluators only** requires the family-scoped seam specified in `docs/integration_remediation_2026_07_01.md` (a separate, approved evaluator change — only needed at this Phase-4 decision). Else, report negative.
 
 ### 4.7 Decorrelated dispersion (exploratory extension — see §0)
 Add the base-model distributions to the dispersion replicate pool for the closed evaluators (a *decorrelated, well-calibrated* reference, fixing the correlated-overconfidence blindness) and re-run `dispersion_calibration_recovery` on the existing `stage9-gemini-gpt-medium` / `phase23-deference-fix-native` runs. **Pitfall:** do not match the evaluator's *width* to a base model's width (a well-calibrated weak model is appropriately wide; copying it over-widens). Use base disagreement only as *added dispersion*.
@@ -190,21 +200,26 @@ judex-calibration/
 ├── pyproject.toml                 # depends on judex-evaluator (editable sibling)
 ├── .gitignore                     # runs/, weights/, .venv/, *.nc
 ├── configs/
-│   ├── models.yaml                # the §2 inventory (base repo, post id, serving args)
-│   └── serving.yaml               # GPU profiles, vllm flags, tunnel config
+│   ├── models.yaml                # the §2 inventory (base repo, post id, serving args, fewshot_k)
+│   └── providers.yaml             # post-trained API providers + Keychain keys
 ├── src/judex_calibration/
-│   ├── serving.py                 # provision/serve helpers, health checks
-│   ├── elicit_base.py             # vLLM token-slicing (§4.2)
+│   ├── elicit_base.py             # vLLM token-slicing (§4.2); per-cell fewshot callable
 │   ├── elicit_post.py             # API verbalized + logprob (§4.3)
-│   ├── aireg.py                   # AIReg cell + GT loader (reuse judex-evaluator)
-│   ├── study_a.py                 # Q1/Q2 per-family fits, τ_oc; Q3 cross-family stability; Q4 closed_side_check
-│   └── decorrelated_dispersion.py # exploratory-extension wiring into judex-evaluator
+│   ├── fewshot.py                 # k-shot loader from the corpus store (§4.2)
+│   ├── aireg.py                   # 120 cells + CANONICAL manifest-verified GT (git-tracked sources)
+│   ├── study_a.py                 # Q1/Q2 fits, τ_oc; Q3 cross-family; Q4 closed_side_check; calibration_block()
+│   └── decorrelated_dispersion.py # (planned) §4.7 extension wiring into judex-evaluator
 ├── scripts/
-│   ├── phase0_accuracy_precheck.py   # FREE gate (existing AIReg LLM annotations)
-│   ├── run_family.sh                 # one family end-to-end (serve→elicit→teardown)
-│   └── analyze.py                    # aggregate + report
-├── runs/                          # per-run artifacts (gitignored bulk, manifests kept)
-└── tests/
+│   ├── phase0_accuracy_precheck.py   # FREE gate (canonical GT argmax vs AIReg LLM annotations)
+│   ├── run_qwen_phase1.py            # per-family driver: elicit base/post → Study A report + calib block
+│   ├── provision_vast.sh             # vast.ai provision/poll/teardown (Mode C)
+│   └── serve_vllm_vastai.md          # the four serving modes reference
+├── docs/
+│   ├── study_a_implementation_guide.md
+│   ├── vast_quickstart.md            # end-to-end account→data→shutdown walkthrough
+│   └── integration_remediation_2026_07_01.md   # this pass's audit + seam spec
+├── runs/                          # per-run artifacts (gitignored bulk; runs/phase0 kept)
+└── tests/                         # test_elicit_base.py (offline, monkeypatched)
 ```
 
 **Dependency on `judex-evaluator`:** `pip install -e ../judex-evaluator` so `from judex.calibration import fit_temperature, fit_dispersion_temperature, dispersion_calibration_recovery` and `from judex.experiments import murphy_decomposition` are reused verbatim — no fork of the math.

@@ -10,13 +10,19 @@ premature.
 
 stdlib only.
 """
-import json, re, zipfile, glob, os
+import json, re, csv, zipfile, glob, os
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from collections import Counter
 
-ROOT = "/Users/fabodo/Downloads/Projects/judex/judex-evaluator"
-AIREG = f"{ROOT}/data/external/aireg_bench"
-GT_REPORT = f"{ROOT}/runs/stage9-gemini-gpt-medium/metrics_report.json"
+# Sibling-repo layout: .../judex/{judex-calibration,judex-evaluator,judex-ground-truth}
+_UMBRELLA = Path(__file__).resolve().parents[2]
+AIREG = str(_UMBRELLA / "judex-evaluator" / "data" / "external" / "aireg_bench")
+# Canonical, git-tracked GT (cumulative-consistency barycenter) — reproducible on a fresh
+# clone and never stale, unlike a gitignored run's embedded GT. argmax==run's argmax 120/120,
+# so this free accuracy pre-check is unchanged but no longer depends on a run.
+GT_BARYCENTER = str(_UMBRELLA / "judex-ground-truth" / "data" / "distributional_labels"
+                    / "airegbench_labels_mgmfrm_anchored_projection_barycenter.csv")
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
 
@@ -48,8 +54,13 @@ def read_grid(path):
 
 
 def gt_mode_by_label():
-    m = json.load(open(GT_REPORT))
-    return {it["item_label"]: it["ground_truth_argmax_index"] + 1 for it in m["items"]}  # 1..5
+    """{item_label: modal compliance 1..5} from the canonical GT barycenter (argmax of p_1..p_5)."""
+    out = {}
+    with open(GT_BARYCENTER, newline="") as handle:
+        for row in csv.DictReader(handle):
+            probs = [float(row[f"p_{i}"]) for i in range(1, 6)]
+            out[row["item_label"]] = max(range(5), key=lambda i: probs[i]) + 1
+    return out
 
 
 REF = f"{AIREG}/llm_annotations/4o_annotations.xlsx"  # a LABELLED workbook

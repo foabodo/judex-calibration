@@ -12,9 +12,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from judex_calibration.aireg import load_cells
-from judex_calibration import elicit_base, study_a
+from judex_calibration import elicit_base, study_a, fewshot as fewshot_mod
 
-DEFAULT_FEWSHOT = (
+# Smoke-only fallback used with --no-reason; the live path builds a real per-Article
+# k-shot block from the corpus-native exemplar store (see fewshot.build_fewshot_by_criterion).
+SMOKE_FEWSHOT = (
     "Example.\nEvidence:\nThe system card omits any data governance section.\n"
     "Criterion:\nArticle 10 - Data and data governance.\n"
     "Reasoning: No data governance is documented at all, so compliance evidence is essentially absent.\n"
@@ -39,12 +41,22 @@ def main():
     reason = not args.no_reason
 
     if not args.analyze_only:
+        # Real per-Article few-shot from the corpus-native exemplar store (fewshot_k from
+        # models.yaml); one k-shot block per Article criterion, applied to that Article's cells.
+        # --no-reason smoke runs keep the single static SMOKE_FEWSHOT.
+        if reason:
+            fewshot_by_crit = fewshot_mod.build_fewshot_by_criterion(cells)
+            fewshot = lambda c: fewshot_by_crit.get(c.criterion_id, "")
+            print(f"[fewshot] built {len(fewshot_by_crit)} per-Article blocks at k={fewshot_mod.default_k()} "
+                  f"from {fewshot_mod.DIMENSION_STORE.name}")
+        else:
+            fewshot = SMOKE_FEWSHOT
         for variant, url, model in (("pre", args.base_url, args.base_model),
                                     ("post", args.post_url, args.post_model)):
             if url and model:
                 print(f"[{variant}] eliciting {len(cells)} cells from {model} @ {url} ...")
                 elicit_base.run_variant(url, model, cells, str(out / f"{variant}.json"),
-                                        fewshot=DEFAULT_FEWSHOT, reason=reason, budget=args.budget)
+                                        fewshot=fewshot, reason=reason, budget=args.budget)
                 print(f"[{variant}] wrote {out / f'{variant}.json'}")
 
     variants = {}
@@ -63,6 +75,13 @@ def main():
                 closed = {it["item_label"]: it["prediction"]["probabilities"]
                           for it in json.loads(mr.read_text())["items"]}
                 report["closed_side_check_Q4"] = study_a.closed_side_check(closed, cells, T)
+            # Emit a drop-in judex-evaluator calibration block (mode: temperature) so the
+            # transferred constant integrates by copy-paste once the family-scoped seam lands.
+            block = study_a.calibration_block(report)
+            if block is not None:
+                (out / "pipeline_calibration_block.json").write_text(json.dumps(block, indent=2))
+                print(f"[integrate] wrote {out / 'pipeline_calibration_block.json'} "
+                      f"(paste under judex-evaluator pipeline.yaml -> calibration; closed-evaluator-scoped)")
         (out / "study_a_report.json").write_text(json.dumps(report, indent=2))
         print(json.dumps(report, indent=2))
 

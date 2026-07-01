@@ -17,7 +17,9 @@ import json, math, sys
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
 
-EVAL_SRC = Path("/Users/fabodo/Downloads/Projects/judex/judex-evaluator/src")
+# Sibling-repo layout: .../judex/{judex-calibration,judex-evaluator}. Prefer an editable
+# install (pip install -e ../judex-evaluator); fall back to the sibling src on sys.path.
+EVAL_SRC = Path(__file__).resolve().parents[3] / "judex-evaluator" / "src"
 if str(EVAL_SRC) not in sys.path:
     sys.path.insert(0, str(EVAL_SRC))
 
@@ -155,6 +157,40 @@ def cross_family(families: Dict[str, Dict[str, Dict[str, List[float]]]], cells: 
         summary = {"tau_oc_median": taus_sorted[len(taus) // 2], "tau_oc_min": min(taus),
                    "tau_oc_max": max(taus), "tau_oc_spread": max(taus) - min(taus), "n_families": len(taus)}
     return {"families": rows, "tau_oc_summary": summary}
+
+
+def calibration_block(report: dict, *, accuracy_gate=None, bootstrap_ci=None) -> dict | None:
+    """Turn a cross_family() report into a drop-in judex-evaluator calibration block.
+
+    Mirrors the shape of ``judex.experiments.dispersion_calibration_config`` so it can be
+    pasted verbatim under ``pipeline.yaml`` -> ``calibration``. Uses ``mode: "temperature"``
+    (a fixed transferred constant is a supervised-derived scalar) — NOT ``mode: "dispersion"``,
+    which stamps ``gt_free_dispersion_fit`` provenance and would be a false audit trail.
+
+    NB (seam gap, see guide §4.6/§4.8): the merged pipeline seam applies calibration to ALL
+    families. This constant is meant for the CLOSED evaluators (Gemini/GPT) only; adopt it
+    only once the family-scoped seam lands, else it over-corrects the base/annotator raters.
+    """
+    summary = report.get("tau_oc_summary", {})
+    temperature = summary.get("tau_oc_median")
+    if temperature is None:
+        return None
+    return {
+        "mode": "temperature",
+        "temperature": temperature,
+        "provenance": {
+            "source": "study_a_tau_oc",
+            "replicate_source": "aireg_bench_post_to_pre",
+            "tau_oc_median": temperature,
+            "tau_oc_min": summary.get("tau_oc_min"),
+            "tau_oc_max": summary.get("tau_oc_max"),
+            "tau_oc_spread": summary.get("tau_oc_spread"),
+            "n_families": summary.get("n_families"),
+            "accuracy_gate": accuracy_gate,
+            "bootstrap_ci": bootstrap_ci,
+            "target_families": "closed_evaluators_only (Gemini/GPT); requires family-scoped seam",
+        },
+    }
 
 
 if __name__ == "__main__":
