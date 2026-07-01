@@ -8,9 +8,9 @@
 > `fcf17a9`, evaluator `cb71d05`). GT is loaded canonically + reproducibly (`aireg.py` synthesizes the
 > manifest-verified cumulative-consistency bundle — no gitignored run dependency); few-shot is drawn for
 > real from the corpus store (`fewshot.py`, k from `models.yaml`); `study_a` emits a drop-in evaluator
-> calibration block. The evaluator-side **family-scoped** seam is specified but not yet built (see §4.6
-> and the remediation doc) — the transferred constant must not be pasted into the *global* `calibration`
-> key.
+> calibration block. An **optional** evaluator-side family-scoped seam is specified (see §4.6 and the
+> remediation doc) for the cases where the *global* seam won't do; for the simple two-closed-family case
+> the block drops into the global `calibration` key as-is.
 
 ---
 
@@ -185,7 +185,7 @@ For each family, against AIReg GT, fit **both** objectives (we proved neither is
 ### 4.6 Cross-family stability & decision (Q3 + Q4)
 - Plot/serialize the six `(T*_pre, T*_post, τ_oc, accuracy)`.
 - **Document-clustered bootstrap** (reuse the pattern; resample the 24 docs) CIs on `τ_oc` and on the cross-family spread.
-- **Decision rule:** if `τ_oc` clusters tightly *and* the bases clear the accuracy gate, adopt `median(τ_oc)` as the transferred constant for the closed evaluators. `study_a.calibration_block()` emits a drop-in `pipeline.yaml → calibration` block (`mode: temperature`; written to `runs/<run>/pipeline_calibration_block.json`). **Seam caveat:** the merged `pipeline.yaml` calibration seam is **global** (applied to every family at the Phase-1 gleaning site, no `family_id`), so pasting the constant into the top-level `calibration` key would over-correct the open base/annotator raters too. Applying it to the **closed evaluators only** requires the family-scoped seam specified in `docs/integration_remediation_2026_07_01.md` (a separate, approved evaluator change — only needed at this Phase-4 decision). Else, report negative.
+- **Decision rule:** if `τ_oc` clusters tightly *and* the bases clear the accuracy gate, adopt `median(τ_oc)` as the transferred constant for the closed evaluators. `study_a.calibration_block()` emits a drop-in `pipeline.yaml → calibration` block (`mode: temperature`; written to `runs/<run>/pipeline_calibration_block.json`). **Seam note:** the merged `pipeline.yaml` calibration seam is **global** (applied at the Phase-1 gleaning site to whichever families run, no `family_id`). At evaluation time those families are the two **closed** evaluators (Gemini/GPT) — the open annotator raters run only at *construction* and are never calibrated here — so for the intended case (two closed families + one clustered constant) pasting the block into the top-level `calibration` key is **adequate**. **Family-scoping is an optional refinement**, needed only if τ_oc doesn't cluster (per-family T), if an arm runs a different evaluator pair, or to move the correction to Phase-3; it is specified in `docs/integration_remediation_2026_07_01.md` (a separate, approved evaluator change, relevant only at this Phase-4 decision). Else, report negative.
 
 ### 4.7 Decorrelated dispersion (exploratory extension — see §0)
 Add the base-model distributions to the dispersion replicate pool for the closed evaluators (a *decorrelated, well-calibrated* reference, fixing the correlated-overconfidence blindness) and re-run `dispersion_calibration_recovery` on the existing `stage9-gemini-gpt-medium` / `phase23-deference-fix-native` runs. **Pitfall:** do not match the evaluator's *width* to a base model's width (a well-calibrated weak model is appropriately wide; copying it over-widens). Use base disagreement only as *added dispersion*.
@@ -262,6 +262,7 @@ Record run-ids, fitted `τ_oc`, the Q1–Q4 verdicts, and any negative results i
 
 | Phase | Action | Cost | Gate to proceed |
 |---|---|---|---|
+| **0a** | **Local plumbing smoke** (optional, own hardware) — serve a small base+instruct model on a local CUDA GPU via vLLM and run `run_qwen_phase1.py --limit 6 --no-reason` end to end. Proves serve→token-slice→analysis→calibration-block before any spend. See `docs/local_smoke_quickstart.md`. | $0 | Pipeline emits a `study_a_report.json` + `pipeline_calibration_block.json` (values ignored). |
 | **0** | **Free accuracy pre-check** — parse the 10 existing AIReg-Bench LLM annotations vs human GT; compute argmax accuracy. | $0 | If even frontier models (o3/gpt5/sonnet/gemini-pro) score ~low, the accuracy gate is structural → **fix accuracy/elicitation first; do NOT spend.** |
 | **1** | Stand up repo + pipeline on **Qwen 35B** (base, bf16) end-to-end; run §4.4 validity check on a post model with logprobs. | ~$5 | Pipeline green; token-slicing valid; Qwen clears accuracy gate. |
 | **2** | Add **Llama-4-Maverick** (mid). Two-family `τ_oc` + cross-family check. | ~$60 | `τ_oc` plausible & accuracy adequate on ≥2 families. |

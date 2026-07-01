@@ -32,12 +32,19 @@ def main():
     ap.add_argument("--no-reason", action="store_true", help="skip CoT (smoke only)")
     ap.add_argument("--budget", type=int, default=2048)
     ap.add_argument("--analyze-only", action="store_true")
+    ap.add_argument("--limit", type=int, default=0,
+                    help="smoke: elicit only N cells, stride-sampled across the 5 Articles (0 = all 120)")
     ap.add_argument("--closed-run", default="stage9-gemini-gpt-medium",
                     help="JUDEX run whose closed-evaluator (Gemini/GPT) AIReg preds get the Q4 check")
     args = ap.parse_args()
 
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
     cells = load_cells()
+    if args.limit and args.limit < len(cells):
+        step = max(1, len(cells) // args.limit)
+        cells = cells[::step][:args.limit]
+        print(f"[smoke] limited to {len(cells)} cells (stride-sampled across Articles: "
+              f"{sorted({c.criterion_id for c in cells})})")
     reason = not args.no_reason
 
     if not args.analyze_only:
