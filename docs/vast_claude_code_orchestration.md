@@ -18,6 +18,27 @@ down. On an ephemeral box this is faster than hand-driving and survives SSH drop
 - The box is **ephemeral and third-party** — treat any secret you put on it as exposed; tear the box
   down as soon as the run finishes.
 
+## Fast path — one provisioning script
+
+`scripts/provision_claude_code.sh` does steps 1–3 below in one shot (install Claude Code, verify the
+credential, generate the SSH key + pause for you to add it to GitHub, recursive-clone the umbrella,
+build the `.venv`, and sanity-check the pipeline). The box has no repo yet, so **bootstrap it by
+`scp`-ing the script over first**, from your Mac:
+
+```bash
+scp judex-calibration/scripts/provision_claude_code.sh root@<host>:/tmp/
+ssh root@<host> -p <ssh_port> \
+  "ANTHROPIC_API_KEY='$(security find-generic-password -s anthropic-api-key -w)' \
+   HF_TOKEN='$(security find-generic-password -s hf-token -w)' \
+   bash /tmp/provision_claude_code.sh"
+```
+
+It clones the umbrella at branch `calibration-integration` (`REPO_BRANCH=...` to override; change to
+`main` once merged). Because the clone includes **`judex-calibration/CLAUDE.md`**, the on-box Claude
+starts with the project context automatically — that is how it gets "the same prior knowledge" (a
+curated, machine-aware distillation of the Mac's `MEMORY.md`, not a raw dump). The manual steps 1–3
+below are the reference the script automates; skip to **§4 / §5** after it finishes.
+
 ## 1. Install Claude Code on the box
 
 Use the **native installer** (single binary, no Node.js — right for this container):
