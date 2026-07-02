@@ -236,6 +236,11 @@ Keep it a sibling submodule like the other three. Per project convention, `devel
 
 Claude Code on the Mac is the orchestrator. The remote GPU box is treated as an external resource it drives over SSH/HTTP.
 
+> **Faster option — run Claude Code *on* the vast box.** Install Claude Code on the rented instance
+> and let it orchestrate the whole run there (serve vLLM → elicit → swap base/post → analyse →
+> return results → teardown), troubleshooting OOM/context/logprobs autonomously. Full runbook (install,
+> headless auth, and a paste-ready orchestration brief): `docs/vast_claude_code_orchestration.md`.
+
 ### 6.1 Permissions (`judex-calibration/.claude/settings.local.json`)
 Allowlist the recurring read-only/local calls to cut prompts: `hf`, `ssh <box>`, `curl http://localhost:8000/*`, `vllm` (on the box via ssh), `python scripts/*`, and the Keychain pattern `security find-generic-password -s *-api-key -w`. (See `/fewer-permission-prompts`.)
 
