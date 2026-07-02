@@ -109,9 +109,14 @@ vastai logs <INSTANCE_ID>                      # watch download/load progress if
 ```
 (`scripts/provision_vast.sh up Qwen/Qwen3.5-35B-A3B-Base` automates steps 5–7 and prints `$URL`.)
 
+> **Fork here — you now have a healthy endpoint.** Continue manually with §8–§11 below, **or** hand
+> the collect → swap → analyse → teardown loop to **Claude Code running on the box** — it automates
+> §8–§11 and troubleshoots OOM/context/logprobs for you. Bootstrap `scripts/provision_claude_code.sh`
+> and give it the brief: see `docs/vast_claude_code_orchestration.md`.
+
 ## 8. Collect the BASE leg (from the Mac)
 ```bash
-.../judex-evaluator/.venv/bin/python scripts/run_qwen_phase1.py \
+conda run -n judex-arm python scripts/run_qwen_phase1.py \
   --base-url "$URL" --base-model Qwen/Qwen3.5-35B-A3B-Base --out runs/phase1_qwen
 # writes runs/phase1_qwen/pre.json (120 token-sliced distributions)
 ```
@@ -135,13 +140,13 @@ re-provisioning, not the download). Two options:
 
 Then collect the post leg:
 ```bash
-.../python scripts/run_qwen_phase1.py --post-url "$URL" \
+conda run -n judex-arm python scripts/run_qwen_phase1.py --post-url "$URL" \
   --post-model Qwen/Qwen3.5-35B-A3B --out runs/phase1_qwen      # writes post.json
 ```
 
 ## 10. Analyse — the Q1–Q4 report
 ```bash
-.../python scripts/run_qwen_phase1.py --analyze-only --out runs/phase1_qwen
+conda run -n judex-arm python scripts/run_qwen_phase1.py --analyze-only --out runs/phase1_qwen
 ```
 Reads `pre.json`/`post.json`, joins to the AIReg human GT, and emits `study_a_report.json`:
 - **Q1** `T*_pre` (≈1 if the base is well-calibrated), **Q2** post `T*`/`τ_oc` + argmax retention,
