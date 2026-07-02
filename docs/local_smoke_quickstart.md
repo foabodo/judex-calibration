@@ -1,8 +1,15 @@
 # Local smoke quick start — validate the Study A pipeline on your own GPU (no spend)
 
-Goal: prove the whole pipeline works end to end — **serve a base+instruct pair on vLLM →
-token-slice logits → `study_a` report → drop-in calibration block** — on hardware you own,
-*before* paying for the remote vast.ai run. This is a **plumbing test**, not science.
+> **SMOKE (plumbing only) — this is NOT the study.** int4/Q4 + `--limit` + `--no-reason` + a small
+> stand-in model ⇒ **τ_oc is MEANINGLESS; discard it, never paste its calibration block into
+> `pipeline.yaml`.** For the real bf16 / all-120-cell / reasoning-ON measurement, see
+> `docs/vast_quickstart.md` + `docs/vast_claude_code_orchestration.md`.
+
+Goal: prove the whole pipeline works end to end — **serve a base+instruct pair (llama.cpp on the Mac,
+or vLLM on a Linux/CUDA box) → token-slice logits → `study_a` report → calibration block** — on
+hardware you own, *before* paying for the remote vast.ai run. It exercises the **machinery, not the
+science**; the recommended first smoke runs on your Mac via **llama.cpp** (only topology B/C uses
+vLLM, the exact server the paid vast run uses).
 
 > **Smoke models are stand-ins, not panel models.** The six scientific models are fixed; a smaller
 > Qwen (or Gemma) only validates the *machinery*, so its τ_oc numbers are **discarded**. Prefer a
@@ -48,6 +55,10 @@ checkpoint, so there's no pre/post pair. Keep the **KV cache at default (bf16)**
 the 30B int4 you'll need `int8` KV (below). vLLM **≥ 0.8.5** serves Qwen3 dense + MoE.
 
 ## 2·Mac. Run the smoke on Apple Silicon (Metal) — `Qwen3-4B` (topology A)
+
+> **SMOKE ONLY.** The Q4/int4 weights, `--limit 6`, and `--no-reason` below all perturb/subsample the
+> logits — the τ_oc this produces is **meaningless, discard it**. These settings must **never** be
+> used on the paid vast run (bf16, all 120 cells, reasoning ON).
 
 Everything on the Mac; no networking, no Linux box. Serve with **llama.cpp** (Metal); the driver
 hits it on `localhost`. `elicit_base` parses llama.cpp's logprobs shape (server-agnostic).
@@ -197,9 +208,11 @@ You are testing the **machinery**, not the calibration. Success =:
   `tau_oc`, and a `closed_side_check_Q4` block;
 - `pipeline_calibration_block.json` was written (`mode: temperature`).
 
-**Ignore the actual values** (a small/quantized Qwen on 6 cells is scientifically meaningless). If all
-of the above appear, the vLLM→token-slice→analysis→integration path is proven and you can commit to the
-paid vast run with the six real (bf16) panel models.
+**Ignore the actual values** (a small/quantized Qwen on 6 cells is scientifically meaningless — the run
+auto-flags `smoke` in the report + calibration block). If all of the above appear, the
+serve→token-slice→analysis→integration path is proven (on the Mac/topology-A path this covers everything
+**except** vLLM's exact logprobs wire-shape — re-confirm that with one `curl` when you spin up vast, per
+the §0 fidelity note). You can then commit to the paid vast run with the six real (bf16) panel models.
 
 Then, optionally, a fuller local dry-run: drop `--no-reason` (CoT; keep `--max-model-len 32768`) and
 raise `--limit` (e.g. `24`) to exercise the reasoning path and per-Article few-shot at scale.

@@ -1,7 +1,10 @@
-# Study A model inventory — open pre/post pairs.
+# Study A LIVE experiment inventory — the SIX bf16 panel base/post pairs for the paid vast run.
+# This is NOT the smoke: the free Mac plumbing smoke uses ONE small int4/Q4 stand-in (e.g. Qwen3-4B
+# on llama.cpp) that is NOT listed here — see docs/local_smoke_quickstart.md.
 # VERIFY param counts / repo availability with `hf` + model card before provisioning.
-# tier: cheap (validate pipeline) -> mid -> giant (multi-node).
-# serving_dtype: prefer bf16 for the base leg (calibration is logit-sensitive; fp8 perturbs it).
+# tier: live GPU cost class (cheap/mid/giant) — all tiers are real bf16 panel runs, none is the smoke.
+# serving_dtype: bf16 for EVERY live leg — never fp8 OR int4/Q4 (quantization perturbs the logits the
+#   study measures). int4/Q4 is fine ONLY for the throwaway Mac smoke, whose numbers are discarded.
 
 families:
   qwen:
@@ -50,6 +53,8 @@ families:
 scale:
   levels: [very_low, low, moderate, high, very_high]
   answer_tokens: [" A", " B", " C", " D", " E"]   # A=very_low ... E=very_high
+# LIVE elicitation contract (reasoning ON, real corpus k=4 few-shot). The Mac smoke (--no-reason)
+# bypasses this — static SMOKE_FEWSHOT, no CoT — which is one reason its tau_oc is discarded.
 elicitation:
   base: { method: token_slice, fewshot_source: judex-corpus/leaf_exemplars, fewshot_k: 4, temperature: 0 }
   post: { method: verbalized_plus_logprobs_where_available, temperature: 0 }

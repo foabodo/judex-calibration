@@ -4,6 +4,11 @@ End-to-end walkthrough for collecting one Study A family (Qwen) on a rented GPU 
 template** + the `vllm/vllm-openai` server, then tearing it down. You serve each model as an
 OpenAI-compatible HTTP endpoint and call it from your Mac; the box's CLI is not used for inference.
 
+> **LIVE experiment** — vast.ai GPU, **vLLM, bf16, all 120 cells, reasoning ON**: this run produces
+> the **real τ_oc**. Never use `--limit`/`--no-reason`/int4 here — those belong to the *free* Mac
+> plumbing smoke (`docs/local_smoke_quickstart.md`), whose τ_oc is meaningless. Run that smoke first if
+> you haven't.
+
 > **Prefer to let Claude Code drive the whole run on the box** (serve → elicit → swap → analyse →
 > teardown, troubleshooting autonomously)? See `docs/vast_claude_code_orchestration.md` — it installs
 > Claude Code on this instance and hands it a ready-made orchestration brief. This quick start is the

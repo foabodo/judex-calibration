@@ -5,6 +5,11 @@ rented box** and let it orchestrate the run end to end — serve vLLM, run the d
 autonomously** (OOM, ports, context, logprobs), swap base→post, analyse, return results, and tear
 down. On an ephemeral box this is faster than hand-driving and survives SSH drops.
 
+> **This is the LIVE experiment** — **vLLM, bf16, all 120 cells, reasoning ON** → the **real τ_oc**.
+> For a *free* plumbing check first, run the Mac smoke (`docs/local_smoke_quickstart.md`; int4,
+> `--limit`, `--no-reason` — its τ_oc is meaningless). Everything below is the real run; the
+> `--limit/--no-reason` mentioned in §5 is only an optional throwaway check, clearly marked.
+
 > Read `docs/vast_quickstart.md` first (provisioning a Mode-C box, HF token, offers). This doc
 > adds the **Claude-Code-on-the-box** layer on top of a provisioned instance.
 
@@ -146,22 +151,31 @@ Do it in this order and REPORT after each step:
    (weights download first — watch /workspace/vllm.log). Then confirm logprobs actually come back:
    `curl -s http://127.0.0.1:8000/v1/completions -d '{"model":"x","prompt":"Answer:","max_tokens":1,"logprobs":20}' -H 'Content-Type: application/json'`.
 
-2. ELICIT THE BASE LEG:
+2. ELICIT THE BASE LEG — two DISTINCT runs, never conflate them:
+   - Optional plumbing check (throwaway — its τ_oc is MEANINGLESS; never report or integrate it; note
+     it still burns vast wall-clock, unlike the free Mac smoke): add `--limit 6 --no-reason`.
+   - THE REAL RUN (this is the study output): OMIT both flags → all 120 cells, reasoning ON.
    `python scripts/run_qwen_phase1.py --base-url http://127.0.0.1:8000 --base-model Qwen/Qwen3.5-35B-A3B-Base --out runs/qwen`
-   (add `--limit 6 --no-reason` for a fast pipeline check first; drop them for the real 120-cell,
-   reasoning run once the check is green). Verify runs/qwen/pre.json has 120 (or N) sum-to-1 dists.
+   For the real run verify runs/qwen/pre.json has **120** sum-to-1 dists (fewer means you ran the check,
+   and the run auto-flags `smoke` in the report).
 
 3. SWAP TO THE POST: kill the vLLM window (`tmux kill-window -t vllm`), relaunch the same command on
    Qwen/Qwen3.5-35B-A3B (add `--reasoning-parser qwen3` for the post's native reasoning), wait healthy,
    then `python scripts/run_qwen_phase1.py --post-url http://127.0.0.1:8000 --post-model Qwen/Qwen3.5-35B-A3B --out runs/qwen`.
+   Run the post leg the SAME way as the base — both full-120/reasoning for the real run; never pair a
+   check leg with a real leg.
 
-4. ANALYSE: `python scripts/run_qwen_phase1.py --analyze-only --out runs/qwen`. Read
-   runs/qwen/study_a_report.json (Q1 T*_pre, Q2 tau_oc, Q3 tau_oc_summary, Q4 closed_side_check) and
-   runs/qwen/pipeline_calibration_block.json. Summarise the numbers.
+4. ANALYSE: `python scripts/run_qwen_phase1.py --analyze-only --out runs/qwen`. FIRST confirm pre.json
+   AND post.json each have 120 cells and were reasoning-ON — if study_a_report.json has `"smoke": true`,
+   the τ_oc is MEANINGLESS; rerun the full leg before reporting. Only then read
+   runs/qwen/study_a_report.json (Q1 T*_pre, Q2 τ_oc, Q3 tau_oc_summary, Q4 closed_side_check) and
+   runs/qwen/pipeline_calibration_block.json, and summarise the numbers.
 
 TROUBLESHOOTING (fix these yourself, don't wait):
 - CUDA OOM / won't load: lower `--gpu-memory-utilization` (0.90→0.85) or `--max-model-len`, or the
   offer is too small — report the VRAM gap. MoE giants: add `--tensor-parallel-size N --enable-expert-parallel`.
+  **Never** reach for fp8/int4/AWQ/GPTQ to make it fit — **bf16 is mandatory** (quantization perturbs
+  the logits the study measures); pick a bigger offer instead. int4 is only for the free Mac smoke.
 - Prompt exceeds context: raise `--max-model-len` (AIReg prompts are ~14k tokens; keep >= 16384).
 - No logprobs on /v1/completions: ensure it's `vllm serve` (not a chat-only proxy); the base has no
   chat template so use /v1/completions only. elicit_base is server-agnostic but needs logprobs.
@@ -169,7 +183,10 @@ TROUBLESHOOTING (fix these yourself, don't wait):
   (`tmux list-windows`) and the port (`ss -ltnp | grep 8000`).
 - Weights slow/failing: it's the HF pull (dominant cost) — check HF_TOKEN + license; watch vllm.log.
 
-RETURN RESULTS (the box is ephemeral — persist before teardown): copy the outputs somewhere durable —
+RETURN RESULTS — only from a full 120-cell bf16 reasoning-ON run (`study_a_report.json` `"smoke": false`).
+A τ_oc or calibration block from a `--limit`/`--no-reason` check must NEVER be committed to `vast-run-*`
+or dropped into `pipeline.yaml`. (The box is ephemeral — persist before teardown): copy the outputs
+somewhere durable —
 either `tar czf /workspace/qwen_results.tgz runs/qwen && echo "scp root@<host>:/workspace/qwen_results.tgz"`
 for me to pull, or commit them to a branch: from /workspace/judex/judex-calibration,
 `git checkout -b vast-run-qwen && git add -f runs/qwen/study_a_report.json runs/qwen/pipeline_calibration_block.json && git commit -m "Study A Qwen vast run" && git push -u origin vast-run-qwen`

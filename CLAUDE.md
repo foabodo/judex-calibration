@@ -3,6 +3,19 @@
 Distilled project knowledge so a Claude Code instance — on the user's Mac **or** on a rented vast.ai
 GPU box — starts with the same understanding. Full detail lives in the repo docs (pointers below).
 
+## Two Study A workflows — never cross the recipes
+The same driver (`scripts/run_qwen_phase1.py`) runs both; the flags/host/model decide which, and only
+one produces valid numbers:
+- **MAC SMOKE** — free plumbing test: one small **int4/Q4** stand-in (e.g. Qwen3-4B) on **llama.cpp /
+  Metal**, `--limit N --no-reason`. Validates the machinery only — **τ_oc is MEANINGLESS; discard it,
+  never paste its calibration block.** (`docs/local_smoke_quickstart.md`)
+- **VAST LIVE** — the real, paid experiment: the **six panel** base+post pairs on **vLLM**, **bf16**,
+  **all 120 cells**, **reasoning ON** (omit `--limit/--no-reason`). Its τ_oc **is** the study output.
+  (`docs/vast_quickstart.md` · `docs/vast_claude_code_orchestration.md`)
+
+Runs that set `--limit`/`--no-reason` (or analyse <120 cells) are auto-flagged `smoke` in
+`study_a_report.json` and the calibration block, and print `[SMOKE] … do NOT paste into pipeline.yaml`.
+
 ## What JUDEX is
 Distributional LLM-as-judge for EU AI Act technical-file compliance. The evaluator emits a full
 probability distribution over a **5-level ordinal compliance scale** (a Type-C credence), scored
@@ -27,12 +40,14 @@ Pipeline (this repo, `src/judex_calibration/`):
   gitignored and can be stale.
 - `fewshot.build_fewshot_by_criterion()` → k=4 per-Article few-shot from the corpus store,
   **firewall-disjoint** from AIReg.
-- `elicit_base` → vLLM `/v1/completions` token-slice over A–E; **server-agnostic** logprobs parsing
-  (vLLM, llama.cpp, and chat shapes) — so a local Metal server (Mac) and vLLM (vast) both work.
+- `elicit_base` → `/v1/completions` token-slice over A–E; **server-agnostic** logprobs parsing
+  (vLLM, llama.cpp, and chat shapes) so both hosts work — but **llama.cpp/Metal (Mac) is the SMOKE
+  plumbing only (result discarded); vLLM on vast (bf16) is the real measurement.**
 - `study_a` → Q1–Q4 + `calibration_block()` (a drop-in `pipeline.yaml → calibration` block,
   `mode: temperature`).
-- Driver: `scripts/run_qwen_phase1.py` (`--base-url/--post-url --base-model/--post-model --out
-  --limit N --no-reason --analyze-only`).
+- Driver: `scripts/run_qwen_phase1.py` — same script, flags pick the workflow. **SMOKE:** `--limit N
+  --no-reason` (fast, result discarded). **LIVE:** omit both (all 120 cells, reasoning ON). `--out`,
+  `--base-url/--post-url`, `--base-model/--post-model`, `--analyze-only` re-scores an existing `--out`.
 
 ## The 6-model panel (`configs/models.yaml`)
 deepseek-v4-pro · mistral-large-2512 · qwen3.5-35b-a3b · llama-4-maverick · glm-4.5 · kimi-k2-thinking
@@ -47,8 +62,9 @@ annotator↔evaluator firewall). Never add a Google model to the panel.
   no Keychain — secrets arrive via env vars. vLLM serves on `127.0.0.1:8000`.
 
 ## Running the vast experiment (see `docs/vast_claude_code_orchestration.md` §5 for the full brief)
-- **bf16** for the real run — *not* fp8/int4 (quantization perturbs the very logits the study measures;
-  int4 is fine only for a throwaway plumbing smoke).
+- **bf16** for the real run — *not* fp8/int4 (quantization perturbs the very logits the study measures).
+  int4/Q4 is fine **only for the throwaway Mac smoke (llama.cpp), never on the rented GPU** — on vast,
+  always bf16.
 - `--max-model-len ≥ 16384` (AIReg prompts are ~14k tokens); logprobs must be enabled.
 - **Keep vLLM alive across commands** — run it **detached** (its own `tmux` window / `nohup` + PID),
   never as a tracked background task (Claude Code kills those ~5 s after a `-p` run ends).
@@ -65,4 +81,4 @@ annotator↔evaluator firewall). Never add a Google model to the panel.
 ## Docs
 `docs/study_a_implementation_guide.md` (the plan) · `docs/vast_quickstart.md` (provision a box) ·
 `docs/vast_claude_code_orchestration.md` (run Claude Code on the box) ·
-`docs/local_smoke_quickstart.md` (validate the pipeline on a small model first).
+`docs/local_smoke_quickstart.md` (free Mac plumbing check with one small int4 model — machinery only; τ_oc meaningless).

@@ -14,6 +14,15 @@
 
 ---
 
+> **Two workflows — never cross the recipes.** The same driver runs both:
+> - **SMOKE** — free Mac plumbing check (**llama.cpp/Metal, int4/Q4, `--limit`/`--no-reason`**, one
+>   small stand-in model) → τ_oc **MEANINGLESS, discard it** (`docs/local_smoke_quickstart.md`; Phase 0a).
+> - **LIVE** — the real, paid experiment (**vast vLLM, bf16, all 120 cells, reasoning ON**, the six
+>   panel models) → the **real τ_oc** (Phases 1–4).
+>
+> Flags/host/model/dtype decide which; a `--limit`/`--no-reason`/<120-cell run auto-flags `smoke` in
+> the report + calibration block. This guide is the **LIVE** plan; the smoke is the free precheck.
+
 ## 0. Why this exists (carry-over from the calibration thread)
 
 We need **overconfidence-correcting recalibration for the closed JUDEX evaluators (Gemini, GPT) on future out-of-sample documents with no ground truth**. Three GT-free routes were exhausted:
@@ -267,9 +276,9 @@ Record run-ids, fitted `τ_oc`, the Q1–Q4 verdicts, and any negative results i
 
 | Phase | Action | Cost | Gate to proceed |
 |---|---|---|---|
-| **0a** | **Local plumbing smoke** (optional, own hardware) — serve a small base+instruct model on a local CUDA GPU via vLLM and run `run_qwen_phase1.py --limit 6 --no-reason` end to end. Proves serve→token-slice→analysis→calibration-block before any spend. See `docs/local_smoke_quickstart.md`. | $0 | Pipeline emits a `study_a_report.json` + `pipeline_calibration_block.json` (values ignored). |
+| **0a** | **Local plumbing smoke** (optional, free) — on the **Mac (M1 Pro/Metal)** serve one small **int4/Q4** stand-in (e.g. Qwen3-4B) via **llama.cpp / llama-cpp-python** (or a local CUDA box via vLLM) and run `run_qwen_phase1.py --limit 6 --no-reason` end to end. Proves serve→token-slice→analysis→calibration-block before any spend. See `docs/local_smoke_quickstart.md`. | $0 | Pipeline emits `study_a_report.json` + `pipeline_calibration_block.json`. **DISCARD every number — τ_oc is MEANINGLESS** under int4 + a stand-in model + `--limit` + `--no-reason` (the run self-flags `smoke`); the gate checks only that the pipeline runs. |
 | **0** | **Free accuracy pre-check** — parse the 10 existing AIReg-Bench LLM annotations vs human GT; compute argmax accuracy. | $0 | If even frontier models (o3/gpt5/sonnet/gemini-pro) score ~low, the accuracy gate is structural → **fix accuracy/elicitation first; do NOT spend.** |
-| **1** | Stand up repo + pipeline on **Qwen 35B** (base, bf16) end-to-end; run §4.4 validity check on a post model with logprobs. | ~$5 | Pipeline green; token-slicing valid; Qwen clears accuracy gate. |
+| **1** | Stand up repo + pipeline on **Qwen 35B** (base, **bf16, all 120 cells, reasoning ON — PAID**; the first *real* measurement, distinct from the free int4 `--limit`/`--no-reason` Mac smoke in 0a whose numbers are discarded); run §4.4 validity check on a post model with logprobs. | ~$5 | Pipeline green; token-slicing valid; Qwen clears accuracy gate. |
 | **2** | Add **Llama-4-Maverick** (mid). Two-family `τ_oc` + cross-family check. | ~$60 | `τ_oc` plausible & accuracy adequate on ≥2 families. |
 | **3** | Commit to the **three giants + GLM** (bf16, multi-node). Full six-family Q1/Q2/Q3. | ~$700 | — |
 | **4** | Decision: adopt `median(τ_oc)` transferred constant (config flip in `judex-evaluator`) or report negative; run Q3 decorrelated-dispersion. | $0 | — |
