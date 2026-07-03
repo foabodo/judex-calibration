@@ -6,6 +6,10 @@
 # serving_dtype: bf16 for EVERY live leg — never fp8 OR int4/Q4 (quantization perturbs the logits the
 #   study measures). int4/Q4 is fine ONLY for the throwaway Mac smoke, whose numbers are discarded.
 
+# post_api semantics (clarified by the user 2026-07-03): the LIVE plan serves BOTH legs of every
+# family from HF-downloaded weights on vast vLLM (bf16, token-slice — same channel as the base).
+# Each post_api entry documents the API FALLBACK channel only, to be invoked solely if unquantized-
+# model logits cannot feasibly be obtained from the HF weights; the user does not plan to invoke it.
 families:
   qwen:
     tier: cheap
@@ -18,7 +22,7 @@ families:
            # (Google/Gemini freed from the reserved-evaluator role). Google family.
     tier: cheap
     base_repo: google/gemma-4-26B-A4B
-    post_api: { provider: vllm_hf, model: google/gemma-4-26B-A4B-it, logprobs: true }  # ungated Apache-2.0; both legs served from HF on vast vLLM. NOTE 2026-07-03: OpenRouter hosting of the -it post leg IS now verified (corpus seat-7 collection: Novita bf16 pin, 28/28 clean) — switching post to OpenRouter (consistent with the other post legs, no extra GPU time) vs keeping vllm_hf (post+base on the identical serving stack) is an OPEN USER DECISION; vllm_hf kept until decided.
+    post_api: { provider: vllm_hf, model: google/gemma-4-26B-A4B-it, logprobs: true }  # ungated Apache-2.0; both legs served from HF on vast vLLM. DECIDED 2026-07-03 (user): vllm_hf IS the plan — OpenRouter hosting of the -it leg is verified available (corpus seat-7 collection: Novita bf16 pin, 28/28 clean) but is a just-in-case FALLBACK only, to be invoked solely if unquantized-model logits cannot feasibly be obtained from the HF-downloaded weights; the user does not plan to invoke it.
     params: { total: 25.2B, active: 3.8B, experts: 128, experts_active: 8, moe: true }
     serving: { dtype: bfloat16, tensor_parallel_size: 1, gpu: "1xH100-80", est_cost_usd: 8 }  # ~50GB bf16 MoE fits one 80GB GPU; multimodal (text used), 256K ctx
 
@@ -65,4 +69,6 @@ scale:
 # bypasses this — static SMOKE_FEWSHOT, no CoT — which is one reason its tau_oc is discarded.
 elicitation:
   base: { method: token_slice, fewshot_source: judex-corpus/leaf_exemplars, fewshot_k: 4, temperature: 0 }
+  # post's verbalized method applies only to the just-in-case API fallback above; the LIVE plan
+  # token-slices the post leg on vast vLLM exactly like the base leg (same channel, no confound).
   post: { method: verbalized_plus_logprobs_where_available, temperature: 0 }
