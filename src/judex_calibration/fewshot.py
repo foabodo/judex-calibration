@@ -20,12 +20,14 @@ X | Use Y``) — so few-shot from here never leaks the AIReg validation set. An 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
 # --- sibling-repo layout (this repo is a sibling checkout of judex-corpus) ---
+# JUDEX_UMBRELLA overrides the parent-dir default (worktrees live under <umbrella>/worktrees/).
 _CAL_ROOT = Path(__file__).resolve().parents[2]          # .../judex-calibration
-_UMBRELLA = _CAL_ROOT.parent                             # .../judex
+_UMBRELLA = Path(os.environ.get("JUDEX_UMBRELLA") or _CAL_ROOT.parent)  # .../judex
 CORPUS = _UMBRELLA / "judex-corpus"
 # The Article-level (dimension) store is keyed by criterion_id (article_9..article_15),
 # matching aireg.Cell.criterion_id. The sibling exemplar_store.json is leaf-keyed only.

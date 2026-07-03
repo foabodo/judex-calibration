@@ -35,13 +35,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 # --- sibling-repo layout (this repo is a sibling checkout of the other three) ---
+# JUDEX_UMBRELLA overrides the parent-dir default so a git worktree of this repo (which
+# lives under <umbrella>/worktrees/, not the umbrella root) still finds the siblings.
 _CAL_ROOT = Path(__file__).resolve().parents[2]          # .../judex-calibration
-_UMBRELLA = _CAL_ROOT.parent                             # .../judex
+_UMBRELLA = Path(os.environ.get("JUDEX_UMBRELLA") or _CAL_ROOT.parent)  # .../judex
 EVAL = _UMBRELLA / "judex-evaluator"
 GT_LABELS_DIR = _UMBRELLA / "judex-ground-truth" / "data" / "distributional_labels"
 CORPUS = _UMBRELLA / "judex-corpus"

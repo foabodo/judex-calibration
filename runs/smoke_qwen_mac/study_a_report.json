@@ -1,0 +1,69 @@
+{
+  "families": {
+    "qwen": {
+      "pre": {
+        "n": 6,
+        "argmax_acc": 0.0,
+        "mean_rps": 0.3311504419684679,
+        "mean_w1": 1.876937522831323,
+        "T_rps": 4.0,
+        "T_rel": 19.99999999999999,
+        "murphy": {
+          "uncertainty": 0.09247,
+          "resolution": 0.05007,
+          "reliability": 0.29136,
+          "mean_rps": 0.33115
+        },
+        "mean_pred_norm_entropy": 0.40067006596693894
+      },
+      "post": {
+        "n": 6,
+        "argmax_acc": 0.0,
+        "mean_rps": 0.3311504419684679,
+        "mean_w1": 1.876937522831323,
+        "T_rps": 4.0,
+        "T_rel": 19.99999999999999,
+        "murphy": {
+          "uncertainty": 0.09247,
+          "resolution": 0.05007,
+          "reliability": 0.29136,
+          "mean_rps": 0.33115
+        },
+        "mean_pred_norm_entropy": 0.40067006596693894
+      },
+      "tau_oc": 1.0251785151221313
+    }
+  },
+  "tau_oc_summary": {
+    "tau_oc_median": 1.0251785151221313,
+    "tau_oc_min": 1.0251785151221313,
+    "tau_oc_max": 1.0251785151221313,
+    "tau_oc_spread": 0.0,
+    "n_families": 1
+  },
+  "smoke": true,
+  "closed_side_check_Q4": {
+    "n": 120,
+    "T": 1.0251785151221313,
+    "uncalibrated": {
+      "reliability": 0.01789,
+      "resolution": 0.05916,
+      "uncertainty": 0.08973,
+      "mean_rps": 0.0441,
+      "mean_w1": 0.51458,
+      "argmax_acc": 0.44167
+    },
+    "calibrated": {
+      "reliability": 0.01722,
+      "resolution": 0.05827,
+      "uncertainty": 0.08973,
+      "mean_rps": 0.04377,
+      "mean_w1": 0.51414,
+      "argmax_acc": 0.45
+    },
+    "reliability_improvement": 0.00067,
+    "resolution_change": -0.00089,
+    "rps_change": -0.00033,
+    "verdict_ok": true
+  }
+}

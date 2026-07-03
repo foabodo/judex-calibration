@@ -13,13 +13,15 @@ justified?).
 """
 from __future__ import annotations
 
-import json, math, sys
+import json, math, os, sys
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
 
 # Sibling-repo layout: .../judex/{judex-calibration,judex-evaluator}. Prefer an editable
 # install (pip install -e ../judex-evaluator); fall back to the sibling src on sys.path.
-EVAL_SRC = Path(__file__).resolve().parents[3] / "judex-evaluator" / "src"
+# JUDEX_UMBRELLA overrides the parent-dir default (worktrees live under <umbrella>/worktrees/).
+_UMBRELLA = Path(os.environ.get("JUDEX_UMBRELLA") or Path(__file__).resolve().parents[3])
+EVAL_SRC = _UMBRELLA / "judex-evaluator" / "src"
 if str(EVAL_SRC) not in sys.path:
     sys.path.insert(0, str(EVAL_SRC))
 
@@ -199,7 +201,7 @@ if __name__ == "__main__":
     # Smoke: treat the existing Gemini/GPT reconciled predictions as one variant to
     # validate the analysis path end-to-end on real distributions (no API).
     cells = load_cells()
-    m = json.loads((Path(__file__).resolve().parents[3]
+    m = json.loads((_UMBRELLA
                     / "judex-evaluator/runs/stage9-gemini-gpt-medium/metrics_report.json").read_text())
     preds = {it["item_label"]: it["prediction"]["probabilities"] for it in m["items"]}
     s = score_variant(preds, cells)

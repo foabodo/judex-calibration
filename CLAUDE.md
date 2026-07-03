@@ -8,7 +8,10 @@ The same driver (`scripts/run_qwen_phase1.py`) runs both; the flags/host/model d
 one produces valid numbers:
 - **MAC SMOKE** — free plumbing test: one small **int4/Q4** stand-in (e.g. Qwen3-4B) on **llama.cpp /
   Metal**, `--limit N --no-reason`. Validates the machinery only — **τ_oc is MEANINGLESS; discard it,
-  never paste its calibration block.** (`docs/local_smoke_quickstart.md`)
+  never paste its calibration block.** One run dir per family (`--family qwen|gemma|... --out
+  runs/<family>`); `--merge qwen=runs/qwen gemma=runs/gemma --out runs/merged` gives a real
+  multi-lineage smoke (e.g. Qwen3-4B + Gemma-3-4B — genuinely different families, so `tau_oc_summary`
+  has an actual spread, not one family repeated). (`docs/local_smoke_quickstart.md`)
 - **VAST LIVE** — the real, paid experiment: the **seven panel** base+post pairs on **vLLM**, **bf16**,
   **all 120 cells**, **reasoning ON** (omit `--limit/--no-reason`). Its τ_oc **is** the study output.
   (`docs/vast_quickstart.md` · `docs/vast_claude_code_orchestration.md`)

@@ -14,9 +14,10 @@ vLLM, the exact server the paid vast run uses).
 > **Smoke models are stand-ins, not panel models.** The seven scientific models are fixed; a smaller
 > Qwen (or Gemma) only validates the *machinery*, so its τ_oc numbers are **discarded**. Prefer a
 > **Qwen** pre/post pair — the **same lineage** as the panel's `qwen3.5-35b-a3b`, `Qwen3-30B-A3B`
-> matches its **MoE / A3B** shape, and a small Qwen fits the Mac cleanly (bf16, no quant). (Gemma is a
-> panel model now — since 2026-07-02 Google is an annotator, not an evaluator — but the panel Gemma
-> `gemma-4-26B-A4B` is too big for the Mac smoke; see §9.)
+> matches its **MoE / A3B** shape, and a small Qwen fits the Mac cleanly (bf16, no quant). (The panel
+> Gemma, `gemma-4-26B-A4B`, is too big for the Mac smoke — but **Gemma 3 4B is small enough and is a
+> genuinely distinct lineage**, so it's the recommended **second family** for a two-lineage smoke;
+> see §2·Mac-B/C.)
 
 ## 0. Which machine
 
@@ -48,12 +49,17 @@ repo + evaluator venv are. Only the **model server** needs a GPU. Three topologi
 | `Qwen/Qwen2.5-7B` + `Qwen/Qwen2.5-7B-Instruct` | dense | 7.6 B | bf16, comfortable | a slightly bigger clean bf16 run |
 | `Qwen/Qwen3-14B-Base` + `Qwen/Qwen3-14B` | dense | 14.8 B | int4 (bf16 no) | dense mid, Qwen3-gen |
 | **`Qwen/Qwen3-30B-A3B-Base` + `Qwen/Qwen3-30B-A3B`** | **MoE** (3.3 B active) | 30.5 B | int4, tight | **MoE serving fidelity** (matches the panel shape) |
+| **`google/gemma-3-4b-pt` + `google/gemma-3-4b-it`** | dense | 4 B | **bf16, easy** | **second lineage** — pairs with `Qwen3-4B` for a real two-family smoke |
+| `google/gemma-3-1b-pt` + `google/gemma-3-1b-it` | dense | 1 B | bf16, trivial | fastest possible Gemma sanity check |
+| `google/gemma-3-12b-pt` + `google/gemma-3-12b-it` | dense | 12 B | int4 on Mac (16GB RAM), bf16 easy on the 3090 | a bigger, still-cheap Gemma 3 option |
 
 Notes: your **3090-Ti is Ampere → no FP8 hardware**; the only quant path is **INT4**
 (bitsandbytes on-the-fly, or an AWQ/GPTQ repo). **`Qwen3-4B` needs no quant** (bf16 fits, so no
 logit confound — the cleanest smoke). **`Qwen3-32B` is unusable** — Qwen never released a 32B *base*
 checkpoint, so there's no pre/post pair. Keep the **KV cache at default (bf16)** for the 4B/7B; for
-the 30B int4 you'll need `int8` KV (below). vLLM **≥ 0.8.5** serves Qwen3 dense + MoE.
+the 30B int4 you'll need `int8` KV (below). vLLM **≥ 0.8.5** serves Qwen3 dense + MoE. **All Gemma 3
+repos are gated** (accept the Gemma license once on HF + `hf auth login`, same one-time step as any
+gated repo — Qwen/Qwen3 needed no such step).
 
 ## 2·Mac. Run the smoke on Apple Silicon (Metal) — `Qwen3-4B` (topology A)
 
@@ -104,20 +110,79 @@ llama.cpp (`brew upgrade llama.cpp`).
 cd judex/judex-calibration
 ../.venv-cal/bin/python scripts/run_qwen_phase1.py \
   --base-url http://127.0.0.1:8000 --base-model qwen3-4b-base \
-  --out runs/smoke_qwen_mac --limit 6 --no-reason        # -> pre.json
+  --out runs/smoke_qwen_mac --family qwen --limit 6 --no-reason        # -> pre.json
 
 # terminal 1: Ctrl-C, then serve the instruct straight from HF:
 llama-server -hf unsloth/Qwen3-4B-GGUF:Q4_K_M --host 127.0.0.1 --port 8000 --ctx-size 32768 --n-gpu-layers 999
 # terminal 2:
 ../.venv-cal/bin/python scripts/run_qwen_phase1.py \
   --post-url http://127.0.0.1:8000 --post-model qwen3-4b-instruct \
-  --out runs/smoke_qwen_mac --limit 6 --no-reason        # -> post.json
+  --out runs/smoke_qwen_mac --family qwen --limit 6 --no-reason        # -> post.json
 
 ../.venv-cal/bin/python scripts/run_qwen_phase1.py --analyze-only --out runs/smoke_qwen_mac
 ```
 (`--base-model` / `--post-model` are just labels for llama.cpp — the served model is whatever `-m` /
-`-hf` loaded.) Then read the success checklist in §7. For anything bigger than `Qwen3-4B`, use the
-Linux/vLLM path below.
+`-hf` loaded. `--family qwen` is the default anyway; it's shown here because §2·Mac-B/C below merges
+this run dir with a second family — omit it if you only ever run one family.) Then read the success
+checklist in §7. For anything bigger than `Qwen3-4B`, use the Linux/vLLM path below.
+
+## 2·Mac-B. Add a second lineage — `Gemma 3 4B` (topology A, distinguishable τ_oc)
+
+**Why bother:** one family's τ_oc proves the *pipeline* runs, but Q3 ("is τ_oc stable **across
+families**?") is meaningless with only one family — there's nothing to compare. A second, genuinely
+different lineage (different pretraining, different post-training) gives the smoke a real — if still
+throwaway — two-point `tau_oc_summary` (`n_families: 2`, a real `tau_oc_spread`), exercising the same
+`--merge` path the eventual multi-family vast run uses. **Still a smoke** — 4B-dense numbers are not
+the study; only the *shape* of the comparison (two distinguishable τ_oc values, not one repeated) is
+the point.
+
+**Setup + weights (once):** same `.venv-cal` as §2·Mac. Gemma 3 is **gated** — accept the license once:
+```bash
+hf auth login                                       # paste a token with the Gemma-3 license accepted
+#   (click through https://huggingface.co/google/gemma-3-4b-pt once, logged in, if you haven't)
+hf download google/gemma-3-4b-pt --local-dir ~/models/gemma-3-4b-pt
+python "$(brew --prefix llama.cpp)/libexec/convert_hf_to_gguf.py" \
+  ~/models/gemma-3-4b-pt --outfile ~/models/gemma-3-4b-pt-Q4_K_M.gguf --outtype q4_k_m
+# instruct: check for a pre-made GGUF first (e.g. an unsloth/bartowski gemma-3-4b-it-GGUF repo);
+# if none exists yet, convert it the same way as the base.
+```
+
+**Serve + run BASE → swap to POST → analyse (same pattern as §2·Mac, tagged `--family gemma`):**
+```bash
+llama-server -m ~/models/gemma-3-4b-pt-Q4_K_M.gguf \
+  --host 127.0.0.1 --port 8000 --ctx-size 32768 --n-gpu-layers 999
+curl -s http://127.0.0.1:8000/v1/completions -H 'Content-Type: application/json' \
+  -d '{"prompt":"Answer:","n_predict":1,"max_tokens":1,"logprobs":20,"n_probs":20}' | head -c 400
+
+cd judex/judex-calibration
+../.venv-cal/bin/python scripts/run_qwen_phase1.py \
+  --base-url http://127.0.0.1:8000 --base-model gemma-3-4b-base \
+  --out runs/smoke_gemma_mac --family gemma --limit 6 --no-reason      # -> pre.json
+
+# terminal 1: Ctrl-C, then serve the instruct GGUF:
+llama-server -hf <the-4b-it-GGUF-repo>:Q4_K_M --host 127.0.0.1 --port 8000 --ctx-size 32768 --n-gpu-layers 999
+../.venv-cal/bin/python scripts/run_qwen_phase1.py \
+  --post-url http://127.0.0.1:8000 --post-model gemma-3-4b-instruct \
+  --out runs/smoke_gemma_mac --family gemma --limit 6 --no-reason      # -> post.json
+```
+`--family gemma` labels this run dir for §2·Mac-C's `--merge`; it does **not** write anything to the
+dir itself — `--merge` takes the `FAMILY=DIR` mapping directly on the command line (see next).
+
+## 2·Mac-C. Merge both lineages into one Q1–Q4 report
+
+No server needed — `--merge` is pure cross-family analysis over the two run dirs already written by
+§2·Mac and §2·Mac-B (it **cannot** be combined with elicitation flags/`--limit`/`--no-reason`/
+`--analyze-only` — it only reads existing `pre.json`/`post.json`):
+```bash
+../.venv-cal/bin/python scripts/run_qwen_phase1.py \
+  --merge qwen=runs/smoke_qwen_mac gemma=runs/smoke_gemma_mac --out runs/smoke_two_lineage
+```
+This writes `runs/smoke_two_lineage/study_a_report.json` with **both** `families.qwen` and
+`families.gemma` rows and a real `tau_oc_summary` (`n_families: 2`, `tau_oc_min`/`tau_oc_max`/
+`tau_oc_spread` computed across the two). The merge is auto-flagged smoke if *either* source dir is
+(§2·Mac's `--limit 6 --no-reason` run always is). Read the checklist in §7, now checking for **two**
+family rows instead of one. (`--merge` generalizes past two — add more `FAMILY=DIR` pairs for a
+third lineage, or for the real vast run's cross-family report.)
 
 ## 2. One-time setup on the Linux box (topology B/C — vLLM)
 
@@ -208,6 +273,9 @@ You are testing the **machinery**, not the calibration. Success =:
 - `study_a_report.json` has a `qwen` family row with numeric `T_rps`, `T_rel`, `murphy{}`, a finite
   `tau_oc`, and a `closed_side_check_Q4` block;
 - `pipeline_calibration_block.json` was written (`mode: temperature`).
+- **Two-lineage smoke (§2·Mac-B/C) additionally:** `study_a_report.json` has **both** `families.qwen`
+  and `families.gemma`, and `tau_oc_summary.n_families == 2` with `tau_oc_min != tau_oc_max` (a real
+  spread — if the two are identical, something copied one family's predictions into the other).
 
 **Ignore the actual values** (a small/quantized Qwen on 6 cells is scientifically meaningless — the run
 auto-flags `smoke` in the report + calibration block). If all of the above appear, the
@@ -226,14 +294,16 @@ raise `--limit` (e.g. `24`) to exercise the reasoning path and per-Article few-s
 - Reachability (topology B): open port 8000 on the Linux box, or tunnel from the Mac with
   `ssh -N -L 8000:localhost:8000 <user>@<linux-host>` and use `http://localhost:8000`.
 
-## 9. Other options (why Qwen is preferred)
-- **Gemma 4** (`google/gemma-4-12B`(+`-it`), or the MoE `26B-A4B`, or dense `31B`) also fits int4 on
-  24 GB. Since 2026-07-02 Gemma is a **panel model** (Google was freed when the evaluators went back to
-  Anthropic+GPT), so it's no longer barred — `gemma-4-26B-A4B` is in fact the 7th panel model. Qwen is
-  still preferred *for the Mac smoke* only because a small Qwen fits Metal cleanly in bf16 and matches
-  the panel's MoE/A3B shape; the 26B-A4B panel Gemma is too big for the Mac (use the Linux/vLLM path or
-  a smaller `gemma-4-12B` if you want a Gemma sanity check).
+## 9. Other options
+
+- **Gemma 4** (`google/gemma-4-12B`(+`-it`), the MoE `26B-A4B`, or dense `31B`) is the **7th panel
+  model** as of 2026-07-02 (Google was freed when the evaluators went back to Anthropic+GPT) — but
+  `gemma-4-26B-A4B` is too big for the Mac smoke and needs the Linux/vLLM path (§2–5), int4. **Gemma 3
+  4B (§2·Mac-B)** is the right *Mac* Gemma — small, bf16, and a genuinely distinct lineage from Qwen3,
+  which is exactly what a two-lineage smoke needs (see §2·Mac-B/C).
 - **`Qwen3-8B`** (`-Base` + plain) is fine too but bf16 is tight on 24 GB (needs int8 KV); the `4B`
   (clean bf16) or `2.5-7B` (comfortable bf16) are easier.
 - Any pair must have **both** a base *and* an instruct repo — that's why `Qwen3-32B` (instruct-only)
   and most "chat-only" models are out.
+- `--family`/`--merge` (§2·Mac-B/C) generalize beyond Qwen+Gemma — add any number of `FAMILY=DIR`
+  pairs (e.g. a third lineage) to one merged `study_a_report.json`.
