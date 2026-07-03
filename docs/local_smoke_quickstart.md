@@ -11,11 +11,12 @@ hardware you own, *before* paying for the remote vast.ai run. It exercises the *
 science**; the recommended first smoke runs on your Mac via **llama.cpp** (only topology B/C uses
 vLLM, the exact server the paid vast run uses).
 
-> **Smoke models are stand-ins, not panel models.** The six scientific models are fixed; a smaller
+> **Smoke models are stand-ins, not panel models.** The seven scientific models are fixed; a smaller
 > Qwen (or Gemma) only validates the *machinery*, so its τ_oc numbers are **discarded**. Prefer a
-> **Qwen** pre/post pair: it's **non-Google** (no evaluator-firewall issue), the **same lineage** as
-> the panel's `qwen3.5-35b-a3b`, and `Qwen3-30B-A3B` even matches its **MoE / A3B** shape. (Gemma
-> works too but is **Google-family** — a reserved *evaluator* — so it's a less-clean choice; see §9.)
+> **Qwen** pre/post pair — the **same lineage** as the panel's `qwen3.5-35b-a3b`, `Qwen3-30B-A3B`
+> matches its **MoE / A3B** shape, and a small Qwen fits the Mac cleanly (bf16, no quant). (Gemma is a
+> panel model now — since 2026-07-02 Google is an annotator, not an evaluator — but the panel Gemma
+> `gemma-4-26B-A4B` is too big for the Mac smoke; see §9.)
 
 ## 0. Which machine
 
@@ -227,8 +228,11 @@ raise `--limit` (e.g. `24`) to exercise the reasoning path and per-Article few-s
 
 ## 9. Other options (why Qwen is preferred)
 - **Gemma 4** (`google/gemma-4-12B`(+`-it`), or the MoE `26B-A4B`, or dense `31B`) also fits int4 on
-  24 GB, but Gemma is **Google-family** — a reserved JUDEX *evaluator* — so even as a smoke it's a
-  less-clean choice than a Qwen pair. Use only if you specifically want a non-Qwen sanity check.
+  24 GB. Since 2026-07-02 Gemma is a **panel model** (Google was freed when the evaluators went back to
+  Anthropic+GPT), so it's no longer barred — `gemma-4-26B-A4B` is in fact the 7th panel model. Qwen is
+  still preferred *for the Mac smoke* only because a small Qwen fits Metal cleanly in bf16 and matches
+  the panel's MoE/A3B shape; the 26B-A4B panel Gemma is too big for the Mac (use the Linux/vLLM path or
+  a smaller `gemma-4-12B` if you want a Gemma sanity check).
 - **`Qwen3-8B`** (`-Base` + plain) is fine too but bf16 is tight on 24 GB (needs int8 KV); the `4B`
   (clean bf16) or `2.5-7B` (comfortable bf16) are easier.
 - Any pair must have **both** a base *and* an instruct repo — that's why `Qwen3-32B` (instruct-only)

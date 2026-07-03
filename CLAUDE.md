@@ -9,7 +9,7 @@ one produces valid numbers:
 - **MAC SMOKE** — free plumbing test: one small **int4/Q4** stand-in (e.g. Qwen3-4B) on **llama.cpp /
   Metal**, `--limit N --no-reason`. Validates the machinery only — **τ_oc is MEANINGLESS; discard it,
   never paste its calibration block.** (`docs/local_smoke_quickstart.md`)
-- **VAST LIVE** — the real, paid experiment: the **six panel** base+post pairs on **vLLM**, **bf16**,
+- **VAST LIVE** — the real, paid experiment: the **seven panel** base+post pairs on **vLLM**, **bf16**,
   **all 120 cells**, **reasoning ON** (omit `--limit/--no-reason`). Its τ_oc **is** the study output.
   (`docs/vast_quickstart.md` · `docs/vast_claude_code_orchestration.md`)
 
@@ -30,8 +30,10 @@ git submodules of the `judex` umbrella:
 Measure the *clean post-training overconfidence temperature* by running the **base (pre)** and
 **instruct (post)** variants of open models on the 120 AIReg-Bench cells (independent human GT), to
 decide whether a **transferred constant temperature** can correct the **closed** JUDEX evaluators
-(Gemini/GPT). Questions: **Q1** is the base calibrated (`T*_pre ≈ 1`)? **Q2** post overconfidence
-`τ_oc`? **Q3** is `τ_oc` stable across families? **Q4** does applying it to Gemini/GPT on AIReg improve
+(**Anthropic + GPT** — switched back from Gemini/GPT 2026-07-02, which freed Google to join the
+annotators). Questions: **Q1** is the base calibrated (`T*_pre ≈ 1`)? **Q2** post overconfidence
+`τ_oc`? **Q3** is `τ_oc` stable across families? **Q4** does applying it to the closed pair (Claude/GPT)
+on AIReg improve
 Murphy **reliability** without hurting resolution/RPS?
 
 Pipeline (this repo, `src/judex_calibration/`):
@@ -49,10 +51,12 @@ Pipeline (this repo, `src/judex_calibration/`):
   --no-reason` (fast, result discarded). **LIVE:** omit both (all 120 cells, reasoning ON). `--out`,
   `--base-url/--post-url`, `--base-model/--post-model`, `--analyze-only` re-scores an existing `--out`.
 
-## The 6-model panel (`configs/models.yaml`)
+## The 7-model panel (`configs/models.yaml`)
 deepseek-v4-pro · mistral-large-2512 · qwen3.5-35b-a3b · llama-4-maverick · glm-4.5 · kimi-k2-thinking
-— each a base+post pair. **Google is deliberately excluded** (Gemini is a reserved *evaluator* — the
-annotator↔evaluator firewall). Never add a Google model to the panel.
+· **gemma-4-26B-A4B** — each a base+post pair. **Google is now included** (added 2026-07-02): the
+collaborative-evaluation pair switched back to **Anthropic + GPT**, so Gemini is no longer a reserved
+evaluator and the annotator↔evaluator firewall no longer bars Google. The firewall now only bars
+**Anthropic and OpenAI** models from the annotator panel (they are the reserved evaluators).
 
 ## Environment (machine-dependent)
 - **On the user's Mac:** use the **`judex-arm` conda env**

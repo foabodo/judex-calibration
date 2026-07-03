@@ -23,6 +23,14 @@
 > Flags/host/model/dtype decide which; a `--limit`/`--no-reason`/<120-cell run auto-flags `smoke` in
 > the report + calibration block. This guide is the **LIVE** plan; the smoke is the free precheck.
 
+> **2026-07-02 — evaluator pair switched to Anthropic + GPT; panel is now SEVEN.** The collaborative
+> (cross-family) evaluators are once again **Anthropic + GPT**, not Gemini/GPT. Consequences: (1) Google
+> is no longer a reserved evaluator, so **`gemma-4-26B-A4B` joins as the seventh annotator** (see §2);
+> (2) the transfer target in Q3/Q4 is now the **Claude + GPT** closed pair — the Q4 closed-side check
+> needs a **Claude + GPT** AIReg run (the legacy `stage9-gemini-gpt-medium` run is Gemini/GPT). The
+> firewall now bars only **Anthropic and OpenAI** models from the annotator panel. Historical passages
+> below that describe the *earlier* Gemini/GPT failures are left as-is (that history is accurate).
+
 ## 0. Why this exists (carry-over from the calibration thread)
 
 We need **overconfidence-correcting recalibration for the closed JUDEX evaluators (Gemini, GPT) on future out-of-sample documents with no ground truth**. Three GT-free routes were exhausted:
@@ -35,12 +43,12 @@ We need **overconfidence-correcting recalibration for the closed JUDEX evaluator
 
 ### Scientific questions (answered in order)
 
-Study A is **not** the generic JUDEX calibration arm. That arm fits temperatures against GT for models we control. Study A tests whether a **portable constant** derived from open hybrid pairs is scientifically defensible for **closed** models (Gemini/GPT) whose base variants are inaccessible.
+Study A is **not** the generic JUDEX calibration arm. That arm fits temperatures against GT for models we control. Study A tests whether a **portable constant** derived from open hybrid pairs is scientifically defensible for **closed** models (**Anthropic + GPT**) whose base variants are inaccessible.
 
 - **Q1 — Premise validation:** are base/pretrained models well-calibrated on EU-AI-Act ordinal compliance, i.e. is their supervised temperature fit `T*_pre ≈ 1`? If not, the premise is task-invalid — learn this for ~$10 on the cheap model first.
 - **Q2 — Post-training effect:** for each post-trained model, how much temperature softening (`τ_oc`) is needed to recover calibration **while retaining the post-training accuracy gain**?
 - **Q3 — Transfer legitimacy:** is `τ_oc` **stable across model families**? Tight clustering ⇒ overconfidence is roughly model-agnostic in temperature units ⇒ a transferred constant for the closed evaluators is defensible, and we learn its value. Scatter ⇒ it is not.
-- **Q4 — Closed-side sanity check:** when the open-derived constant is applied to Gemini/GPT JUDEX outputs on AIReg, does the **Murphy Reliability** term improve **without destroying Resolution or RPS**?
+- **Q4 — Closed-side sanity check:** when the open-derived constant is applied to the closed pair's (**Claude + GPT**) JUDEX outputs on AIReg, does the **Murphy Reliability** term improve **without destroying Resolution or RPS**? *(Needs a Claude+GPT AIReg run; the legacy `stage9-gemini-gpt-medium` run is Gemini/GPT.)*
 
 ### Load-bearing caveat (the accuracy gate)
 If the open models are *also* inaccurate on AIReg, their `T*` will peg too and the study is uninformative — same failure as the closed evaluators. **Phase 0 is a free accuracy pre-check that gates all spend.**
@@ -83,11 +91,19 @@ If the open models are *also* inaccurate on AIReg, their `T*` will peg too and t
 | Family | Base repo (HF) | Post (API) | ~Total / active | bf16 weights | Min GPU (bf16) | Tier |
 |---|---|---|---|---|---|---|
 | Qwen | `Qwen/Qwen3.5-35B-A3B-Base` | `Qwen/Qwen3.5-35B-A3B` (OpenRouter) | 35B / 3B MoE | ~70 GB | 1×H100-80 | **cheap** |
+| Gemma ⁷ | `google/gemma-4-26B-A4B` | `google/gemma-4-26B-A4B-it` (HF→vLLM) | 25.2B / 3.8B MoE | ~50 GB | 1×H100-80 | **cheap** |
 | Llama | `meta-llama/Llama-4-Maverick-17B-128E` | `…-Instruct` (OpenRouter→DeepInfra) | 400B / 17B MoE | ~800 GB | 8×H100-80 | mid |
 | GLM | `zai-org/GLM-4.5-Base` | `zai-org/GLM-4.5` (OpenRouter→Z.AI) | ~355B / 32B MoE | ~710 GB | 8×H200 | mid |
-| DeepSeek | `deepseek-ai/DeepSeek-V4-Pro-Base` | `deepseek-ai/DeepSeek-V4-Pro` (native) | ~671B / 37B MoE | ~1.3 TB | 16×H100 / 8×B200 | giant |
-| Mistral | `mistralai/Mistral-Large-3-675B-Base-2512` | `…-Instruct-2512` (native) | ~675B | ~1.35 TB | 16×H100 / 8×B200 | giant |
+| DeepSeek | `deepseek-ai/DeepSeek-V4-Pro-Base` | `deepseek-ai/DeepSeek-V4-Pro` (native) | ~1.6T / 49B MoE | ~3.2 TB | multi-node (≫16×H100) | giant |
+| Mistral | `mistralai/Mistral-Large-3-675B-Base-2512` | `…-Instruct-2512` (native) | ~675B / 41B MoE (+2.5B vision) | ~1.35 TB | 16×H100 / 8×B200 | giant |
 | Kimi | `moonshotai/Kimi-K2-Base` | `moonshotai/Kimi-K2-Thinking` (OpenRouter→Novita) | ~1T / 32B MoE | ~2 TB | 16×H200 / 24×H100 | giant |
+
+⁷ **Gemma is the seventh model (added 2026-07-02).** It became eligible when the collaborative-evaluation
+pair switched back to **Anthropic + GPT**, freeing Google/Gemini from the reserved-evaluator role. `gemma-4-26B-A4B`
+is a granular MoE (25.2B total / 3.8B active, 8-of-128 experts + 1 shared), Apache-2.0, **ungated**, 256K ctx, ~50 GB
+bf16 → single 80 GB GPU (cheapest live leg alongside Qwen). Corrections folded in: **Mistral-Large-3 is MoE**
+(675B / 41B active + 2.5B vision — *not* dense), and **DeepSeek-V4-Pro is ~1.6 T / 49B active** (the earlier
+671B/37B were V3.1's numbers) — its serving/cost below is under-provisioned and must be re-derived.
 
 **Serving notes**
 - **vast.ai hosts no base models** — its "Models" marketplace is instruct-only. So we do NOT use it; we rent a **generic GPU + `vllm/vllm-openai` and pull every repo (base *and* post) from HF via `--model`**. This makes the **HF download the dominant cost**: filter offers for `inet_down` + `disk_space`, gate the HF token/license, reuse one box across a family's two legs, and for the giants use a **persistent volume** (`HF_HOME`/`--download-dir`) so 0.7–2 TB isn't re-pulled per launch. Full walkthrough: `docs/vast_quickstart.md`.
@@ -106,24 +122,28 @@ wall-clock dominates** (inference is minutes). The old "~$750 base + ~$50 post-A
 Assumptions: bf16 = 2 bytes/param; each variant pulled once; **one box reused for both legs**; HF pull
 ≈ **400 MB/s** (`HF_HUB_ENABLE_HF_TRANSFER=1` on a high-`inet_down` offer — **±2× is the biggest
 swing**); vast spot ≈ **$2/H100-GPU-hr, $2.75/H200-GPU-hr** (on-demand clouds ~30% higher); GPU count =
-min bf16 fit (671–675B and 1T do **not** fit 16×H100 → H200).
+min bf16 fit (≥675B, ~1.6T and 1T do **not** fit 16×H100 → H200 / multi-node).
 
 | Family | bf16 weights (base+post) | GPUs | wall-clock (both legs) | cost (vast spot) |
 |---|---|---|---|---|
 | Qwen 35B-A3B | 0.14 TB | 1×H100 | ~1 h | **~$5** |
+| Gemma 26B-A4B | 0.10 TB | 1×H100 | ~1 h | **~$8** |
 | Llama-4 400B | 1.6 TB | 8×H100 | ~2.5 h | ~$40 |
 | GLM-4.5 355B | 1.4 TB | 8×H200 | ~2.5 h | ~$50 |
-| DeepSeek 671B | 2.7 TB | 16×H200 | ~3.7 h | ~$165 |
+| DeepSeek V4-Pro ~1.6T | ~6.4 TB | multi-node | ~8 h | **~$400+ (re-derive)** |
 | Mistral 675B | 2.7 TB | 16×H200 | ~3.7 h | ~$165 |
 | Kimi-K2 1T | 4.0 TB | 16×H200 | ~4.7 h | ~$210 |
-| **Both-legs subtotal** | | | | **~$635** |
-| **+ ×1.4 buffer** (failed offers, slow CDN, re-runs) | | | | **~$890** |
+| **Both-legs subtotal (7 models)** | | | | **~$880** |
+| **+ ×1.4 buffer** (failed offers, slow CDN, re-runs) | | | | **~$1,230** |
+
+*Deltas vs the old 6-model table: **+Gemma ~$8** (cheap, single-GPU), and **DeepSeek re-costed** — V4-Pro is
+~1.6 T (not 671B), so its ~$165 was a large under-estimate; the giant tier needs a fresh derivation.*
 
 **Range: ~$650 (vast spot + fast CDN, no re-runs) → ~$1,500 (on-demand rates + slow CDN + buffer);
 plan ~$900–1,100.** Download throughput and spot pricing are the two big swings.
 
 **Cheaper alternative (~$550–800):** keep the **post leg on OpenRouter** (verbalized, no GPU) and
-GPU-serve only the **6 base** variants from HF (≈$480 +buffer ~$670, + post API ~$50). Halves the
+GPU-serve only the **7 base** variants from HF (≈$490 +buffer ~$690, + post API ~$50). Halves the
 giant downloads but reintroduces the **cross-channel confound** (base token-slice vs post verbalized).
 
 **Minimum-viable: ~$50–90.** Phase 0 (free, done) → Qwen both legs (~$5–10) → Llama both legs
@@ -179,7 +199,7 @@ Serve: `vllm serve <base_repo> --dtype bfloat16 --tensor-parallel-size N [--enab
 
 ### 4.3 Post-model elicitation
 - Verbalized 5-way distribution via the existing JUDEX rater contract (API from Mac).
-- Where `logprobs` exists (OpenRouter: qwen3.5-35b-a3b, llama-4-maverick, deepseek-v4-pro, kimi-k2-thinking), also collect a token-sliced post distribution (same letters) so pre vs post is measured in the **same channel** — removes the verbalized-vs-logit confound.
+- Where `logprobs` exists (OpenRouter: qwen3.5-35b-a3b, llama-4-maverick, deepseek-v4-pro, kimi-k2-thinking; gemma-4-26b-a4b is served on vLLM so it has logprobs natively), also collect a token-sliced post distribution (same letters) so pre vs post is measured in the **same channel** — removes the verbalized-vs-logit confound.
 
 ### 4.4 Token-slice validity check (the original "Phase 1")
 For the post models that expose **both** verbalized and logprob channels, compare `INV_SOFTMAX(verbalized)` vs token-sliced logits (W1/KL). This empirically tests whether the two channels agree — the assumption the whole base-vs-post comparison rests on. Run it before trusting cross-channel comparisons.
@@ -192,9 +212,9 @@ For each family, against AIReg GT, fit **both** objectives (we proved neither is
 - Always alongside: **argmax accuracy** per model (the gate) and the **Murphy decomposition** (is the addressable error Reliability or Resolution?).
 
 ### 4.6 Cross-family stability & decision (Q3 + Q4)
-- Plot/serialize the six `(T*_pre, T*_post, τ_oc, accuracy)`.
+- Plot/serialize the seven `(T*_pre, T*_post, τ_oc, accuracy)`.
 - **Document-clustered bootstrap** (reuse the pattern; resample the 24 docs) CIs on `τ_oc` and on the cross-family spread.
-- **Decision rule:** if `τ_oc` clusters tightly *and* the bases clear the accuracy gate, adopt `median(τ_oc)` as the transferred constant for the closed evaluators. `study_a.calibration_block()` emits a drop-in `pipeline.yaml → calibration` block (`mode: temperature`; written to `runs/<run>/pipeline_calibration_block.json`). **Seam note:** the merged `pipeline.yaml` calibration seam is **global** (applied at the Phase-1 gleaning site to whichever families run, no `family_id`). At evaluation time those families are the two **closed** evaluators (Gemini/GPT) — the open annotator raters run only at *construction* and are never calibrated here — so for the intended case (two closed families + one clustered constant) pasting the block into the top-level `calibration` key is **adequate**. **Family-scoping is an optional refinement**, needed only if τ_oc doesn't cluster (per-family T), if an arm runs a different evaluator pair, or to move the correction to Phase-3; it is specified in `docs/integration_remediation_2026_07_01.md` (a separate, approved evaluator change, relevant only at this Phase-4 decision). Else, report negative.
+- **Decision rule:** if `τ_oc` clusters tightly *and* the bases clear the accuracy gate, adopt `median(τ_oc)` as the transferred constant for the closed evaluators. `study_a.calibration_block()` emits a drop-in `pipeline.yaml → calibration` block (`mode: temperature`; written to `runs/<run>/pipeline_calibration_block.json`). **Seam note:** the merged `pipeline.yaml` calibration seam is **global** (applied at the Phase-1 gleaning site to whichever families run, no `family_id`). At evaluation time those families are the two **closed** evaluators (now **Claude + GPT**) — the open annotator raters run only at *construction* and are never calibrated here — so for the intended case (two closed families + one clustered constant) pasting the block into the top-level `calibration` key is **adequate**. **Family-scoping is an optional refinement**, needed only if τ_oc doesn't cluster (per-family T), if an arm runs a different evaluator pair, or to move the correction to Phase-3; it is specified in `docs/integration_remediation_2026_07_01.md` (a separate, approved evaluator change, relevant only at this Phase-4 decision). Else, report negative.
 
 ### 4.7 Decorrelated dispersion (exploratory extension — see §0)
 Add the base-model distributions to the dispersion replicate pool for the closed evaluators (a *decorrelated, well-calibrated* reference, fixing the correlated-overconfidence blindness) and re-run `dispersion_calibration_recovery` on the existing `stage9-gemini-gpt-medium` / `phase23-deference-fix-native` runs. **Pitfall:** do not match the evaluator's *width* to a base model's width (a well-calibrated weak model is appropriately wide; copying it over-widens). Use base disagreement only as *added dispersion*.
@@ -279,8 +299,9 @@ Record run-ids, fitted `τ_oc`, the Q1–Q4 verdicts, and any negative results i
 | **0a** | **Local plumbing smoke** (optional, free) — on the **Mac (M1 Pro/Metal)** serve one small **int4/Q4** stand-in (e.g. Qwen3-4B) via **llama.cpp / llama-cpp-python** (or a local CUDA box via vLLM) and run `run_qwen_phase1.py --limit 6 --no-reason` end to end. Proves serve→token-slice→analysis→calibration-block before any spend. See `docs/local_smoke_quickstart.md`. | $0 | Pipeline emits `study_a_report.json` + `pipeline_calibration_block.json`. **DISCARD every number — τ_oc is MEANINGLESS** under int4 + a stand-in model + `--limit` + `--no-reason` (the run self-flags `smoke`); the gate checks only that the pipeline runs. |
 | **0** | **Free accuracy pre-check** — parse the 10 existing AIReg-Bench LLM annotations vs human GT; compute argmax accuracy. | $0 | If even frontier models (o3/gpt5/sonnet/gemini-pro) score ~low, the accuracy gate is structural → **fix accuracy/elicitation first; do NOT spend.** |
 | **1** | Stand up repo + pipeline on **Qwen 35B** (base, **bf16, all 120 cells, reasoning ON — PAID**; the first *real* measurement, distinct from the free int4 `--limit`/`--no-reason` Mac smoke in 0a whose numbers are discarded); run §4.4 validity check on a post model with logprobs. | ~$5 | Pipeline green; token-slicing valid; Qwen clears accuracy gate. |
-| **2** | Add **Llama-4-Maverick** (mid). Two-family `τ_oc` + cross-family check. | ~$60 | `τ_oc` plausible & accuracy adequate on ≥2 families. |
-| **3** | Commit to the **three giants + GLM** (bf16, multi-node). Full six-family Q1/Q2/Q3. | ~$700 | — |
+| **1b** | Add **Gemma 26B-A4B** — the other cheap, single-80GB-GPU pair (ungated Apache-2.0). Two-family `τ_oc` on the two cheap models before any mid/giant spend. | ~$8 | Gemma clears the accuracy gate; `τ_oc` finite. |
+| **2** | Add **Llama-4-Maverick** (mid). Three-family `τ_oc` + cross-family check. | ~$60 | `τ_oc` plausible & accuracy adequate on ≥3 families. |
+| **3** | Commit to the **three giants + GLM** (bf16, multi-node). Full seven-family Q1/Q2/Q3. | ~$700+ | — |
 | **4** | Decision: adopt `median(τ_oc)` transferred constant (config flip in `judex-evaluator`) or report negative; run Q3 decorrelated-dispersion. | $0 | — |
 
 ---
@@ -290,10 +311,10 @@ Record run-ids, fitted `τ_oc`, the Q1–Q4 verdicts, and any negative results i
 1. **Accuracy gate may moot the study** — if the open models are also inaccurate on EU-AI-Act compliance, every `T*` pegs (as it did for Gemini/GPT). Phase 0 + Phase 1 are designed to fail cheap.
 2. **fp8 quantization confound** — fp8 corrupts the logits we measure; prefer bf16 on the base leg, or bound the effect via §4.4.
 3. **Model availability/sizes** — the 2026 base checkpoints and exact architectures must be verified at download; sizing/cost shifts if they differ.
-4. **Transfer to closed evaluators is an assumption** — tested only indirectly (cross-family clustering + applying `median(τ_oc)` to Gemini/GPT on AIReg and checking the Murphy Reliability drop). More grounded than DACA's, not a proof.
+4. **Transfer to closed evaluators is an assumption** — tested only indirectly (cross-family clustering + applying `median(τ_oc)` to the closed pair (Claude/GPT) on AIReg and checking the Murphy Reliability drop). More grounded than DACA's, not a proof.
 5. **Base-model prompt sensitivity** — base models are format-fragile; few-shot count/wording affects the token-sliced distribution. Hold the few-shot block fixed across families; treat it as part of the measurement instrument.
 6. **Calibration/validation firewall** — AIReg is the validation set. A single transferred scalar T for *production* (future docs) is legitimate; for *reporting AIReg numbers* fit T on a held-out split / CV to avoid tuning-on-test.
-7. **The post panel will change** — per the user, adopting these six replaces some current JUDEX post-trained raters. Re-pin the exemplar/annotator panel deliberately; keep the calibration corpus rebuild separate from this study.
+7. **The post panel will change** — per the user, adopting these seven (Gemma included) replaces some current JUDEX post-trained raters. Re-pin the exemplar/annotator panel deliberately; keep the calibration corpus rebuild separate from this study. Note the `judex-corpus` few-shot exemplar store is still the **6-rater** build (Gemma not yet an exemplar annotator) — promoting the 7-model set to the corpus annotation panel is a separate, downstream step.
 
 ---
 

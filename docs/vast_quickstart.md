@@ -156,8 +156,8 @@ conda run -n judex-arm python scripts/run_qwen_phase1.py --analyze-only --out ru
 Reads `pre.json`/`post.json`, joins to the AIReg human GT, and emits `study_a_report.json`:
 - **Q1** `T*_pre` (≈1 if the base is well-calibrated), **Q2** post `T*`/`τ_oc` + argmax retention,
 - **Q3** `tau_oc_summary` (cross-family stability — meaningful once ≥2 families are in),
-- **Q4** `closed_side_check` (the median `τ_oc` applied to the Gemini/GPT AIReg outputs: does Murphy
-  Reliability drop without hurting Resolution/RPS?).
+- **Q4** `closed_side_check` (the median `τ_oc` applied to the closed pair's (Claude/GPT) AIReg outputs: does Murphy
+  Reliability drop without hurting Resolution/RPS? — needs a Claude+GPT run; the legacy gemini-gpt run is Gemini/GPT).
 **Accuracy gate:** if `argmax_acc` is low and both `T*` peg at the search bound, Qwen failed the gate
 the same way the closed evaluators did — record it and reconsider before serving the giants.
 

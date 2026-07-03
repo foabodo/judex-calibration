@@ -212,5 +212,5 @@ TEARDOWN: after results are safe, stop vLLM (`tmux kill-window -t vllm`). Tell m
 - **`--dangerously-skip-permissions`** is reasonable on an isolated throwaway box but skips *all*
   approval gates — use the `--allowedTools` allow-list (§4) if you want Claude constrained to the
   serve/elicit/teardown commands only.
-- This orchestrates the **run**; it does not change the science. The six bf16 panel models and the
+- This orchestrates the **run**; it does not change the science. The seven bf16 panel models and the
   canonical GT are unchanged — Claude is just a faster hand on the provisioning/serving/debug loop.

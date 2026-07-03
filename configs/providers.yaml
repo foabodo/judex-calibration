@@ -14,6 +14,10 @@ post_providers:
                                         # (NextBit/DeepInfra/AkashML) don't return logprobs. For
                                         # same-channel pre/post token-slicing, serve qwen POST on vLLM too.
 
+  # gemma (7th annotator, 2026-07-02): no hosted-API row — google/gemma-4-26B-A4B-it is ungated
+  # Apache-2.0 on HF and is served (like its base) on vast vLLM for the same-channel token-slice.
+  # Eligible now that the evaluator pair is Anthropic+GPT (Google freed from the evaluator role).
+
 
 # 5-level ordinal scale; single-token answer letters (A=very_low ... E=very_high).
 scale:

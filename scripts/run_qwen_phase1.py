@@ -5,7 +5,7 @@
     (e.g. Qwen3-4B) on a local llama.cpp/Metal server, with --limit N --no-reason. Validates
     the machinery only; its tau_oc is MEANINGLESS — never report it or paste its
     pipeline_calibration_block.json anywhere. See docs/local_smoke_quickstart.md.
-(L) VAST LIVE — the real, paid experiment, its tau_oc IS the study output: the six panel
+(L) VAST LIVE — the real, paid experiment, its tau_oc IS the study output: the seven panel
     base+post pairs on vLLM, bf16, ALL 120 cells, reasoning ON (omit --limit/--no-reason).
     See docs/vast_quickstart.md + docs/vast_claude_code_orchestration.md.
 
@@ -52,7 +52,9 @@ def main():
                          "all 120. Any run with --limit>0 is a plumbing test — its report/tau_oc/"
                          "calibration_block are MEANINGLESS. The live experiment runs all 120 (--limit 0).")
     ap.add_argument("--closed-run", default="stage9-gemini-gpt-medium",
-                    help="JUDEX run whose closed-evaluator (Gemini/GPT) AIReg preds get the Q4 check")
+                    help="JUDEX run whose closed-evaluator AIReg preds get the Q4 check. Evaluators are "
+                         "now Anthropic+GPT (Claude/GPT); the default gemini-gpt run is LEGACY — pass a "
+                         "Claude+GPT AIReg run for a valid Q4.")
     args = ap.parse_args()
 
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)

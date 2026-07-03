@@ -104,7 +104,7 @@ def fit_tau_oc(post: Dict[str, List[float]], pre: Dict[str, List[float]], cells:
 
 
 def closed_side_check(preds: Dict[str, List[float]], cells: List[Cell], T: float, bins: int = 10) -> dict:
-    """Q4: apply the open-derived constant ``T`` to closed-evaluator (Gemini/GPT)
+    """Q4: apply the open-derived constant ``T`` to closed-evaluator (Claude/GPT)
     predictions on AIReg. The transfer is legitimate iff Murphy **Reliability**
     improves **without** destroying Resolution or RPS (temperature preserves
     argmax, so accuracy is unchanged by construction)."""
@@ -168,7 +168,7 @@ def calibration_block(report: dict, *, accuracy_gate=None, bootstrap_ci=None) ->
     which stamps ``gt_free_dispersion_fit`` provenance and would be a false audit trail.
 
     NB (see guide §4.6 + docs/integration_remediation_2026_07_01.md): the merged pipeline seam is
-    GLOBAL, but at evaluation time it only ever sees the closed evaluator pair (Gemini/GPT) — the
+    GLOBAL, but at evaluation time it only ever sees the closed evaluator pair (Claude/GPT) — the
     open raters run at construction, not here. So for two closed families + one clustered constant,
     this block drops into the global ``calibration`` key as-is. Family-scoping is an OPTIONAL
     refinement (per-family T if tau_oc does not cluster, a different evaluator pair, or Phase-3).
@@ -190,7 +190,7 @@ def calibration_block(report: dict, *, accuracy_gate=None, bootstrap_ci=None) ->
             "n_families": summary.get("n_families"),
             "accuracy_gate": accuracy_gate,
             "bootstrap_ci": bootstrap_ci,
-            "target_families": "closed_evaluators (Gemini/GPT); global seam adequate for a clustered constant, else family-scoped",
+            "target_families": "closed_evaluators (Claude/GPT); global seam adequate for a clustered constant, else family-scoped",
         },
     }
 

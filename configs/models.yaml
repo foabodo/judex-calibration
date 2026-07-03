@@ -1,4 +1,4 @@
-# Study A LIVE experiment inventory — the SIX bf16 panel base/post pairs for the paid vast run.
+# Study A LIVE experiment inventory — the SEVEN bf16 panel base/post pairs for the paid vast run.
 # This is NOT the smoke: the free Mac plumbing smoke uses ONE small int4/Q4 stand-in (e.g. Qwen3-4B
 # on llama.cpp) that is NOT listed here — see docs/local_smoke_quickstart.md.
 # VERIFY param counts / repo availability with `hf` + model card before provisioning.
@@ -13,6 +13,14 @@ families:
     post_api: { provider: openrouter, model: qwen/qwen3.5-35b-a3b, logprobs: true }
     params: { total: 35B, active: 3B, moe: true }
     serving: { dtype: bfloat16, tensor_parallel_size: 1, gpu: "1xH100-80", est_cost_usd: 5 }
+
+  gemma:   # 7th annotator, added 2026-07-02 — eligible now that the evaluator pair is Anthropic+GPT
+           # (Google/Gemini freed from the reserved-evaluator role). Google family.
+    tier: cheap
+    base_repo: google/gemma-4-26B-A4B
+    post_api: { provider: vllm_hf, model: google/gemma-4-26B-A4B-it, logprobs: true }  # ungated Apache-2.0; both legs served from HF on vast vLLM (OpenRouter hosting unverified)
+    params: { total: 25.2B, active: 3.8B, experts: 128, experts_active: 8, moe: true }
+    serving: { dtype: bfloat16, tensor_parallel_size: 1, gpu: "1xH100-80", est_cost_usd: 8 }  # ~50GB bf16 MoE fits one 80GB GPU; multimodal (text used), 256K ctx
 
   llama:
     tier: mid
@@ -32,14 +40,14 @@ families:
     tier: giant
     base_repo: deepseek-ai/DeepSeek-V4-Pro-Base
     post_api: { provider: deepseek, model: deepseek-v4-pro, base_url: "https://api.deepseek.com", logprobs: true }
-    params: { total: 671B, active: 37B, moe: true }   # VERIFY
+    params: { total: 1600B, active: 49B, moe: true }   # DeepSeek-V4-Pro ≈1.6T-A49B (verified HF 2026-07); 671B/37B was V3.1. 1.6T bf16 ≈3.2TB — the serving line below is under-provisioned; re-derive before the giant run.
     serving: { dtype: bfloat16, tensor_parallel_size: 8, pipeline_parallel_size: 2, gpu: "16xH100 (2 nodes)", est_cost_usd: 160 }
 
   mistral:
     tier: giant
     base_repo: mistralai/Mistral-Large-3-675B-Base-2512
     post_api: { provider: mistral, model: mistral-large-2512, base_url: "https://api.mistral.ai/v1", logprobs: false }
-    params: { total: 675B }   # VERIFY dense vs MoE
+    params: { total: 675B, active: 41B, experts: true, moe: true }   # MoE (granular) + 2.5B vision encoder — verified HF 2026-07 (NOT dense)
     serving: { dtype: bfloat16, tensor_parallel_size: 8, pipeline_parallel_size: 2, gpu: "16xH100 (2 nodes)", est_cost_usd: 160 }
 
   kimi:

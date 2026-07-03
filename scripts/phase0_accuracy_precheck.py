@@ -2,7 +2,7 @@
 """Phase 0 — FREE accuracy pre-check (no API calls, no GPU).
 
 Gate for Study A. The existing AIReg-Bench LLM annotations (the *paper's* raters,
-a PROXY — NOT our six pre/post annotators, which have never been run on AIReg)
+a PROXY — NOT our seven pre/post annotators, which have never been run on AIReg)
 are scored for argmax accuracy against the human-reconciled GT mode. If even
 frontier models cannot pick the modal human compliance level often enough, the
 accuracy gate is structural to the task and any paid base-model serving is
@@ -115,7 +115,7 @@ def main():
         mae = sum(abs(p - t) for p, t in joined) / n
         rows.append((name, n, exact, within1, mae))
     rows.sort(key=lambda r: -r[2])
-    print(f"GT cells: {len(gt)}  |  models: {len(files)}  |  PROXY (AIReg-Bench raters, not our six)\n")
+    print(f"GT cells: {len(gt)}  |  models: {len(files)}  |  PROXY (AIReg-Bench raters, not our seven)\n")
     print(f"{'model':14s} {'n':>4s} {'argmax_acc':>11s} {'within±1':>9s} {'MAE':>6s}")
     print("-" * 50)
     for name, n, ex, w1, mae in rows:
@@ -123,7 +123,7 @@ def main():
     accs = [r[2] for r in rows if r[1]]
     print("-" * 50)
     print(f"best={max(accs):.3f}  median={sorted(accs)[len(accs)//2]:.3f}  worst={min(accs):.3f}")
-    out = {"gt_cells": len(gt), "proxy_note": "AIReg-Bench paper raters, NOT the six pre/post annotators",
+    out = {"gt_cells": len(gt), "proxy_note": "AIReg-Bench paper raters, NOT the seven pre/post annotators",
            "models": [{"model": n, "n": nn, "argmax_acc": ex, "within1_acc": w1, "mae": mae}
                       for n, nn, ex, w1, mae in rows]}
     os.makedirs(os.path.join(os.path.dirname(__file__), "..", "runs", "phase0"), exist_ok=True)
