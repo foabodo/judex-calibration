@@ -18,7 +18,7 @@ families:
            # (Google/Gemini freed from the reserved-evaluator role). Google family.
     tier: cheap
     base_repo: google/gemma-4-26B-A4B
-    post_api: { provider: vllm_hf, model: google/gemma-4-26B-A4B-it, logprobs: true }  # ungated Apache-2.0; both legs served from HF on vast vLLM (OpenRouter hosting unverified)
+    post_api: { provider: vllm_hf, model: google/gemma-4-26B-A4B-it, logprobs: true }  # ungated Apache-2.0; both legs served from HF on vast vLLM. NOTE 2026-07-03: OpenRouter hosting of the -it post leg IS now verified (corpus seat-7 collection: Novita bf16 pin, 28/28 clean) — switching post to OpenRouter (consistent with the other post legs, no extra GPU time) vs keeping vllm_hf (post+base on the identical serving stack) is an OPEN USER DECISION; vllm_hf kept until decided.
     params: { total: 25.2B, active: 3.8B, experts: 128, experts_active: 8, moe: true }
     serving: { dtype: bfloat16, tensor_parallel_size: 1, gpu: "1xH100-80", est_cost_usd: 8 }  # ~50GB bf16 MoE fits one 80GB GPU; multimodal (text used), 256K ctx
 

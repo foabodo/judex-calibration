@@ -89,3 +89,27 @@ distributions into `replicates_by_item` before the call — the evaluator functi
 All four repos on `develop`, pins == tips: corpus `dab1db2`, ground-truth `fcf17a9`, evaluator
 `cb71d05`, calibration (this change, to be committed). `judex-calibration` references siblings by
 relative path only (no stale SHA pins) — correct.
+
+---
+
+## Addendum — 2026-07-03 re-verification at the 7-rater refresh tips
+
+The three sibling repos moved to corpus `aa0c928` / ground-truth `bccccea` / evaluator `16b39a5`
+(7-rater annotator panel: Gemma seat-7 collected, exemplar stores rebuilt 672→**784** rows
+(644 leaf + 140 dimension), GT leaf/dim labels re-fit, AIReg-Bench GT bundle **rebuilt** at
+4000 draws/8000 tune nutpie — argmax-identical, W1 ≈ 0.0008 vs the previous bundle, but new
+hashes/trace). Every seam above was re-verified live against those tips:
+
+- **#2 `aireg.load_cells()`**: 120/120 cells, manifest verification passes against the NEW
+  bundle; GT == canonical barycenter CSV to max |diff| **1.39e-17**. The supervised-fit sanity
+  number re-derives to **T_rps 2.4434** on the Gemini/GPT run (recorded 2.44 — unchanged, as
+  expected given W1 ≈ 0.0008 label movement).
+- **#3 `fewshot.py`**: dimension store now 140 rows / **7 raters** (all rows carry the 7-field
+  contract incl. `compliance_distribution`/`confidence_distribution`/`findings`); k=4 selection
+  yields 4 distinct raters per Article with an ordinal ramp; `compliance_1to5 == argmax+1`
+  invariant holds 140/140; firewall `source_item_label ∩ AIReg item_label = ∅` re-confirmed.
+- **`phase0`**: proxy ceiling **0.658** (gemini-pro) unchanged under the refreshed bundle —
+  the Phase 0 gate conclusion stands.
+- **Panel note**: "the six open annotator raters" in the seam discussion above is now **seven**
+  (Gemma added); the construction-time-only argument is unchanged.
+- Seam-verification tests added: `tests/test_integration_seams.py`.

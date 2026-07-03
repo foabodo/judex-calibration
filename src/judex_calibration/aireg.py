@@ -7,10 +7,12 @@ sibling-repo artifacts — no dependency on a gitignored run directory:
 
   GT distribution : judex-ground-truth/data/distributional_labels/  (the canonical
                     ``mgmfrm_anchored_projection`` bundle — cumulative-consistency
-                    re-fit, 2026-06-30 d4d2baa — loaded through judex-evaluator's
-                    manifest-verified ``synthesize_aireg_bench_ground_truth`` so the
-                    SHA-256 contract is enforced and we always pick up the current
-                    canonical labels across future re-pins).
+                    fit, last re-fit 2026-07-03 at 4000 draws/8000 tune (nutpie; the
+                    1000/2000 settings failed the R-hat gate) — loaded through
+                    judex-evaluator's manifest-verified
+                    ``synthesize_aireg_bench_ground_truth`` so the SHA-256 contract is
+                    enforced and we always pick up the current canonical labels across
+                    future re-pins).
   item_label->doc : judex-corpus/step3_4/ground_truth.json  (``labelled_sections``).
   criterion text  : judex-evaluator/configs/rubric.yaml.
   evidence text   : judex-corpus/step5/documents/<doc_id>/{application.md,data.md}.

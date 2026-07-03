@@ -21,7 +21,8 @@ Distributional LLM-as-judge for EU AI Act technical-file compliance. The evaluat
 probability distribution over a **5-level ordinal compliance scale** (a Type-C credence), scored
 against a distributional ground truth with optimal-transport metrics (Wasserstein / RPS). Four repos,
 git submodules of the `judex` umbrella:
-- `judex-corpus` — 24-PDF corpus + the **6-rater** leaf/dimension exemplar store (the few-shot source).
+- `judex-corpus` — 24-PDF corpus + the **7-rater** leaf/dimension exemplar store (784 rows: 644 leaf +
+  140 dimension; the few-shot source).
 - `judex-ground-truth` — Bayesian MG-MFRM labels; the canonical AIReg-Bench ground truth.
 - `judex-evaluator` — the runtime + scoring + calibration tooling (Study A reuses it verbatim).
 - `judex-calibration` — **Study A** (this repo): open pre/post-pair temperature calibration.

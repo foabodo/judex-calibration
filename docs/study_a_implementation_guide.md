@@ -3,9 +3,10 @@
 **Repo:** `judex/judex-calibration` (new) · **Driver:** Claude Code on local macOS · **Compute:** rented remote GPU (vLLM)
 **Status:** plan / runbook. No spend until Phase 0 gate passes.
 
-> **2026-07-01 integration remediation applied** (see `docs/integration_remediation_2026_07_01.md`):
-> the pipeline now runs against the current role-repo develop tips (corpus `dab1db2`, ground-truth
-> `fcf17a9`, evaluator `cb71d05`). GT is loaded canonically + reproducibly (`aireg.py` synthesizes the
+> **2026-07-01 integration remediation applied** (see `docs/integration_remediation_2026_07_01.md`);
+> **re-verified 2026-07-03** against the 7-rater role-repo refresh (corpus `aa0c928`, ground-truth
+> `bccccea`, evaluator `16b39a5` — see the addendum in the remediation doc for the re-derived
+> numbers). GT is loaded canonically + reproducibly (`aireg.py` synthesizes the
 > manifest-verified cumulative-consistency bundle — no gitignored run dependency); few-shot is drawn for
 > real from the corpus store (`fewshot.py`, k from `models.yaml`); `study_a` emits a drop-in evaluator
 > calibration block. An **optional** evaluator-side family-scoped seam is specified (see §4.6 and the
@@ -17,7 +18,7 @@
 > **Two workflows — never cross the recipes.** The same driver runs both:
 > - **SMOKE** — free Mac plumbing check (**llama.cpp/Metal, int4/Q4, `--limit`/`--no-reason`**, one
 >   small stand-in model) → τ_oc **MEANINGLESS, discard it** (`docs/local_smoke_quickstart.md`; Phase 0a).
-> - **LIVE** — the real, paid experiment (**vast vLLM, bf16, all 120 cells, reasoning ON**, the six
+> - **LIVE** — the real, paid experiment (**vast vLLM, bf16, all 120 cells, reasoning ON**, the seven
 >   panel models) → the **real τ_oc** (Phases 1–4).
 >
 > Flags/host/model/dtype decide which; a `--limit`/`--no-reason`/<120-cell run auto-flags `smoke` in
@@ -314,7 +315,7 @@ Record run-ids, fitted `τ_oc`, the Q1–Q4 verdicts, and any negative results i
 4. **Transfer to closed evaluators is an assumption** — tested only indirectly (cross-family clustering + applying `median(τ_oc)` to the closed pair (Claude/GPT) on AIReg and checking the Murphy Reliability drop). More grounded than DACA's, not a proof.
 5. **Base-model prompt sensitivity** — base models are format-fragile; few-shot count/wording affects the token-sliced distribution. Hold the few-shot block fixed across families; treat it as part of the measurement instrument.
 6. **Calibration/validation firewall** — AIReg is the validation set. A single transferred scalar T for *production* (future docs) is legitimate; for *reporting AIReg numbers* fit T on a held-out split / CV to avoid tuning-on-test.
-7. **The post panel will change** — per the user, adopting these seven (Gemma included) replaces some current JUDEX post-trained raters. Re-pin the exemplar/annotator panel deliberately; keep the calibration corpus rebuild separate from this study. Note the `judex-corpus` few-shot exemplar store is still the **6-rater** build (Gemma not yet an exemplar annotator) — promoting the 7-model set to the corpus annotation panel is a separate, downstream step.
+7. **The post panel and the corpus store are now aligned (2026-07-03)** — the `judex-corpus` few-shot exemplar store is the **7-rater** build (784 rows: 644 leaf + 140 dimension; Gemma collected as the seventh seat via OpenRouter/Novita bf16, corpus `aa0c928`), and the GT leaf/dimension labels were re-fit on the same 7-rater panel. The Study A panel and the corpus annotation panel are the same seven families; any *future* panel change still requires a deliberate re-pin plus a corpus rebuild kept separate from this study.
 
 ---
 

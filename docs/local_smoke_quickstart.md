@@ -213,7 +213,7 @@ You are testing the **machinery**, not the calibration. Success =:
 auto-flags `smoke` in the report + calibration block). If all of the above appear, the
 serve→token-slice→analysis→integration path is proven (on the Mac/topology-A path this covers everything
 **except** vLLM's exact logprobs wire-shape — re-confirm that with one `curl` when you spin up vast, per
-the §0 fidelity note). You can then commit to the paid vast run with the six real (bf16) panel models.
+the §0 fidelity note). You can then commit to the paid vast run with the seven real (bf16) panel models.
 
 Then, optionally, a fuller local dry-run: drop `--no-reason` (CoT; keep `--max-model-len 32768`) and
 raise `--limit` (e.g. `24`) to exercise the reasoning path and per-Article few-shot at scale.

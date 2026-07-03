@@ -1,6 +1,6 @@
 {
   "gt_cells": 120,
-  "proxy_note": "AIReg-Bench paper raters, NOT the six pre/post annotators",
+  "proxy_note": "AIReg-Bench paper raters, NOT the seven pre/post annotators",
   "models": [
     {
       "model": "pro",
