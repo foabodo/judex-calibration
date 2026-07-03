@@ -1,9 +1,12 @@
 .venv/
 __pycache__/
 *.pyc
-# bulk run artifacts — keep manifests, ignore raw dumps/weights
-runs/**/raw/
-runs/**/*.nc
+# per-run artifacts are gitignored by default (smoke/live outputs are throwaway or scp'd out
+# deliberately — see docs/*.md "runs/ is gitignored"). Carve out explicit exceptions below for
+# anything meant to be a permanent, committed record (e.g. the free Phase 0 pre-check).
+runs/
+!runs/phase0/
+!runs/phase0/**
 weights/
 *.safetensors
 .DS_Store
