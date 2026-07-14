@@ -31,8 +31,11 @@ _UMBRELLA = Path(os.environ.get("JUDEX_UMBRELLA") or _CAL_ROOT.parent)  # .../ju
 CORPUS = _UMBRELLA / "judex-corpus"
 # The Article-level (dimension) store is keyed by criterion_id (article_9..article_15),
 # matching aireg.Cell.criterion_id. The sibling exemplar_store.json is leaf-keyed only.
+# Corpus v2 (2026-07-13) is the adopted vintage: the same 44 Article-level excerpts
+# re-authored in the ambiguity_structured style and re-annotated by the same 7-seat
+# panel; the v1 tree (judex_leaf_exemplar_construction/) is the archived baseline.
 DIMENSION_STORE = (
-    CORPUS / "leaf_exemplars" / "judex_leaf_exemplar_construction"
+    CORPUS / "leaf_exemplars" / "judex_leaf_exemplar_construction_v2"
     / "exemplar_store" / "dimension_exemplar_store.json"
 )
 MODELS_YAML = _CAL_ROOT / "configs" / "models.yaml"

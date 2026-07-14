@@ -69,17 +69,18 @@ class FewshotStoreSeamTests(unittest.TestCase):
         cls.rows = [r for rows in cls.store.values() for r in rows]
 
     def test_dimension_store_is_the_7_rater_build(self):
-        self.assertEqual(len(self.rows), 140)  # 20 excerpts x 7 raters
+        self.assertEqual(len(self.rows), 308)  # 44 excerpts x 7 raters (corpus v2, 2026-07-13)
         self.assertEqual({r["rater_model"] for r in self.rows}, EXPECTED_RATERS)
 
-    def test_leaf_plus_dimension_totals_784(self):
-        leaf_path = (fewshot.CORPUS / "leaf_exemplars" / "judex_leaf_exemplar_construction"
-                     / "exemplar_store" / "exemplar_store.json")
+    def test_leaf_plus_dimension_totals_1757(self):
+        # The leaf store sibling of the adopted dimension store (same corpus tree),
+        # so this seam tracks whichever corpus vintage fewshot.DIMENSION_STORE adopts.
+        leaf_path = fewshot.DIMENSION_STORE.parent / "exemplar_store.json"
         leaf = json.loads(leaf_path.read_text())
         leaf_store = leaf.get("store", leaf)
         n_leaf = sum(len(v) for v in leaf_store.values())
-        self.assertEqual(n_leaf, 644)
-        self.assertEqual(n_leaf + len(self.rows), 784)
+        self.assertEqual(n_leaf, 1449)
+        self.assertEqual(n_leaf + len(self.rows), 1757)
 
     def test_rows_carry_the_distributional_contract(self):
         for r in self.rows:
