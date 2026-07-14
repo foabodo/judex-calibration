@@ -3,9 +3,10 @@
 Distilled project knowledge so a Claude Code instance — on the user's Mac **or** on a rented vast.ai
 GPU box — starts with the same understanding. Full detail lives in the repo docs (pointers below).
 
-## Two Study A workflows — never cross the recipes
-The same driver (`scripts/run_qwen_phase1.py`) runs both; the flags/host/model decide which, and only
-one produces valid numbers:
+## Study A workflows — never cross the recipes
+The same driver (`scripts/run_qwen_phase1.py`) runs all of them; the flags/host/model decide which.
+Only the VAST LIVE recipe produces the study's numbers; the LOCAL PILOT (third recipe, added
+2026-07-14) produces labeled pilot evidence about the phenomenon, never the panel constant:
 - **MAC SMOKE** — free plumbing test: one small **int4/Q4** stand-in (e.g. Qwen3-4B) on **llama.cpp /
   Metal**, `--limit N --no-reason`. Validates the machinery only — **τ_oc is MEANINGLESS; discard it,
   never paste its calibration block.** One run dir per family (`--family qwen|gemma|... --out
@@ -15,6 +16,11 @@ one produces valid numbers:
 - **VAST LIVE** — the real, paid experiment: the **seven panel** base+post pairs on **vLLM**, **bf16**,
   **all 120 cells**, **reasoning ON** (omit `--limit/--no-reason`). Its τ_oc **is** the study output.
   (`docs/vast_quickstart.md` · `docs/vast_claude_code_orchestration.md`)
+- **LOCAL fp16 SCIENCE PILOT** — free 4B-pair pilot of the *phenomenon* (not the panel constant):
+  **fp16 ggufs** (never int4), all 120 cells, reasoning ON, native `llama-server`, family tags
+  `gemma3-4b`/`qwen3-4b` (never the panel keys). Not smoke-flagged — but its calibration block is
+  **never integrated**, and its τ_oc is pilot evidence only (fp16/Metal channel; 4B accuracy-gate
+  caveats). (`docs/local_smoke_quickstart.md` §2·Mac-D · `scripts/run_local_f16_pilot.sh`)
 
 Runs that set `--limit`/`--no-reason` (or analyse <120 cells) are auto-flagged `smoke` in
 `study_a_report.json` and the calibration block, and print `[SMOKE] … do NOT paste into pipeline.yaml`.
