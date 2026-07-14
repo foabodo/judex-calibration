@@ -135,6 +135,8 @@ the real cost control is **wall-clock on the box**, so tell Claude to tear down 
 
 Save as `/workspace/brief.md` (autonomous mode) or paste into interactive `claude`. Parameterised for
 **one family**; repeat per family, or extend the brief to loop the `configs/models.yaml` roster.
+The **cheap trial is TWO families** — run this brief once for Qwen (below), then once for **Gemma**
+with the substitutions listed after the brief, then merge (`--merge`) for the cross-family report.
 
 ```md
 You are orchestrating a Study A calibration run on THIS rented GPU box. Work in
@@ -155,17 +157,17 @@ Do it in this order and REPORT after each step:
    - Optional plumbing check (throwaway — its τ_oc is MEANINGLESS; never report or integrate it; note
      it still burns vast wall-clock, unlike the free Mac smoke): add `--limit 6 --no-reason`.
    - THE REAL RUN (this is the study output): OMIT both flags → all 120 cells, reasoning ON.
-   `python scripts/run_qwen_phase1.py --base-url http://127.0.0.1:8000 --base-model Qwen/Qwen3.5-35B-A3B-Base --out runs/qwen`
+   `python scripts/run_qwen_phase1.py --base-url http://127.0.0.1:8000 --base-model Qwen/Qwen3.5-35B-A3B-Base --family qwen --out runs/qwen`
    For the real run verify runs/qwen/pre.json has **120** sum-to-1 dists (fewer means you ran the check,
    and the run auto-flags `smoke` in the report).
 
 3. SWAP TO THE POST: kill the vLLM window (`tmux kill-window -t vllm`), relaunch the same command on
    Qwen/Qwen3.5-35B-A3B (add `--reasoning-parser qwen3` for the post's native reasoning), wait healthy,
-   then `python scripts/run_qwen_phase1.py --post-url http://127.0.0.1:8000 --post-model Qwen/Qwen3.5-35B-A3B --out runs/qwen`.
+   then `python scripts/run_qwen_phase1.py --post-url http://127.0.0.1:8000 --post-model Qwen/Qwen3.5-35B-A3B --family qwen --out runs/qwen`.
    Run the post leg the SAME way as the base — both full-120/reasoning for the real run; never pair a
    check leg with a real leg.
 
-4. ANALYSE: `python scripts/run_qwen_phase1.py --analyze-only --out runs/qwen`. FIRST confirm pre.json
+4. ANALYSE: `python scripts/run_qwen_phase1.py --analyze-only --family qwen --out runs/qwen`. FIRST confirm pre.json
    AND post.json each have 120 cells and were reasoning-ON — if study_a_report.json has `"smoke": true`,
    the τ_oc is MEANINGLESS; rerun the full leg before reporting. Only then read
    runs/qwen/study_a_report.json (Q1 T*_pre, Q2 τ_oc, Q3 tau_oc_summary, Q4 closed_side_check) and
@@ -176,7 +178,9 @@ TROUBLESHOOTING (fix these yourself, don't wait):
   offer is too small — report the VRAM gap. MoE giants: add `--tensor-parallel-size N --enable-expert-parallel`.
   **Never** reach for fp8/int4/AWQ/GPTQ to make it fit — **bf16 is mandatory** (quantization perturbs
   the logits the study measures); pick a bigger offer instead. int4 is only for the free Mac smoke.
-- Prompt exceeds context: raise `--max-model-len` (AIReg prompts are ~14k tokens; keep >= 16384).
+- Prompt exceeds context: raise `--max-model-len` (corpus-v2 prompts are ~18.3k tokens worst-case,
+  + the 2048 CoT budget ⇒ keep **>= 24576**; the standard pin is 32768 — measured 2026-07-14 by
+  `scripts/measure_prompt_budget.py`).
 - No logprobs on /v1/completions: ensure it's `vllm serve` (not a chat-only proxy); the base has no
   chat template so use /v1/completions only. elicit_base is server-agnostic but needs logprobs.
 - Endpoint unreachable from the driver: it's localhost on this box, so check the vLLM window is alive
@@ -196,6 +200,20 @@ handoff, per the guide's cadence.
 TEARDOWN: after results are safe, stop vLLM (`tmux kill-window -t vllm`). Tell me it's safe to
 `vastai destroy instance <id>` — do NOT destroy the box yourself.
 ```
+
+### The Gemma pass (the trial's second family — same brief, these substitutions)
+
+Run the identical brief with: `FAMILY: Gemma (BASE repo google/gemma-4-26B-A4B, POST repo
+google/gemma-4-26B-A4B-it)`; every driver call takes `--family gemma --out runs/gemma`; the post
+relaunch takes **NO `--reasoning-parser`** (Gemma 4 has no separate reasoning control — serve it
+plain); weights are ~50 GB bf16 (smaller than Qwen; the same box class works); the results tarball/
+branch is `gemma_results.tgz` / `vast-run-gemma`. Everything else — the 120-cell/reasoning-ON
+discipline, the smoke rules, the persistence rules — is unchanged.
+
+**Merge (after both families):** from the repo,
+`python scripts/run_qwen_phase1.py --merge qwen=runs/qwen gemma=runs/gemma --out runs/trial_cheap`
+— the merged `study_a_report.json` carries the 2-family `tau_oc_summary` (the first Q3 spread) and
+the Q4 check at the cross-family median; persist `runs/trial_cheap/` with the same rules.
 
 ## 6. After it finishes
 

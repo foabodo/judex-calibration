@@ -1,8 +1,11 @@
-# Vast.ai quick start — Study A Phase 1 (Qwen), account → data → shutdown
+# Vast.ai quick start — Study A Phase 1 (the two-family cheap trial: Qwen + Gemma), account → data → shutdown
 
-End-to-end walkthrough for collecting one Study A family (Qwen) on a rented GPU using a **custom
-template** + the `vllm/vllm-openai` server, then tearing it down. You serve each model as an
-OpenAI-compatible HTTP endpoint and call it from your Mac; the box's CLI is not used for inference.
+End-to-end walkthrough for the **pre-Study A trial**: collecting the TWO cheap-tier Study A
+families — **Qwen 3.5-35B-A3B** (§5–§10) and **Gemma 4-26B-A4B** (§12, same flow) — on rented GPUs
+using a **custom template** + the `vllm/vllm-openai` server, then tearing down. Two families from
+distinct lineages validate the methodology **cross-family** (a first Q3 τ_oc spread, §13) before any
+mid/giant spend, for ~$13–18 total. You serve each model as an OpenAI-compatible HTTP endpoint and
+call it from your Mac; the box's CLI is not used for inference.
 
 > **LIVE experiment** — vast.ai GPU, **vLLM, bf16, all 120 cells, reasoning ON**: this run produces
 > the **real τ_oc**. Never use `--limit`/`--no-reason`/int4 here — those belong to the *free* Mac
@@ -15,11 +18,13 @@ OpenAI-compatible HTTP endpoint and call it from your Mac; the box's CLI is not 
 > manual, from-the-Mac version it builds on.
 
 **What we're collecting (Study A context):** per-cell 5-way compliance distributions for the
-**base** (pretrained) and **post** (instruct) Qwen variants on the 120 AIReg cells, via
-token-slicing logits over A–E after a reasoning span (`elicit_base.py`). The base leg is the
-reason for going to vLLM at all — it needs **base weights + `/v1/completions` logprobs + bf16**,
+**base** (pretrained) and **post** (instruct) variants of BOTH cheap families on the 120 AIReg
+cells, via token-slicing logits over A–E after a reasoning span (`elicit_base.py`). The base leg is
+the reason for going to vLLM at all — it needs **base weights + `/v1/completions` logprobs + bf16**,
 which the one-click/serverless paths don't give. Phase 0 (the free accuracy gate) is already done;
-this is the first paid step (~$5–10 for Qwen).
+this is the first paid step (~$5–10 Qwen + ~$8 Gemma). Each family gets its own run dir
+(`--family qwen --out runs/qwen`, `--family gemma --out runs/gemma`); §13 merges them into the
+cross-family report.
 
 > **vast.ai hosts NO base model — we download BOTH variants from Hugging Face.** The vast "Models"
 > marketplace/templates are instruct-only (`vast.ai/model/qwen35-35b-a3b` = the instruct/thinking
@@ -50,9 +55,10 @@ vastai set api-key "$(security find-generic-password -s vastai-api-key -w)"
 ```
 
 ## 3. Hugging Face token + accept the model license
-1. On https://huggingface.co/Qwen/Qwen3.5-35B-A3B-Base **and** the post repo, click through / accept
-   the license if the repo is gated (Qwen is usually Apache-2.0/ungated, but confirm — a gated repo
-   makes the in-container download fail silently with a 401).
+1. On https://huggingface.co/Qwen/Qwen3.5-35B-A3B-Base **and** the post repo — plus the Gemma pair
+   (`google/gemma-4-26B-A4B` / `-it`) for §12 — click through / accept the license if the repo is
+   gated (Qwen and Gemma 4 are Apache-2.0/ungated, but confirm — a gated repo makes the
+   in-container download fail silently with a 401).
 2. Verify your read token can fetch them, then store it in Keychain:
 ```bash
 security add-generic-password -U -a "$USER" -s hf-token -w '<HF_READ_TOKEN>'        # one-time
@@ -71,10 +77,13 @@ Console: **Templates → + New Template** and set:
   ```
   --model Qwen/Qwen3.5-35B-A3B-Base --dtype bfloat16 --max-model-len 32768 --gpu-memory-utilization 0.92
   ```
-  (`--max-model-len 32768`: the AIReg evidence is the full TechOps doc ≈ 14 k tokens, so 8192 would
-  reject our prompts. **Disk Space: 192 GB** — image + ~70 GB weights + HF cache/headroom; this also
-  fits both base+post if you reuse the box. **Launch mode: Docker ENTRYPOINT** — the image entrypoint
-  serves these args; leave the **on-start script empty**.)
+  (`--max-model-len 32768`: under **corpus v2** the live prompt is ≈ **18.3 k tokens** worst-case —
+  k=4 v2 few-shot ≈ 7 k + the full TechOps evidence ≈ 10 k — plus the 2048-token CoT `--budget`,
+  so **≥ 24576 is required** (measured 2026-07-14, `scripts/measure_prompt_budget.py`); 32768 is
+  the standard pin with headroom for a raised budget. **Disk Space: 192 GB** — image + ~70 GB
+  weights + HF cache/headroom; this also fits both base+post if you reuse the box. **Launch mode:
+  Docker ENTRYPOINT** — the image entrypoint serves these args; leave the **on-start script
+  empty**.)
 - Save as e.g. `study-a-vllm-base`.
 
 CLI equivalent (or just use `scripts/provision_vast.sh`, which does search→create→poll→print-URL):
@@ -85,8 +94,9 @@ vastai create template --name study-a-vllm-base --image vllm/vllm-openai:latest 
 ```
 
 ## 5. Find a suitable GPU offer
-Qwen 35B-A3B bf16 ≈ 70 GB weights, **but our full-document prompts (~14 k tokens) need a 32 k-context
-KV cache too** — so size by VRAM: **1×H200 (141 GB), `num_gpus=1`**, not an 80 GB card. `static_ip=true`
+Qwen 35B-A3B bf16 ≈ 70 GB weights, **but our corpus-v2 prompts (~18.3 k tokens + the 2048 CoT
+budget) need the 32 k-context KV cache too** (only ~1.6–2.6 GB/seq for Qwen — weights, not KV,
+are the binding constraint) — so size by VRAM: **1×H200 (141 GB), `num_gpus=1`**, not an 80 GB card. `static_ip=true`
 + `direct_port_count>1` give the public `IP:port`; `inet_down` gates the ~70 GB HF pull;
 `reliability>0.98` keeps a host from dropping mid-download; `inet_down_cost` low avoids per-GB
 bandwidth charges; `disk_space>192` holds weights + cache (192 GB also fits both legs on one box).
@@ -122,8 +132,8 @@ vastai logs <INSTANCE_ID>                      # watch download/load progress if
 ## 8. Collect the BASE leg (from the Mac)
 ```bash
 conda run -n judex-arm python scripts/run_qwen_phase1.py \
-  --base-url "$URL" --base-model Qwen/Qwen3.5-35B-A3B-Base --out runs/phase1_qwen
-# writes runs/phase1_qwen/pre.json (120 token-sliced distributions)
+  --base-url "$URL" --base-model Qwen/Qwen3.5-35B-A3B-Base --family qwen --out runs/qwen
+# writes runs/qwen/pre.json (120 token-sliced distributions)
 ```
 Quick sanity before the full run: `curl -s "$URL/v1/completions" -H 'Content-Type: application/json' \
 -d '{"model":"Qwen/Qwen3.5-35B-A3B-Base","prompt":"Answer:","max_tokens":1,"logprobs":20}'` should
@@ -146,16 +156,17 @@ re-provisioning, not the download). Two options:
 Then collect the post leg:
 ```bash
 conda run -n judex-arm python scripts/run_qwen_phase1.py --post-url "$URL" \
-  --post-model Qwen/Qwen3.5-35B-A3B --out runs/phase1_qwen      # writes post.json
+  --post-model Qwen/Qwen3.5-35B-A3B --family qwen --out runs/qwen      # writes post.json
 ```
 
 ## 10. Analyse — the Q1–Q4 report
 ```bash
-conda run -n judex-arm python scripts/run_qwen_phase1.py --analyze-only --out runs/phase1_qwen
+conda run -n judex-arm python scripts/run_qwen_phase1.py --analyze-only --family qwen --out runs/qwen
 ```
 Reads `pre.json`/`post.json`, joins to the AIReg human GT, and emits `study_a_report.json`:
 - **Q1** `T*_pre` (≈1 if the base is well-calibrated), **Q2** post `T*`/`τ_oc` + argmax retention,
-- **Q3** `tau_oc_summary` (cross-family stability — meaningful once ≥2 families are in),
+- **Q3** `tau_oc_summary` (cross-family stability — meaningful once ≥2 families are in; the trial's
+  second family (§12) + the merge (§13) give the first real spread),
 - **Q4** `closed_side_check` (the median `τ_oc` applied to the closed pair's (Claude/GPT) AIReg outputs: does Murphy
   Reliability drop without hurting Resolution/RPS? — needs a Claude+GPT run; the legacy gemini-gpt run is Gemini/GPT).
 **Accuracy gate:** if `argmax_acc` is low and both `T*` peg at the search bound, Qwen failed the gate
@@ -168,6 +179,52 @@ vastai show instances                         # confirm nothing is still running
 ```
 Cost is dominated by weight download + load, not the few-minute inference. Two sequential
 instances (base then post) for Qwen ≈ **$5–10** total.
+
+## 12. Second family — Gemma 4 26B-A4B (same flow, different repos)
+
+The trial's second cheap family, from a different lineage (Google vs Alibaba), turns the analysis
+cross-family. Repeat §5–§11 with only these substitutions:
+
+- **Repos:** base `google/gemma-4-26B-A4B`, post `google/gemma-4-26B-A4B-it` (both ungated
+  Apache-2.0 on HF; ~50 GB bf16 MoE, 25.2B total / 3.8B active — *smaller* than Qwen).
+- **Offers/template:** the SAME §5 query and §4 template work (Gemma might squeeze onto an 80 GB
+  card, but the H200 query removes OOM risk and the card is not the cost driver). Same
+  `--dtype bfloat16 --max-model-len 32768 --gpu-memory-utilization 0.92`; disk 192 GB holds both legs.
+- **NO reasoning parser on the post leg** — Gemma 4 has no separate reasoning control (unlike Qwen's
+  `--reasoning-parser qwen3`). `scripts/provision_vast.sh up google/gemma-4-26B-A4B-it post` handles
+  this automatically; if relaunching by hand, just omit the flag. The base leg still reasons via the
+  few-shot CoT scaffold (matched condition, same as Qwen).
+- **Driver calls:** use the family's own run dir —
+  ```bash
+  conda run -n judex-arm python scripts/run_qwen_phase1.py \
+    --base-url "$URL" --base-model google/gemma-4-26B-A4B --family gemma --out runs/gemma
+  # ... swap to the post leg (§9), then:
+  conda run -n judex-arm python scripts/run_qwen_phase1.py --post-url "$URL" \
+    --post-model google/gemma-4-26B-A4B-it --family gemma --out runs/gemma
+  ```
+- **Token check:** before the full base run, re-run the §8 `curl` logprobs sanity against the Gemma
+  endpoint — the A–E answer tokens must come back in the top-K under the **Gemma tokenizer**
+  (`configs/models.yaml` `scale.answer_tokens` is verify-per-tokenizer; the echo fallback covers
+  stragglers, but 5/5 in top-K is the healthy signal).
+- **Cost:** ≈ **$8** (smaller weights than Qwen; same wall-clock shape).
+
+Note: `configs/models.yaml` pins Gemma's post leg to `vllm_hf` (self-hosted, same stack as the
+base) — per the user (2026-07-03) this IS the plan for every family: both legs from HF weights on
+vast vLLM. The OpenRouter route (verified available, Novita bf16) is a just-in-case fallback only,
+to be invoked solely if unquantized-model logits cannot feasibly be obtained from the HF weights;
+it is not planned to be used.
+
+## 13. Merge — the first cross-family report
+With both family dirs complete (each leg 120 cells):
+```bash
+conda run -n judex-arm python scripts/run_qwen_phase1.py \
+  --merge qwen=runs/qwen gemma=runs/gemma --out runs/trial_cheap
+```
+`runs/trial_cheap/study_a_report.json` then carries both families plus a 2-family
+`tau_oc_summary` (median/spread — the first Q3 signal) and the Q4 closed-side check at the
+cross-family median. The merge inherits `smoke` from any source dir with a `.smoke` sentinel or a
+<120-cell leg — a partial leg cannot launder into a clean trial report. **Gate to the mid tier
+(guide §7):** both families clear the accuracy gate with finite, plausibly-clustered τ_oc.
 
 ---
 

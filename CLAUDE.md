@@ -24,8 +24,14 @@ Distributional LLM-as-judge for EU AI Act technical-file compliance. The evaluat
 probability distribution over a **5-level ordinal compliance scale** (a Type-C credence), scored
 against a distributional ground truth with optimal-transport metrics (Wasserstein / RPS). Four repos,
 git submodules of the `judex` umbrella:
-- `judex-corpus` — 24-PDF corpus + the **7-rater** leaf/dimension exemplar store (784 rows: 644 leaf +
-  140 dimension; the few-shot source).
+- `judex-corpus` — 24-PDF corpus + the **7-rater** leaf/dimension exemplar store, **corpus-v2
+  vintage** (adopted 2026-07-14): `leaf_exemplars/judex_leaf_exemplar_construction_v2/`, **1757
+  rows: 1449 leaf + 308 dimension** — every v1 excerpt re-authored 1:1 by Grok 4.5 in the
+  `ambiguity_structured` style and re-annotated from scratch by the same 7-seat panel under
+  contract 0.2.0. The **dimension store is the few-shot source** (`fewshot.DIMENSION_STORE`); v2
+  dimension exemplar texts are ~14× longer than v1 (mean ~9.7k chars), which re-sized the live
+  prompt budget (see the vast section below). The v1 tree (`judex_leaf_exemplar_construction/`)
+  is the archived baseline — never rebuild or edit it.
 - `judex-ground-truth` — Bayesian MG-MFRM labels; the canonical AIReg-Bench ground truth.
 - `judex-evaluator` — the runtime + scoring + calibration tooling (Study A reuses it verbatim).
 - `judex-calibration` — **Study A** (this repo): open pre/post-pair temperature calibration.
@@ -73,7 +79,17 @@ evaluator and the annotator↔evaluator firewall no longer bars Google. The fire
 - **bf16** for the real run — *not* fp8/int4 (quantization perturbs the very logits the study measures).
   int4/Q4 is fine **only for the throwaway Mac smoke (llama.cpp), never on the rented GPU** — on vast,
   always bf16.
-- `--max-model-len ≥ 16384` (AIReg prompts are ~14k tokens); logprobs must be enabled.
+- `--max-model-len 32768` — the standard pin; **≥ 24576 is required** under corpus v2. Measured
+  2026-07-14 (`scripts/measure_prompt_budget.py`, each family's own tokenizer): worst-case live
+  prompt ≈ **18.3k tokens** (k=4 v2 few-shot ≈7k + evidence ≈10k + criterion/scaffold), plus the
+  2048-token CoT `--budget` ⇒ **≈20.4k required**; 32768 keeps headroom for a raised budget on
+  thinking post legs. KV at this length is small next to weights (1.3–6.9 GB/seq bf16 across the
+  panel), so the pre-v2 box sizing stands. Logprobs must be enabled.
+- Family serving quirks: **Mistral-Large-3** ships Mistral-native format (`params.json`, no
+  `config.json`) — serve with `--config-format mistral --load-format mistral --tokenizer-mode
+  mistral` (its HF `tokenizer.json` also over-counts vs the tekken tokenizer vLLM actually uses).
+  **Llama-4-Maverick is HF-gated** — the `hf-token` account must be granted access BEFORE the box
+  pulls weights (unverified as of 2026-07-14; re-run the budget script for llama once granted).
 - **Keep vLLM alive across commands** — run it **detached** (its own `tmux` window / `nohup` + PID),
   never as a tracked background task (Claude Code kills those ~5 s after a `-p` run ends).
 - `runs/` is gitignored → persist `study_a_report.json` + `pipeline_calibration_block.json` (scp, or a

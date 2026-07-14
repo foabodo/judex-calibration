@@ -286,6 +286,16 @@ the §0 fidelity note). You can then commit to the paid vast run with the seven 
 Then, optionally, a fuller local dry-run: drop `--no-reason` (CoT; keep `--max-model-len 32768`) and
 raise `--limit` (e.g. `24`) to exercise the reasoning path and per-Article few-shot at scale.
 
+**Corpus-v2 prompt lengths (2026-07-14):** the real per-Article k=4 few-shot (corpus v2) makes the
+reasoning-path prompt ≈ **18.3k tokens** worst-case (+ the 2048 CoT budget ⇒ ~20.4k required) — a
+`--no-reason` smoke does NOT see this (it swaps in the tiny static `SMOKE_FEWSHOT`), so a
+context-regime smoke must use `--limit N` *without* `--no-reason`. Serve with `--ctx-size ≥ 24576`
+(the §2·Mac commands' 32768 is fine; Qwen3-4B's own ceiling is 32768). **llama-cpp-python cannot
+serve this smoke**: its completion `logprobs` requires `logits_all=True`, whose n_ctx×vocab float32
+buffer is ~12 GB at these lengths — use native `llama-server` (brew, or a cmake build). Verified
+2026-07-14: 5-cell reasoning-ON v2-length smoke green end-to-end on `llama-server`/Metal
+(`runs/smoke_v2len_qwen_mac`).
+
 ## 8. Teardown / notes
 - Stop vLLM (Ctrl-C in terminal 1). No standing cost — it's your hardware.
 - `runs/` is gitignored; keep `study_a_report.json` if you want a record of the smoke.

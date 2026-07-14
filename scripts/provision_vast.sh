@@ -6,10 +6,13 @@
 #   url  <instance_id>            print the base URL of a running instance.
 #   down <instance_id>            destroy the instance (cost is wall-clock — do this promptly).
 #
-# Keys from Keychain: vastai-api-key, hf-token. Base leg uses [base] (default); post leg adds
-# the qwen3 reasoning parser via the `post` arg. Example:
+# Keys from Keychain: vastai-api-key, hf-token. Base leg uses [base] (default); the `post` arg
+# adds the family's reasoning parser where one exists (qwen3 for Qwen; Gemma 4 has no separate
+# reasoning control, so its post leg is served plain). Examples:
 #   ID_URL=$(scripts/provision_vast.sh up Qwen/Qwen3.5-35B-A3B-Base)
-#   .../python scripts/run_qwen_phase1.py --base-url "$ID_URL" --base-model Qwen/Qwen3.5-35B-A3B-Base --out runs/phase1_qwen
+#   .../python scripts/run_qwen_phase1.py --base-url "$ID_URL" --base-model Qwen/Qwen3.5-35B-A3B-Base --out runs/qwen
+#   ID_URL=$(scripts/provision_vast.sh up google/gemma-4-26B-A4B)          # Gemma base leg
+#   ID_URL=$(scripts/provision_vast.sh up google/gemma-4-26B-A4B-it post)  # Gemma post leg
 #   scripts/provision_vast.sh down <instance_id>
 #
 # See docs/vast_quickstart.md for the full account->shutdown walkthrough. The vllm/vllm-openai
@@ -19,8 +22,12 @@ set -euo pipefail
 
 # static_ip=true + direct_port_count>1 are REQUIRED for the public IP:port. Weights pull from HF
 # every launch (vast hosts no base), so inet_down (bandwidth) + disk_space gate the wall-clock cost.
-# Qwen-trial defaults (override via env for giants): single H200, sized for the ~14k-token
-# full-document prompts (32k context) — gpu_ram>=140, not 80. reliability/inet_down_cost guard the pull.
+# Cheap-trial defaults (override via env for giants): single H200, sized for the ~18.3k-token
+# corpus-v2 prompts + the 2048 CoT budget (32k-context pin; >=24576 required — measured by
+# scripts/measure_prompt_budget.py) — gpu_ram>=140, not 80. reliability/inet_down_cost guard the pull.
+# Both trial families use these defaults: Qwen 35B-A3B (~70 GB bf16) needs the H200; Gemma
+# 26B-A4B (~50 GB bf16) might squeeze onto 80 GB but the same H200 query removes OOM risk for
+# pennies (cost is dominated by the download, not the card).
 OFFER_QUERY=${VAST_OFFER_QUERY:-'gpu_ram>=140 num_gpus=1 static_ip=true direct_port_count>1 inet_down>1000 inet_down_cost<0.05 reliability>0.98 disk_space>192 cuda_vers>=12.4 rentable=true'}
 DISK=${VAST_DISK:-192}
 PORT=8000
@@ -39,7 +46,16 @@ case "$cmd" in
     HF_TOKEN=${HF_TOKEN:-$(security find-generic-password -s hf-token -w 2>/dev/null || true)}
     # The vllm/vllm-openai image takes the model + vLLM flags as container --args (NOT an
     # on-start command); --raw must precede --args (which consumes the rest of the line).
-    EXTRA=""; [ "$VARIANT" = "post" ] && EXTRA="--reasoning-parser qwen3"
+    # The reasoning parser is FAMILY-SPECIFIC: Qwen's post thinks natively (qwen3 parser);
+    # Gemma 4 has no separate reasoning control, so its post leg is served plain.
+    EXTRA=""
+    if [ "$VARIANT" = "post" ]; then
+      case "$MODEL" in
+        Qwen/*|qwen/*)             EXTRA="--reasoning-parser qwen3" ;;
+        google/gemma-*|*/gemma-*)  EXTRA="" ;;
+        *) echo ">> NOTE: no reasoning parser configured for $MODEL post leg; serving plain" >&2 ;;
+      esac
+    fi
 
     echo ">> searching offers: $OFFER_QUERY" >&2
     OFFER=$(vastai search offers "$OFFER_QUERY" --order dph --raw \
