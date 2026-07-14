@@ -1,5 +1,7 @@
 """Unit tests for the vLLM token-slice elicitation — no live server (monkeypatched)."""
-import math, unittest
+import json, math, tempfile, unittest
+from collections import namedtuple
+from pathlib import Path
 
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
@@ -84,6 +86,65 @@ class ServerShapeTests(unittest.TestCase):
         # a shape we don't recognise -> no letters -> echo returns all -50 -> uniform (no crash)
         out = self._elicit({"unexpected": True})
         self.assertAlmostEqual(sum(out["probabilities"]), 1.0, places=6)
+
+
+FakeCell = namedtuple("FakeCell", "item_label evidence_text criterion_text")
+_CELLS = [FakeCell(f"Art 9 / Cell {i}", f"evidence {i}", "criterion") for i in range(3)]
+
+
+class CheckpointTests(unittest.TestCase):
+    """run_variant checkpoints per cell and resumes (crash recovery only)."""
+
+    def _counting_fake(self):
+        """Fake _completions that counts stage-2 (answer-logit) calls per elicitation."""
+        counter = {"answers": 0}
+        top = {"A": -1.0, "B": -2.0, "C": -0.5, "D": -3.0, "E": -4.0}
+        def fake(base_url, body, timeout=600):
+            if body.get("max_tokens") == 1 and "logprobs" in body:
+                counter["answers"] += 1
+                return {"choices": [{"logprobs": {"top_logprobs": [top]}}]}
+            return {"choices": [{"text": " reasoning."}]}
+        return fake, counter
+
+    def test_checkpoints_every_cell_and_writes_meta(self):
+        eb._completions, counter = self._counting_fake()
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "pre.json"
+            preds = eb.run_variant("http://x", "m", _CELLS, str(out))
+            self.assertEqual(len(preds), 3)
+            self.assertEqual(counter["answers"], 3)
+            on_disk = json.loads(out.read_text())
+            self.assertEqual(set(on_disk), {c.item_label for c in _CELLS})
+            meta = json.loads((Path(d) / "pre.meta.json").read_text())
+            self.assertEqual(meta, {"model": "m", "reason": True, "budget": 2048})
+            self.assertFalse((Path(d) / "pre.json.tmp").exists())  # tmp always renamed away
+
+    def test_resume_skips_cached_cells(self):
+        eb._completions, counter = self._counting_fake()
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "pre.json"
+            # simulate a leg that crashed after 2 of 3 cells
+            out.write_text(json.dumps({c.item_label: [0.2] * 5 for c in _CELLS[:2]}))
+            (Path(d) / "pre.meta.json").write_text(
+                json.dumps({"model": "m", "reason": True, "budget": 2048}))
+            preds = eb.run_variant("http://x", "m", _CELLS, str(out))
+            self.assertEqual(len(preds), 3)
+            self.assertEqual(counter["answers"], 1)  # only the missing cell was elicited
+            self.assertEqual(preds[_CELLS[0].item_label], [0.2] * 5)  # cached rows kept verbatim
+
+    def test_resume_with_different_leg_config_raises(self):
+        eb._completions, _ = self._counting_fake()
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "pre.json"
+            out.write_text(json.dumps({_CELLS[0].item_label: [0.2] * 5}))
+            (Path(d) / "pre.meta.json").write_text(
+                json.dumps({"model": "m", "reason": False, "budget": 2048}))  # a --no-reason leg
+            with self.assertRaises(RuntimeError):
+                eb.run_variant("http://x", "m", _CELLS, str(out))  # reasoning-ON resume must refuse
+            # missing sidecar with existing preds is equally untrusted
+            (Path(d) / "pre.meta.json").unlink()
+            with self.assertRaises(RuntimeError):
+                eb.run_variant("http://x", "m", _CELLS, str(out))
 
 
 if __name__ == "__main__":

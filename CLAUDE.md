@@ -60,6 +60,9 @@ Pipeline (this repo, `src/judex_calibration/`):
 - Driver: `scripts/run_qwen_phase1.py` — same script, flags pick the workflow. **SMOKE:** `--limit N
   --no-reason` (fast, result discarded). **LIVE:** omit both (all 120 cells, reasoning ON). `--out`,
   `--base-url/--post-url`, `--base-model/--post-model`, `--analyze-only` re-scores an existing `--out`.
+  Legs **checkpoint per cell** (atomic write) and **resume** by skipping cached cells — crash
+  recovery ONLY: a `<leg>.meta.json` sidecar pins (model, reason, budget) and a mismatched resume
+  hard-errors; use a fresh `--out` for a different experiment.
 
 ## The 7-model panel (`configs/models.yaml`)
 deepseek-v4-pro · mistral-large-2512 · qwen3.5-35b-a3b · llama-4-maverick · glm-4.5 · kimi-k2-thinking
