@@ -17,7 +17,8 @@ stdlib only (urllib). Pure HTTP/parse logic, unit-tested without a live server.
 """
 from __future__ import annotations
 
-import json, math, urllib.request
+import json, math, os, urllib.request
+from pathlib import Path
 from typing import Dict, List, Sequence
 
 LABELS = ("very_low", "low", "moderate", "high", "very_high")
@@ -176,13 +177,39 @@ def run_variant(base_url: str, model: str, cells, out_path: str, *,
 
     ``fewshot`` may be a fixed string (same block for every cell) or a callable
     ``cell -> str`` (e.g. a per-Article block from ``fewshot.build_fewshot_by_criterion``).
+
+    Checkpoints after EVERY cell (atomic tmp+rename) so a multi-hour leg survives a
+    crash, and resumes by skipping labels already in ``out_path``. Resume is CRASH
+    RECOVERY ONLY (the run-identity principle): a ``<leg>.meta.json`` sidecar records
+    (model, reason, budget), and resuming against a different leg config hard-errors —
+    use a fresh ``--out`` for a different experiment.
     """
+    out = Path(out_path)
+    meta_path = out.with_suffix(".meta.json")
+    leg_meta = {"model": model, "reason": bool(reason), "budget": int(budget)}
     preds: Dict[str, List[float]] = {}
+    if out.exists():
+        preds = json.loads(out.read_text())
+        prior = json.loads(meta_path.read_text()) if meta_path.exists() else None
+        if preds and prior != leg_meta:
+            raise RuntimeError(
+                f"{out} holds {len(preds)} cells from a different leg config "
+                f"(sidecar {prior} != requested {leg_meta}); resume is crash-recovery "
+                f"only — use a fresh --out for a different experiment")
+        if preds:
+            todo = sum(1 for c in cells if c.item_label not in preds)
+            print(f"[{out.stem}] resuming: {len(preds)} cells cached, {todo} to go", flush=True)
+    meta_path.write_text(json.dumps(leg_meta, indent=2))
     for c in cells:
+        if c.item_label in preds:
+            continue
         fs = fewshot(c) if callable(fewshot) else fewshot
         d = elicit_cell(base_url, model, c.evidence_text, c.criterion_text,
                         fewshot=fs, reason=reason, budget=budget)
         preds[c.item_label] = d["probabilities"]
-    with open(out_path, "w") as f:
-        json.dump(preds, f, indent=2)
+        tmp = out.parent / (out.name + ".tmp")
+        tmp.write_text(json.dumps(preds, indent=2))
+        os.replace(tmp, out)
+        print(f"[{out.stem}] {len(preds)}/{len(cells)} {c.item_label} "
+              f"({d['method']}, covered {d['covered']})", flush=True)
     return preds

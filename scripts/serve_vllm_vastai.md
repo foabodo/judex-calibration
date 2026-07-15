@@ -1,4 +1,4 @@
-# Serving Qwen base/post on vast.ai for Study A
+# Serving the Study A base/post pairs on vast.ai (cheap trial: Qwen + Gemma)
 
 > For the linear account→data→shutdown walkthrough (custom template, exact commands, troubleshooting)
 > see **`docs/vast_quickstart.md`**. This file is the *modes reference* it draws on.
@@ -42,8 +42,9 @@ the same token-slice channel). Consequences for provisioning:
 ```bash
 export VAST_API_KEY=$(security find-generic-password -s vastai-api-key -w)   # add to Keychain
 export HF_TOKEN=$(security find-generic-password -s hf-token -w)
-# gpu_ram>=140 (H200): 70 GB weights + a 32k-context KV cache for the ~14k-token full-document prompts
-# won't fit 80 GB. static_ip+direct_port_count = reachable endpoint; inet_down/reliability/inet_down_cost
+# gpu_ram>=140 (H200): 70 GB weights + a 32k-context KV cache for the ~18.3k-token corpus-v2 prompts
+# (+2048 CoT budget => >=24576 required, pin 32768 — scripts/measure_prompt_budget.py) won't fit 80 GB.
+# static_ip+direct_port_count = reachable endpoint; inet_down/reliability/inet_down_cost
 # guard the HF pull (the cost driver).
 vastai search offers \
   'gpu_ram>=140 num_gpus=1 static_ip=true direct_port_count>1 inet_down>1000 inet_down_cost<0.05 reliability>0.98 disk_space>192 cuda_vers>=12.4 rentable=true' \
@@ -58,6 +59,18 @@ vastai show instance <INSTANCE_ID>     # read the public host:port mapped to 800
 Giants later: append `--tensor-parallel-size 8 [--pipeline-parallel-size 2] --enable-expert-parallel`
 to the `--args`, raise `--disk`, and mount a persistent volume as the HF cache (`-e HF_HOME=/data`).
 
+**Family serving quirks (verified 2026-07-14, `scripts/measure_prompt_budget.py`):**
+- **Mistral-Large-3** (both legs) ships Mistral-native format — `params.json`, NO `config.json` —
+  so vLLM needs `--config-format mistral --load-format mistral --tokenizer-mode mistral` appended
+  to the `--args`. (Its HF `tokenizer.json` also over-counts ~21% vs the tekken tokenizer vLLM
+  then actually serves with; the measured 18.3k worst prompt is the tekken count.)
+- **Llama-4-Maverick** (both legs) is HF-**gated**; access for the `hf-token` account was granted
+  and verified 2026-07-14 (llama measured: required ctx 19,355, ceilings 262k base / 1M post —
+  fits; the panel-wide pin is unchanged). The gate is per-account — re-verify with
+  `measure_prompt_budget.py --families llama` before provisioning under any other token.
+- **Kimi-K2** tokenizer/config need `trust_remote_code` + `tiktoken` only for LOCAL measurement
+  tooling; vLLM serves it natively — no extra flags.
+
 ### 2. Reach the endpoint from the Mac — pick ONE
 - **Direct (default):** use the public `http://<host>:<port>` from `show instance`. No SSH.
 - **Private (optional):** `ssh -N -L 8000:localhost:8000 root@<host> -p <ssh_port> &` then use `http://localhost:8000`.
@@ -68,24 +81,34 @@ curl -s http://<host>:<port>/v1/models   # health: lists the served model id
 
 ### 3. Elicit the base leg (from the Mac)
 ```bash
-.../judex-evaluator/.venv/bin/python scripts/run_qwen_phase1.py \
+conda run -n judex-arm python scripts/run_qwen_phase1.py \
   --base-url http://<host>:<port> --base-model Qwen/Qwen3.5-35B-A3B-Base \
-  --out runs/phase1_qwen
+  --family qwen --out runs/qwen
 ```
 
 ### 4. Swap to the post model on the same box, re-run
 ```bash
-# stop the base server, then relaunch (post reasons natively — live methodology):
+# stop the base server, then relaunch (post reasons natively — live methodology).
+# The reasoning parser is FAMILY-SPECIFIC: qwen3 for Qwen; Gemma's post (-it) takes NO parser.
 vllm serve Qwen/Qwen3.5-35B-A3B --dtype bfloat16 --port 8000 --max-model-len 32768 \
   --gpu-memory-utilization 0.92 --reasoning-parser qwen3
-.../python scripts/run_qwen_phase1.py --post-url http://<host>:<port> \
-  --post-model Qwen/Qwen3.5-35B-A3B --out runs/phase1_qwen
+conda run -n judex-arm python scripts/run_qwen_phase1.py --post-url http://<host>:<port> \
+  --post-model Qwen/Qwen3.5-35B-A3B --family qwen --out runs/qwen
 ```
 
 ### 5. Analyse + tear down
 ```bash
-.../python scripts/run_qwen_phase1.py --analyze-only --out runs/phase1_qwen   # Q1–Q4 report
+conda run -n judex-arm python scripts/run_qwen_phase1.py --analyze-only --family qwen --out runs/qwen   # Q1–Q4
 vastai destroy instance <INSTANCE_ID>     # cost is wall-clock — destroy promptly
+```
+
+### 6. Second trial family — Gemma 4 26B-A4B (quickstart §12)
+Same Mode-C flow with base `google/gemma-4-26B-A4B` / post `google/gemma-4-26B-A4B-it`
+(~50 GB bf16; the same offer query works), `--family gemma --out runs/gemma`, and **no reasoning
+parser** on the post leg. Then merge the two families for the cross-family Q3 report:
+```bash
+conda run -n judex-arm python scripts/run_qwen_phase1.py \
+  --merge qwen=runs/qwen gemma=runs/gemma --out runs/trial_cheap
 ```
 
 ---

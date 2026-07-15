@@ -184,6 +184,46 @@ This writes `runs/smoke_two_lineage/study_a_report.json` with **both** `families
 family rows instead of one. (`--merge` generalizes past two — add more `FAMILY=DIR` pairs for a
 third lineage, or for the real vast run's cross-family report.)
 
+## 2·Mac-D. LOCAL fp16 SCIENCE PILOT — the 4B pairs, full instrument (a third recipe)
+
+Distinct from the plumbing smoke above: **fp16 (unquantized) ggufs, all 120 cells, reasoning ON,
+the real v2 few-shot** — a legitimate *pilot measurement* of the post-training-overconfidence
+phenomenon at 4B scale, run for free on the Mac. It is NOT auto-flagged smoke (it isn't one), and
+it is NOT the study either:
+
+- **What it can say:** Q1 (are these 4B bases calibrated), Q2 (τ_oc exists/size for these pairs),
+  Q3 (do two distinct 4B lineages cluster). Real, citable-as-pilot evidence about the phenomenon.
+- **What it can NOT say:** the panel's transferable constant — Study A's τ_oc must come from the
+  seven panel models on vast (bf16 vLLM). **Never integrate this pilot's calibration block.**
+  Expect the accuracy gate to bind at 4B (frontier proxies ceiling at 0.658; a 4B may sit near
+  chance — "the gate binds at 4B" is then the finding).
+- **Channel note:** fp16-on-Metal-llama.cpp, not bf16-on-vLLM (the M1 has no hardware bf16).
+  fp16 round-off is orders of magnitude below int4 quantization noise, but label results with
+  the channel.
+- **Family tags are the firewall against confusion:** always `--family gemma3-4b` / `qwen3-4b`
+  (the 4B names), never the panel keys (`gemma`, `qwen`).
+
+Runbook (per family; ~50s/cell measured ⇒ ~100 min/leg, ~3.5 h/pair on an M1 Pro):
+```bash
+# once per model: download bf16 safetensors -> F16 gguf -> delete download (~24 GB transient peak/pair)
+LLAMA_CPP_DIR=<llama.cpp checkout> scripts/fetch_convert_f16.sh google/gemma-3-4b-pt \
+  ~/models/gemma-3-4b-gguf/gemma-3-4b-pt.F16.gguf   # repeat for -it / the Qwen pair
+# both legs of one family, detached (serve base -> base leg -> swap -> post leg):
+nohup scripts/run_local_f16_pilot.sh gemma3-4b \
+  ~/models/gemma-3-4b-gguf/gemma-3-4b-pt.F16.gguf gemma-3-4b-pt-f16 \
+  ~/models/gemma-3-4b-gguf/gemma-3-4b-it.F16.gguf gemma-3-4b-it-f16 \
+  runs/pilot_f16_gemma3_4b > pilot_gemma.log 2>&1 &
+# then merge the two family dirs for the cross-lineage Q3 read:
+conda run -n judex-arm python scripts/run_qwen_phase1.py \
+  --merge gemma3-4b=runs/pilot_f16_gemma3_4b qwen3-4b=runs/pilot_f16_qwen3_4b --out runs/pilot_f16_merged
+```
+Legs checkpoint per cell and resume on re-run (crash recovery only — the `<leg>.meta.json`
+sidecar refuses a config mismatch). Serve at `--ctx-size ≥ 24576`; native `llama-server` ONLY
+(the llama-cpp-python limitation above applies with full force at fp16: its `logits_all` buffer
+would be ~12 GB). Memory: gemma fp16 fits the M1-16GB default Metal cap (sliding-window KV);
+qwen fp16 (~11.6 GB working set) may need the `iogpu.wired_limit_mb` sysctl bump — probe one
+cell first (measured 2026-07-14: gemma pt/it worst-case cell 54s/49s, 5/5 letters, 0 truncation).
+
 ## 2. One-time setup on the Linux box (topology B/C — vLLM)
 
 ```bash
@@ -285,6 +325,16 @@ the §0 fidelity note). You can then commit to the paid vast run with the seven 
 
 Then, optionally, a fuller local dry-run: drop `--no-reason` (CoT; keep `--max-model-len 32768`) and
 raise `--limit` (e.g. `24`) to exercise the reasoning path and per-Article few-shot at scale.
+
+**Corpus-v2 prompt lengths (2026-07-14):** the real per-Article k=4 few-shot (corpus v2) makes the
+reasoning-path prompt ≈ **18.3k tokens** worst-case (+ the 2048 CoT budget ⇒ ~20.4k required) — a
+`--no-reason` smoke does NOT see this (it swaps in the tiny static `SMOKE_FEWSHOT`), so a
+context-regime smoke must use `--limit N` *without* `--no-reason`. Serve with `--ctx-size ≥ 24576`
+(the §2·Mac commands' 32768 is fine; Qwen3-4B's own ceiling is 32768). **llama-cpp-python cannot
+serve this smoke**: its completion `logprobs` requires `logits_all=True`, whose n_ctx×vocab float32
+buffer is ~12 GB at these lengths — use native `llama-server` (brew, or a cmake build). Verified
+2026-07-14: 5-cell reasoning-ON v2-length smoke green end-to-end on `llama-server`/Metal
+(`runs/smoke_v2len_qwen_mac`).
 
 ## 8. Teardown / notes
 - Stop vLLM (Ctrl-C in terminal 1). No standing cost — it's your hardware.

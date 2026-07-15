@@ -10,10 +10,13 @@
 # family from HF-downloaded weights on vast vLLM (bf16, token-slice — same channel as the base).
 # Each post_api entry documents the API FALLBACK channel only, to be invoked solely if unquantized-
 # model logits cannot feasibly be obtained from the HF weights; the user does not plan to invoke it.
+# post_repo: the HF post twin the LIVE plan serves on vast vLLM (all seven verified present on HF
+#   2026-07-14). scripts/measure_prompt_budget.py tokenizes both legs from these pins.
 families:
   qwen:
     tier: cheap
     base_repo: Qwen/Qwen3.5-35B-A3B-Base
+    post_repo: Qwen/Qwen3.5-35B-A3B
     post_api: { provider: openrouter, model: qwen/qwen3.5-35b-a3b, logprobs: true }
     params: { total: 35B, active: 3B, moe: true }
     serving: { dtype: bfloat16, tensor_parallel_size: 1, gpu: "1xH100-80", est_cost_usd: 5 }
@@ -22,6 +25,7 @@ families:
            # (Google/Gemini freed from the reserved-evaluator role). Google family.
     tier: cheap
     base_repo: google/gemma-4-26B-A4B
+    post_repo: google/gemma-4-26B-A4B-it
     post_api: { provider: vllm_hf, model: google/gemma-4-26B-A4B-it, logprobs: true }  # ungated Apache-2.0; both legs served from HF on vast vLLM. DECIDED 2026-07-03 (user): vllm_hf IS the plan — OpenRouter hosting of the -it leg is verified available (corpus seat-7 collection: Novita bf16 pin, 28/28 clean) but is a just-in-case FALLBACK only, to be invoked solely if unquantized-model logits cannot feasibly be obtained from the HF-downloaded weights; the user does not plan to invoke it.
     params: { total: 25.2B, active: 3.8B, experts: 128, experts_active: 8, moe: true }
     serving: { dtype: bfloat16, tensor_parallel_size: 1, gpu: "1xH100-80", est_cost_usd: 8 }  # ~50GB bf16 MoE fits one 80GB GPU; multimodal (text used), 256K ctx
@@ -29,6 +33,7 @@ families:
   llama:
     tier: mid
     base_repo: meta-llama/Llama-4-Maverick-17B-128E
+    post_repo: meta-llama/Llama-4-Maverick-17B-128E-Instruct
     post_api: { provider: openrouter, model: meta-llama/llama-4-maverick, logprobs: true }
     params: { total: 400B, active: 17B, experts: 128, moe: true }
     serving: { dtype: bfloat16, tensor_parallel_size: 8, expert_parallel: true, gpu: "8xH100-80", est_cost_usd: 60 }
@@ -36,6 +41,7 @@ families:
   glm:
     tier: mid
     base_repo: zai-org/GLM-4.5-Base
+    post_repo: zai-org/GLM-4.5
     post_api: { provider: openrouter, model: z-ai/glm-4.5, logprobs: false }  # post lacks logprobs on OR
     params: { total: 355B, active: 32B, moe: true }
     serving: { dtype: bfloat16, tensor_parallel_size: 8, expert_parallel: true, gpu: "8xH200", est_cost_usd: 85 }
@@ -43,6 +49,7 @@ families:
   deepseek:
     tier: giant
     base_repo: deepseek-ai/DeepSeek-V4-Pro-Base
+    post_repo: deepseek-ai/DeepSeek-V4-Pro
     post_api: { provider: deepseek, model: deepseek-v4-pro, base_url: "https://api.deepseek.com", logprobs: true }
     params: { total: 1600B, active: 49B, moe: true }   # DeepSeek-V4-Pro ≈1.6T-A49B (verified HF 2026-07); 671B/37B was V3.1. 1.6T bf16 ≈3.2TB — the serving line below is under-provisioned; re-derive before the giant run.
     serving: { dtype: bfloat16, tensor_parallel_size: 8, pipeline_parallel_size: 2, gpu: "16xH100 (2 nodes)", est_cost_usd: 160 }
@@ -50,6 +57,7 @@ families:
   mistral:
     tier: giant
     base_repo: mistralai/Mistral-Large-3-675B-Base-2512
+    post_repo: mistralai/Mistral-Large-3-675B-Instruct-2512
     post_api: { provider: mistral, model: mistral-large-2512, base_url: "https://api.mistral.ai/v1", logprobs: false }
     params: { total: 675B, active: 41B, experts: true, moe: true }   # MoE (granular) + 2.5B vision encoder — verified HF 2026-07 (NOT dense)
     serving: { dtype: bfloat16, tensor_parallel_size: 8, pipeline_parallel_size: 2, gpu: "16xH100 (2 nodes)", est_cost_usd: 160 }
@@ -57,6 +65,7 @@ families:
   kimi:
     tier: giant
     base_repo: moonshotai/Kimi-K2-Base
+    post_repo: moonshotai/Kimi-K2-Thinking
     post_api: { provider: openrouter, model: moonshotai/kimi-k2-thinking, logprobs: true }
     params: { total: 1T, active: 32B, moe: true }
     serving: { dtype: bfloat16, tensor_parallel_size: 8, pipeline_parallel_size: 2, gpu: "16xH200 (2 nodes)", est_cost_usd: 280 }
@@ -67,6 +76,9 @@ scale:
   answer_tokens: [" A", " B", " C", " D", " E"]   # A=very_low ... E=very_high
 # LIVE elicitation contract (reasoning ON, real corpus k=4 few-shot). The Mac smoke (--no-reason)
 # bypasses this — static SMOKE_FEWSHOT, no CoT — which is one reason its tau_oc is discarded.
+# Prompt budget under corpus v2 (measured 2026-07-14, scripts/measure_prompt_budget.py): worst-case
+# live prompt ~18.3k tokens; + fewshot_k=4 is baked into that; + the 2048 CoT budget => required
+# context ~20.4k; serve every leg with --max-model-len >= 24576 (standard pin 32768).
 elicitation:
   base: { method: token_slice, fewshot_source: judex-corpus/leaf_exemplars, fewshot_k: 4, temperature: 0 }
   # post's verbalized method applies only to the just-in-case API fallback above; the LIVE plan

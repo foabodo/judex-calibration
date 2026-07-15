@@ -16,7 +16,8 @@ from pathlib import Path
 from collections import Counter
 
 # Sibling-repo layout: .../judex/{judex-calibration,judex-evaluator,judex-ground-truth}
-_UMBRELLA = Path(__file__).resolve().parents[2]
+# JUDEX_UMBRELLA overrides the parent-dir default (worktrees live under <umbrella>/worktrees/).
+_UMBRELLA = Path(os.environ.get("JUDEX_UMBRELLA") or Path(__file__).resolve().parents[2])
 AIREG = str(_UMBRELLA / "judex-evaluator" / "data" / "external" / "aireg_bench")
 # Canonical, git-tracked GT (cumulative-consistency barycenter) — reproducible on a fresh
 # clone and never stale, unlike a gitignored run's embedded GT. argmax==run's argmax 120/120,
