@@ -64,9 +64,10 @@ to the `--args`, raise `--disk`, and mount a persistent volume as the HF cache (
   so vLLM needs `--config-format mistral --load-format mistral --tokenizer-mode mistral` appended
   to the `--args`. (Its HF `tokenizer.json` also over-counts ~21% vs the tekken tokenizer vLLM
   then actually serves with; the measured 18.3k worst prompt is the tekken count.)
-- **Llama-4-Maverick** (both legs) is HF-**gated** and the `hf-token` account is NOT yet in the
-  authorized list (403 as of 2026-07-14) — request/accept access on both repos BEFORE provisioning,
-  or the in-container pull fails; then re-run the budget script for the llama rows.
+- **Llama-4-Maverick** (both legs) is HF-**gated**; access for the `hf-token` account was granted
+  and verified 2026-07-14 (llama measured: required ctx 19,355, ceilings 262k base / 1M post —
+  fits; the panel-wide pin is unchanged). The gate is per-account — re-verify with
+  `measure_prompt_budget.py --families llama` before provisioning under any other token.
 - **Kimi-K2** tokenizer/config need `trust_remote_code` + `tiktoken` only for LOCAL measurement
   tooling; vLLM serves it natively — no extra flags.
 

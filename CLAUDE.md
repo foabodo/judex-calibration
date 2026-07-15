@@ -97,8 +97,9 @@ evaluator and the annotator↔evaluator firewall no longer bars Google. The fire
 - Family serving quirks: **Mistral-Large-3** ships Mistral-native format (`params.json`, no
   `config.json`) — serve with `--config-format mistral --load-format mistral --tokenizer-mode
   mistral` (its HF `tokenizer.json` also over-counts vs the tekken tokenizer vLLM actually uses).
-  **Llama-4-Maverick is HF-gated** — the `hf-token` account must be granted access BEFORE the box
-  pulls weights (unverified as of 2026-07-14; re-run the budget script for llama once granted).
+  **Llama-4-Maverick is HF-gated** — access for the `hf-token` account was granted + verified
+  2026-07-14 (measured: max prompt 17,270 tok, required 19,355, ceilings 262k/1M — fits; the
+  gate is per-account, so re-check before provisioning under a different token).
 - **Keep vLLM alive across commands** — run it **detached** (its own `tmux` window / `nohup` + PID),
   never as a tracked background task (Claude Code kills those ~5 s after a `-p` run ends).
 - `runs/` is gitignored → persist `study_a_report.json` + `pipeline_calibration_block.json` (scp, or a
