@@ -100,9 +100,13 @@ def main():
                          "all 120. Any run with --limit>0 is a plumbing test — its report/tau_oc/"
                          "calibration_block are MEANINGLESS. The live experiment runs all 120 (--limit 0).")
     ap.add_argument("--closed-run", default="stage9-gemini-gpt-medium",
-                    help="JUDEX run whose closed-evaluator AIReg preds get the Q4 check. Evaluators are "
-                         "now Anthropic+GPT (Claude/GPT); the default gemini-gpt run is LEGACY — pass a "
-                         "Claude+GPT AIReg run for a valid Q4.")
+                    help="JUDEX run whose closed-evaluator AIReg preds get the Q4 check. The default "
+                         "gemini-gpt run is LEGACY (the pair switched to Anthropic+GPT on 2026-07-02) "
+                         "and is kept only because it is the one 120-cell run on disk. As of "
+                         "2026-07-18 NO run realizes the current pair at 120 cells: "
+                         "stage9-sweep-sonnet-gpt-v2's GPT seat is gpt-5.4-mini (ruled out) and it "
+                         "predates contract 0.2.0; stage9-claude-gpt-medium is the right pair but only "
+                         "3 docs / 15 items. A valid Q4 needs a fresh on-pair sweep.")
     args = ap.parse_args()
     if args.merge and (args.limit or args.no_reason or args.analyze_only
                        or args.base_url or args.post_url):
@@ -174,19 +178,52 @@ def main():
                 closed = {it["item_label"]: it["prediction"]["probabilities"]
                           for it in json.loads(mr.read_text())["items"]}
                 report["closed_side_check_Q4"] = study_a.closed_side_check(closed, cells, T)
+                print(f"[Q4] closed-side check against {args.closed_run} ({len(closed)} cells)")
+            else:
+                # judex-evaluator/runs/ is gitignored, so this is the DEFAULT state on a fresh box.
+                # Never let Q4 disappear silently — the report would look complete but be missing
+                # a study question.
+                report["closed_side_check_Q4"] = {
+                    "skipped": True, "reason": "closed-run metrics_report.json not found",
+                    "expected_path": str(mr), "closed_run": args.closed_run}
+                print(f"[Q4] SKIPPED — no metrics_report.json at {mr}\n"
+                      f"     judex-evaluator/runs/ is gitignored, so it is absent on a fresh clone "
+                      f"or vast box.\n"
+                      f"     Q4 is UNANSWERED in this report. Re-run --analyze-only on a host that "
+                      f"has an on-pair closed run.")
             # Emit a drop-in judex-evaluator calibration block (mode: temperature). For the LIVE run
             # it integrates by copy-paste; for a SMOKE it is flagged do-not-integrate.
             block = study_a.calibration_block(report)
             if block is not None:
                 block.setdefault("provenance", {})["smoke"] = is_smoke
                 (out / "pipeline_calibration_block.json").write_text(json.dumps(block, indent=2))
+                _s = report.get("tau_oc_summary", {})
+                _sat = _s.get("tau_oc_saturated_families") or []
+                _deg = _s.get("tau_oc_degenerate_reference_families") or []
+                pegged = sorted(set(_sat) | set(_deg))
                 if is_smoke:
                     print("[SMOKE] wrote pipeline_calibration_block.json — tau_oc is MEANINGLESS "
                           "(--limit/--no-reason or <120 cells). Do NOT paste into judex-evaluator "
-                          "pipeline.yaml; only a full 120-cell bf16 reasoning run is real.")
+                          "configs/pipeline.yaml; only a full 120-cell bf16 reasoning run is real.")
+                elif pegged:
+                    why = []
+                    if _sat:
+                        why.append(f"tau_oc itself SATURATED on {_sat} (bounds {study_a.T_BOUNDS}) — "
+                                   f"a temperature on the search boundary is a flattened objective, "
+                                   f"not a fit")
+                    if _deg:
+                        why.append(f"DEGENERATE REFERENCE on {_deg} — tau_oc is finite but its `pre` "
+                                   f"leg's own T* pegged, so it aligns post to a base whose "
+                                   f"calibration could not be fit; it does not measure "
+                                   f"post-training overconfidence")
+                    print("[PEGGED] wrote pipeline_calibration_block.json, but do NOT adopt this "
+                          "constant:\n         - " + "\n         - ".join(why) +
+                          "\n         Check the accuracy gate first (§0 load-bearing caveat).")
                 else:
                     print(f"[integrate] wrote {out / 'pipeline_calibration_block.json'} "
-                          f"(paste under judex-evaluator pipeline.yaml -> calibration; closed-evaluator-scoped)")
+                          f"(paste under judex-evaluator configs/pipeline.yaml -> calibration; "
+                          f"closed-evaluator-scoped). KEEP this file: the evaluator drops "
+                          f"`provenance` under mode:temperature, so it is the only audit trail.")
         (out / "study_a_report.json").write_text(json.dumps(report, indent=2))
         print(json.dumps(report, indent=2))
 

@@ -35,11 +35,22 @@ git submodules of the `judex` umbrella:
   rows: 1449 leaf + 308 dimension** — every v1 excerpt re-authored 1:1 by Grok 4.5 in the
   `ambiguity_structured` style and re-annotated from scratch by the same 7-seat panel under
   contract 0.2.0. The **dimension store is the few-shot source** (`fewshot.DIMENSION_STORE`); v2
-  dimension exemplar texts are ~14× longer than v1 (mean ~9.7k chars), which re-sized the live
+  dimension exemplar texts are ~13× longer than v1 (mean 9.7k vs 756 chars), which re-sized the live
   prompt budget (see the vast section below). The v1 tree (`judex_leaf_exemplar_construction/`)
-  is the archived baseline — never rebuild or edit it.
+  is the archived baseline — never rebuild or edit it. Store probabilities are on the **0.05
+  elicitation grid**; the AIReg GT below is **continuous** — the two sides of the instrument sit on
+  different supports (harmless for the base leg, which emits only a letter A–E).
 - `judex-ground-truth` — Bayesian MG-MFRM labels; the canonical AIReg-Bench ground truth.
+  **Re-materialized 2026-07-09** (after this repo's original verification): freethresh thresholds,
+  **readout temperature τ = 0.675**, grid snap OFF (continuous). Moved the labels by **W1 mean
+  0.194** with **0/120 mode flips** — argmax-derived numbers are stable, every distribution-fitting
+  number is not. Full provenance + the R-hat/validation caveats: `aireg.py` module docstring;
+  pinned against drift by `tests/test_integration_seams.py::GtVintageGuardTests`.
 - `judex-evaluator` — the runtime + scoring + calibration tooling (Study A reuses it verbatim).
+  Two config bundles exist: `configs/` (v1 exemplars, **the default**) and `configs_v2exemplars/`
+  (corpus-v2 exemplars, selected per run with `--config-dir configs_v2exemplars`). Study A's
+  few-shot is corpus-**v2**, so a Q4/E6 closed-pair run must pass that flag or the closed leg is
+  framed on v1 exemplars while the open legs are framed on v2.
 - `judex-calibration` — **Study A** (this repo): open pre/post-pair temperature calibration.
 
 ## Study A (what this repo does)
@@ -55,8 +66,13 @@ Murphy **reliability** without hurting resolution/RPS?
 distributional-utility demonstration — pre/post overconfidence measurement, the
 argmax-invariance ("discrete metrics are blind") exhibit, and downstream routing/
 decision-cost deltas; correction mechanism is the transferred `median(τ_oc)` ONLY.
-Current closed pair: **Sonnet 4.6 (medium effort) + GPT 5.4 (medium reasoning)**;
+Current closed pair: **Sonnet 4.6 (medium effort) + GPT 5.4 (medium reasoning)**
+(evaluator families `anthropic_claude_medium` + `openai_gpt_standard`);
 Haiku 4.5 / GPT-5.4-mini ruled out (insufficiently capable on the task).
+**No existing 120-cell run realizes that pair** (verified 2026-07-18): `stage9-sweep-sonnet-gpt-v2`
+is `anthropic_claude` + `openai_gpt` — its GPT seat is **gpt-5.4-mini**, a ruled-out model, and it
+predates contract 0.2.0 and corpus-v2. `stage9-claude-gpt-medium` *is* the right pair but covers
+3 docs / 15 items. So **Q4 and E6 need a fresh on-pair sweep (~$290–300)** — not $0.
 
 Pipeline (this repo, `src/judex_calibration/`):
 - `aireg.load_cells()` → 120 cells with the **canonical, manifest-verified** GT, reproducible from the
@@ -67,8 +83,9 @@ Pipeline (this repo, `src/judex_calibration/`):
 - `elicit_base` → `/v1/completions` token-slice over A–E; **server-agnostic** logprobs parsing
   (vLLM, llama.cpp, and chat shapes) so both hosts work — but **llama.cpp/Metal (Mac) is the SMOKE
   plumbing only (result discarded); vLLM on vast (bf16) is the real measurement.**
-- `study_a` → Q1–Q4 + `calibration_block()` (a drop-in `pipeline.yaml → calibration` block,
-  `mode: temperature`).
+- `study_a` → Q1–Q4 + `calibration_block()` (a drop-in `judex-evaluator/configs/pipeline.yaml →
+  calibration` block, `mode: temperature` — note the `configs/` segment). The evaluator drops
+  `provenance` under that mode, so keep `pipeline_calibration_block.json` as the audit trail.
 - Driver: `scripts/run_qwen_phase1.py` — same script, flags pick the workflow. **SMOKE:** `--limit N
   --no-reason` (fast, result discarded). **LIVE:** omit both (all 120 cells, reasoning ON). `--out`,
   `--base-url/--post-url`, `--base-model/--post-model`, `--analyze-only` re-scores an existing `--out`.
@@ -114,8 +131,17 @@ evaluator and the annotator↔evaluator firewall no longer bars Google. The fire
 
 ## Integrity invariants (do not break)
 - AIReg-Bench is the **validation** set — never inject it as few-shot (few-shot is corpus-only, disjoint).
-- The canonical AIReg GT bundle currently validates as **`unavailable`** (prior_predictive not computed):
-  safe to *use*, but must not be described as a "validated benchmark".
+- The canonical AIReg GT bundle currently validates as **`unavailable`** on **two** hard-failure
+  families — `prior_predictive` (not computed) **and `convergence_rhat`** (max R-hat 1.0123 > 1.01;
+  ESS passes at 558). Safe to *use*, but must not be described as a "validated benchmark".
+- **Temperatures are fit on Study A's own range** `T_BOUNDS = (0.25, 20.0)`, passed explicitly to
+  every evaluator fitter. Do not drop the argument: `judex.calibration`'s default is `(0.25, 4.0)`,
+  which silently censored `T_rps` at 4.0 while `T_rel`/`τ_oc` ran to 20 (every fp16-pilot leg pegged
+  there). Any temperature on a boundary is a peg, not a fit — `study_a.saturated()` flags it and the
+  report/calibration block carry `*_saturated`; a saturated `τ_oc` must never be adopted.
+- Numbers fit against the pre-2026-07-09 GT are **not** carryable. Worked example: the recorded
+  sanity fit `T_rps 2.4434` on `stage9-gemini-gpt-medium` re-derives to **3.5585** on the current
+  bundle (+46%; verified bound-independent). Re-derive, never carry forward.
 - `develop` is the integration branch in every repo (never create `integration`).
 
 ## Docs

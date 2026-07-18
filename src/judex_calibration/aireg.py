@@ -7,12 +7,12 @@ sibling-repo artifacts — no dependency on a gitignored run directory:
 
   GT distribution : judex-ground-truth/data/distributional_labels/  (the canonical
                     ``mgmfrm_anchored_projection`` bundle — cumulative-consistency
-                    fit, last re-fit 2026-07-03 at 4000 draws/8000 tune (nutpie; the
-                    1000/2000 settings failed the R-hat gate) — loaded through
-                    judex-evaluator's manifest-verified
+                    model ``cumulative_consistency_fixed_sigma_item_mgmfrm.v1``, loaded
+                    through judex-evaluator's manifest-verified
                     ``synthesize_aireg_bench_ground_truth`` so the SHA-256 contract is
                     enforced and we always pick up the current canonical labels across
-                    future re-pins).
+                    future re-pins).  See WHAT THE GT ACTUALLY IS below — the bundle was
+                    re-materialized on 2026-07-09 and its formulation is load-bearing here.
   item_label->doc : judex-corpus/step3_4/ground_truth.json  (``labelled_sections``).
   criterion text  : judex-evaluator/configs/rubric.yaml.
   evidence text   : judex-corpus/step5/documents/<doc_id>/{application.md,data.md}.
@@ -23,6 +23,46 @@ was canonical *at run time* — the pre-2026-06-30 hyperprior GT, whose 120 prob
 vectors differ from the current cumulative-consistency GT (argmax is identical, so the
 staleness is silent). A distribution-fitting calibration study must use the current
 canonical GT; hence we synthesize it from the tracked bundle every load.
+
+WHAT THE GT ACTUALLY IS (re-verified 2026-07-18 against judex-ground-truth ``b2e4fe3``).
+The bundle was **re-materialized on 2026-07-09** (``89f40b7`` + ``3c2ebdb``) — after this
+module's original 2026-07-03 verification — with three coupled formulation changes:
+
+  * thresholds **pooled -> freethresh** (``thresholds: "free"``);
+  * a **readout temperature tau = 0.675** (1 -> 0.65 -> 0.675, re-pinned by user decision),
+    tempering P(Y<=k) on the READOUT ONLY — the fit, severities, theta and lens geometry are
+    unchanged, and every identified threshold functional is exactly tau-invariant;
+  * the 0.05 grid snap **turned off globally** — the labels are now **continuous** (verified:
+    0/600 probabilities land on the 0.05 grid), because the object they are scored against
+    (the evaluator's Phase-4 reconciled barycenter) is continuous and never re-snapped.
+
+Movement vs the previously shipped object: **W1 mean 0.194** (median 0.184, max 0.417), mean
+entropy 1.065 -> 1.252 nats, and **0/120 mode flips** (a KL-anchor construction guarantee).
+So this is precisely the silent staleness the paragraph above warns about, a second time and
+~240x larger than the 2026-07-03 refresh (W1 ~0.0008): argmax-derived numbers are stable (the
+Phase-0 proxy ceiling 0.658 re-derives exactly), but **every distribution-fitting number moved**
+— any T*/tau_oc figure recorded before 2026-07-09 must be re-derived, not carried forward.
+
+Two consequences worth stating explicitly, because Study A's estimands are temperatures:
+  1. The GT we fit against **is itself a tempered readout** (tau = 0.675). Study A's T* and
+     tau_oc are measured against that object; they are not comparable to temperatures fit
+     against the pre-2026-07-09 (tau = 1, snapped, pooled) labels.
+  2. Corpus few-shot exemplars ARE on the 0.05 grid (elicitation rule A7) while this GT is
+     continuous. Harmless for the base leg — ``fewshot.render_block`` emits only a letter A-E
+     — but the two sides of the instrument are on different supports; do not assume otherwise.
+
+Sampler, from the trace's own attrs (``airegbench_mgmfrm_cumulative_consistency_idata.nc``,
+authoritative): **draws 2000 / tune 4000**, 4 chains, target_accept 0.99, seed 42, nutpie
+0.16.8, 0 divergences — compliant with the 2026-07-14 convention (raise *tune* to remediate
+convergence; draws are a precision knob capped at 2000).  FOOTGUN: the sidecar
+``validation_diagnostics_v4.json`` records ``draws 1000 / tune 2000``; those are
+``build_airegbench_canonical_sources.py`` argparse defaults stamped over the cached-trace
+path, not what was run. Trust the trace attrs.
+
+Validation status is ``unavailable`` with **two** hard-failure families, not one:
+``convergence_rhat`` (max R-hat 1.0123 > 1.01 threshold — a live, shipped property, not a
+resolved footnote) and ``prior_predictive`` (not computed). ESS passes (bulk min 558 >= 400).
+Safe to *use*; must never be described as a validated benchmark.
 
 EVIDENCE SOURCE CHOICE: this uses the JUDEX TechOps document (what the JUDEX evaluators
 saw), assembled from the git-tracked corpus step5 markdown, not the raw isolated AIReg

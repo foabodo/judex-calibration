@@ -72,6 +72,38 @@ if [ ! -d judex ]; then
 fi
 cd judex && git submodule update --init --recursive
 
+# Sibling vintages are load-bearing. judex-calibration reads the other repos by relative path with
+# no SHA pin (correct by design), so this box's science IS whatever the umbrella pinned: the AIReg
+# GT formulation, the corpus-v2 exemplar store and the evaluator's calibration tooling all come
+# from these checkouts. A pin that trails develop -- almost always because work upstream was never
+# pushed -- changes results silently. Surface it here, at provision time, not mid-run.
+say "5b/6 Sibling vintages (what this box will actually run against)"
+stale=0
+for sub in judex-corpus judex-ground-truth judex-evaluator judex-calibration judex-paper; do
+  [ -d "$sub" ] || continue
+  sha=$(git -C "$sub" rev-parse --short HEAD 2>/dev/null || echo '?')
+  when=$(git -C "$sub" log -1 --format=%ad --date=short 2>/dev/null || echo '?')
+  git -C "$sub" fetch -q origin develop 2>/dev/null || true
+  behind=$(git -C "$sub" rev-list --count HEAD..FETCH_HEAD 2>/dev/null || echo '?')
+  if [ "$behind" != "?" ] && [ "$behind" != "0" ]; then
+    printf '   %-20s %-10s %s   ** %s commits behind origin/develop **\n' "$sub" "$sha" "$when" "$behind"
+    stale=1
+  else
+    printf '   %-20s %-10s %s\n' "$sub" "$sha" "$when"
+  fi
+done
+if [ "$stale" = 1 ]; then
+  cat <<'EOF'
+
+   !! At least one submodule is BEHIND its origin/develop.
+      You get the umbrella's pins, not the tips. Usual cause: work merged on the Mac was never
+      pushed, or the umbrella was never re-pinned. Study A's ground truth, exemplar store and
+      evaluator tooling all come from these checkouts.
+      Fix on the Mac (push the sub-repos, re-pin the umbrella, push the umbrella), then re-clone.
+      Proceeding is fine ONLY if you have checked that nothing above matters for this run.
+EOF
+fi
+
 say "6/6 Python env + pipeline sanity"
 python3 -m venv .venv
 # shellcheck disable=SC1091

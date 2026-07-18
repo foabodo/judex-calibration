@@ -103,6 +103,17 @@ def main():
     gt = gt_mode_by_label()
     canonical = canonical_labels()
     files = sorted(glob.glob(f"{AIREG}/llm_annotations/*_annotations.xlsx"))
+    if not files:
+        # Only HALF this script's inputs are git-tracked. The GT barycenter is; the AIReg
+        # annotation workbooks are NOT -- judex-evaluator/.gitignore excludes
+        # data/external/aireg_bench/*, so they are absent on a fresh clone and on a vast box.
+        # Fail with the actual remedy rather than silently printing an empty table.
+        raise SystemExit(
+            f"no AIReg annotation workbooks under {AIREG}/llm_annotations/\n"
+            "These are NOT git-tracked (judex-evaluator/.gitignore: data/external/aireg_bench/*), "
+            "so they do not arrive with a clone.\n"
+            "Fetch them into judex-evaluator with scripts/fetch_external.sh, or run this gate on "
+            "the Mac where they already exist.")
     rows = []
     for f in files:
         name = os.path.basename(f).replace("_annotations.xlsx", "")

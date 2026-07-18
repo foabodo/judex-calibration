@@ -62,6 +62,53 @@ class AiregGtSeamTests(unittest.TestCase):
         self.assertEqual(matched, 120)
 
 
+class GtVintageGuardTests(unittest.TestCase):
+    """Pin the FORMULATION of the canonical AIReg GT, not just its shape.
+
+    Why this exists: judex-calibration reads the siblings by relative path with no SHA pin, so it
+    always gets whatever GT is checked out. That is the right design (§ aireg.py) — but it means a
+    sibling-side re-materialization lands here silently. It has now happened twice, and both times
+    argmax was preserved, so every accuracy-shaped check stayed green while the probability vectors
+    moved (2026-07-03: W1 ~0.0008; 2026-07-09: W1 mean 0.194, mean H 1.065 -> 1.252).
+
+    A distribution-fitting calibration study cannot absorb that silently. These assertions fail
+    LOUDLY the next time the bundle's formulation moves. A failure here is NOT a bug to patch out:
+    it means the GT changed, and the fix is to re-derive any affected T*/tau_oc numbers and update
+    the provenance block in ``aireg.py`` + ``CLAUDE.md`` to the new formulation.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.manifest = json.loads(
+            (GT_LABELS_DIR / "airegbench_labels_mgmfrm_anchored_projection_manifest.json").read_text())
+        cls.diag = json.loads((GT_LABELS_DIR / "validation_diagnostics_v4.json").read_text())
+
+    def test_bundle_is_the_canonical_production_object(self):
+        self.assertEqual(self.manifest["status"], "canonical_production_ground_truth")
+        self.assertEqual(self.manifest["methodology"]["name"], "mgmfrm_anchored_projection")
+        self.assertEqual(self.diag["model"], "cumulative_consistency_fixed_sigma_item_mgmfrm.v1")
+        self.assertEqual(self.manifest["counts"], {"items": 120, "observations": 360, "raters": 3})
+
+    def test_readout_formulation_is_freethresh_tau_0675_continuous(self):
+        # The 2026-07-09 re-materialization (89f40b7 + 3c2ebdb). Study A's estimands are
+        # temperatures fit against this object, so a change to any of the three is material.
+        self.assertEqual(self.diag["sampling"]["thresholds"], "free")
+        self.assertAlmostEqual(self.diag["sampling"]["readout_tau"], 0.675, places=6)
+        self.assertFalse(self.manifest["methodology"]["barycenter_grid_discretization"]["applied"])
+
+    def test_labels_are_continuous_not_grid_snapped(self):
+        # Belt-and-braces on the flag above, measured on the labels we actually load.
+        on_grid = sum(1 for c in load_cells() for p in c.gt_probs if abs(p * 20 - round(p * 20)) < 1e-9)
+        self.assertEqual(on_grid, 0, "GT looks grid-snapped again — the de-snap was reverted upstream")
+
+    def test_validation_caveat_still_holds_as_documented(self):
+        # CLAUDE.md / aireg.py describe this bundle as usable-but-not-a-validated-benchmark, on
+        # TWO hard failures. If upstream ever clears them, the docs overstate the caveat.
+        self.assertEqual(self.manifest["validation"]["response_model_validation_status"], "unavailable")
+        self.assertEqual(sorted(self.manifest["validation"]["hard_failure_families"]),
+                         ["convergence_rhat", "prior_predictive"])
+
+
 class FewshotStoreSeamTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
