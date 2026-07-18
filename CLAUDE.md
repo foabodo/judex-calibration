@@ -51,6 +51,12 @@ annotators). Questions: **Q1** is the base calibrated (`T*_pre ≈ 1`)? **Q2** p
 `τ_oc`? **Q3** is `τ_oc` stable across families? **Q4** does applying it to the closed pair (Claude/GPT)
 on AIReg improve
 Murphy **reliability** without hurting resolution/RPS?
+**E6 (2026-07-17, guide §4.8):** Q4 extends into the rescoped judex-core paper's
+distributional-utility demonstration — pre/post overconfidence measurement, the
+argmax-invariance ("discrete metrics are blind") exhibit, and downstream routing/
+decision-cost deltas; correction mechanism is the transferred `median(τ_oc)` ONLY.
+Current closed pair: **Sonnet 4.6 (medium effort) + GPT 5.4 (medium reasoning)**;
+Haiku 4.5 / GPT-5.4-mini ruled out (insufficiently capable on the task).
 
 Pipeline (this repo, `src/judex_calibration/`):
 - `aireg.load_cells()` → 120 cells with the **canonical, manifest-verified** GT, reproducible from the

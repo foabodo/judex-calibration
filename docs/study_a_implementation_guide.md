@@ -215,10 +215,60 @@ For each family, against AIReg GT, fit **both** objectives (we proved neither is
 ### 4.6 Cross-family stability & decision (Q3 + Q4)
 - Plot/serialize the seven `(T*_pre, T*_post, τ_oc, accuracy)`.
 - **Document-clustered bootstrap** (reuse the pattern; resample the 24 docs) CIs on `τ_oc` and on the cross-family spread.
-- **Decision rule:** if `τ_oc` clusters tightly *and* the bases clear the accuracy gate, adopt `median(τ_oc)` as the transferred constant for the closed evaluators. `study_a.calibration_block()` emits a drop-in `pipeline.yaml → calibration` block (`mode: temperature`; written to `runs/<run>/pipeline_calibration_block.json`). **Seam note:** the merged `pipeline.yaml` calibration seam is **global** (applied at the Phase-1 gleaning site to whichever families run, no `family_id`). At evaluation time those families are the two **closed** evaluators (now **Claude + GPT**) — the open annotator raters run only at *construction* and are never calibrated here — so for the intended case (two closed families + one clustered constant) pasting the block into the top-level `calibration` key is **adequate**. **Family-scoping is an optional refinement**, needed only if τ_oc doesn't cluster (per-family T), if an arm runs a different evaluator pair, or to move the correction to Phase-3; it is specified in `docs/integration_remediation_2026_07_01.md` (a separate, approved evaluator change, relevant only at this Phase-4 decision). Else, report negative.
+- **Decision rule:** if `τ_oc` clusters tightly *and* the bases clear the accuracy gate, adopt `median(τ_oc)` as the transferred constant for the closed evaluators. `study_a.calibration_block()` emits a drop-in `pipeline.yaml → calibration` block (`mode: temperature`; written to `runs/<run>/pipeline_calibration_block.json`). **Seam note:** the merged `pipeline.yaml` calibration seam is **global** (applied at the Phase-1 gleaning site to whichever families run, no `family_id`). At evaluation time those families are the two **closed** evaluators (now **Claude + GPT**) — the open annotator raters run only at *construction* and are never calibrated here — so for the intended case (two closed families + one clustered constant) pasting the block into the top-level `calibration` key is **adequate**. **Family-scoping is an optional refinement**, needed only if τ_oc doesn't cluster (per-family T), if an arm runs a different evaluator pair, or to move the correction to Phase-3; it is specified in `docs/integration_remediation_2026_07_01.md` (a separate, approved evaluator change, relevant only at this Phase-4 decision). Else, report negative. **§4.8 (E6) extends this Q4 check into the rescoped core paper's demonstration leg** — run it off the same Phase-4 artifacts.
 
 ### 4.7 Decorrelated dispersion (exploratory extension — see §0)
 Add the base-model distributions to the dispersion replicate pool for the closed evaluators (a *decorrelated, well-calibrated* reference, fixing the correlated-overconfidence blindness) and re-run `dispersion_calibration_recovery` on the existing `stage9-gemini-gpt-medium` / `phase23-deference-fix-native` runs. **Pitfall:** do not match the evaluator's *width* to a base model's width (a well-calibrated weak model is appropriately wide; copying it over-widens). Use base disagreement only as *added dispersion*.
+
+### 4.8 E6 — the distributional-utility demonstration leg (2026-07-17 addendum)
+
+**Context.** The rescoped judex-core paper carries an experiment battery proving
+the material distinction between discrete and distributional labels (umbrella
+`spec/analysis_2026_07_17_distributional_utility_experiment_battery.md`; this
+is its **E6**). Q4 already checks that the transferred constant improves Murphy
+Reliability on the closed pair without destroying Resolution/RPS; E6 extends
+that check into the paper-grade exhibit. **No new machinery** — E6 is analysis
+on Q4's artifacts, plus two pre-registered exhibits. The closed pair is
+currently **Claude Sonnet 4.6 (medium effort) + GPT 5.4 (medium reasoning)**
+(2026-07-17; Haiku 4.5 / GPT-5.4-mini are ruled out as insufficiently capable
+for the evaluation task). The Claude+GPT AIReg run Q4 needs now exists
+(`stage9-sweep-sonnet-gpt-v2`); re-verify its config vintage before reuse and
+prefer a fresh sweep if the vintage has moved (run-id identity principle;
+~$12–13/doc × 24 docs ≈ $290–300).
+
+- **E6.1 — Pre-correction measurement.** On the closed pair's live AIReg run:
+  Murphy REL/RES/UNC, entropy deficit vs GT (mean ΔH), and coverage@90 of the
+  point band. This is the "overconfidence is measurable only distributionally"
+  half of the exhibit.
+- **E6.2 — Correction mechanism = the Phase-4 transferred `median(τ_oc)`,
+  full stop.** Not a supervised fit on the closed pair (measured failure: T
+  pegs ~19 and flattens to the marginal under the accuracy deficit — §0), not
+  DACA (abandoned — §0), not GT-free dispersion (fits identity — §0). E6
+  inherits Study A's Q1–Q3 gates unchanged; if Q3 scatters and Phase 4 reports
+  negative, E6 reports the same negative (publish-the-null discipline).
+- **E6.3 — The discrete-blindness exhibit.** Temperature scaling is
+  argmax-preserving, so argmax accuracy and quadratic-weighted κ vs GT are
+  **bit-identical pre/post correction** — verify mechanically and report as
+  the invariance row — while REL, coverage, and ΔH move. Every discrete-label
+  metric is provably blind to the entire intervention; this is the paper's
+  "invisible quality axis" demonstration.
+- **E6.4 — Downstream endpoint deltas.** Re-score the battery's E2 routing
+  signals (prediction entropy, pair W1, Δ_res) and E3 decision-cost endpoints
+  pre/post τ_oc, under the battery's endpoint discipline (outcome endpoints
+  adjudicate; RPS/REL/coverage are diagnostics only). Doc-clustered bootstrap
+  (resample the 24 docs, §4.6 pattern) for every CI.
+- **E6.5 — Optional secondary (accuracy-gated).** The peg-at-19 failure was
+  measured on the Gemini/GPT-era runs (44–52% argmax). If the **current** pair
+  clears an argmax-accuracy floor on AIReg, a held-out-split supervised fit
+  may no longer peg: report fitted-vs-transferred **convergence** as bonus
+  validation of the transfer (firewall per risk 6: split/CV only; never
+  tune-on-test for reported numbers).
+
+**Cost.** $0 beyond Study A Phases 1–4 if `stage9-sweep-sonnet-gpt-v2` is
+vintage-valid; else one fresh closed-pair sweep (~$290–300). **Gates to
+pre-register before running:** the E6.3 invariance row must be exact; the
+E6.1→post REL improvement must clear a doc-clustered CI; E6.4 deltas are
+reported win-or-null.
 
 ---
 
