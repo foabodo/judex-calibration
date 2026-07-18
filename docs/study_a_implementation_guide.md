@@ -4,9 +4,12 @@
 **Status:** plan / runbook. No spend until Phase 0 gate passes.
 
 > **2026-07-01 integration remediation applied** (see `docs/integration_remediation_2026_07_01.md`);
-> **re-verified 2026-07-03** against the 7-rater role-repo refresh (corpus `aa0c928`, ground-truth
-> `bccccea`, evaluator `16b39a5` — see the addendum in the remediation doc for the re-derived
-> numbers). GT is loaded canonically + reproducibly (`aireg.py` synthesizes the
+> **last re-verified 2026-07-18** against corpus `9541c5b`, ground-truth `b2e4fe3`, evaluator
+> `2b6322b` (see that doc's 2026-07-18 addendum — it supersedes the 2026-07-03 one, whose pins and
+> store counts are historical). **Two carried numbers changed** and are corrected there: the GT
+> bundle was re-materialized 2026-07-09 (freethresh / readout τ=0.675 / continuous, W1 mean 0.194,
+> argmax untouched), and the sanity fit `T_rps 2.4434` re-derives to **3.5585**. GT is loaded
+> canonically + reproducibly (`aireg.py` synthesizes the
 > manifest-verified cumulative-consistency bundle — no gitignored run dependency); few-shot is drawn for
 > real from the corpus store (`fewshot.py`, k from `models.yaml`); `study_a` emits a drop-in evaluator
 > calibration block. An **optional** evaluator-side family-scoped seam is specified (see §4.6 and the
@@ -34,7 +37,7 @@
 
 ## 0. Why this exists (carry-over from the calibration thread)
 
-We need **overconfidence-correcting recalibration for the closed JUDEX evaluators (Gemini, GPT) on future out-of-sample documents with no ground truth**. Three GT-free routes were exhausted:
+We need **overconfidence-correcting recalibration for the closed JUDEX evaluators on future out-of-sample documents with no ground truth**. (The pair was Gemini + GPT when the three routes below were measured; it switched to **Anthropic + GPT** on 2026-07-02 — the failures are pair-independent, but the *target* is now Claude + GPT.) Three GT-free routes were exhausted:
 
 - **DACA** — wrong objective (top-1 ECE), argmax-agreement filter discards ambiguous cells, and no open base sibling for Gemini/GPT. Abandoned.
 - **Internal permutation-gleaning dispersion** — merged to `judex-evaluator` develop as infra (`mode: noop`), but on the live runs it fits **T ≈ 1.0 (identity)** because the two evaluators are *correlated and confidently-wrong-in-agreement*, so their own re-draws don't reveal the overconfidence.
@@ -168,7 +171,7 @@ These supersede the corresponding defaults below:
 
 ### 4.1 The 120 evaluation cells and GT
 - Cells: 24 examinees × 5 Articles (9,10,12,14,15), `item_label` like `"Art 9 / Scenario A | Use 1"`.
-- GT: loaded by `aireg.load_cells()` through the evaluator's **manifest-verified** `synthesize_aireg_bench_ground_truth(judex-ground-truth/data/distributional_labels/, LABELS)` — the current canonical `mgmfrm_anchored_projection` (cumulative-consistency) bundle, git-tracked and reproducible on a fresh clone. The item_label→document join comes from `judex-corpus/step3_4/ground_truth.json` and evidence from `judex-corpus/step5/documents/`. **Do NOT read GT from a run's `metrics_report.json`** — `runs/` is gitignored and a run embeds the GT that was canonical at run time (stale after any re-fit). **AIReg is the VALIDATION set; never used as ICL.**
+- GT: loaded by `aireg.load_cells()` through the evaluator's **manifest-verified** `synthesize_aireg_bench_ground_truth(judex-ground-truth/data/distributional_labels/, LABELS)` — the current canonical `mgmfrm_anchored_projection` (cumulative-consistency) bundle, git-tracked and reproducible on a fresh clone. **As re-materialized 2026-07-09** it is freethresh-thresholded, **readout-tempered at τ = 0.675**, and **continuous** (grid snap off) — so the GT we fit temperatures against is itself a tempered readout, and it validates as `unavailable` on two hard-failure families (R-hat and prior_predictive). Full provenance in the `aireg.py` docstring; pinned by `tests/test_integration_seams.py::GtVintageGuardTests`. The item_label→document join comes from `judex-corpus/step3_4/ground_truth.json` and evidence from `judex-corpus/step5/documents/`. **Do NOT read GT from a run's `metrics_report.json`** — `runs/` is gitignored and a run embeds the GT that was canonical at run time (stale after any re-fit; this bit us twice — see the remediation doc's 2026-07-18 addendum). **AIReg is the VALIDATION set; never used as ICL.**
 
 ### 4.2 Base-model elicitation — MCQA token-slicing (vLLM)
 Base models need **few-shot** framing to follow the answer format. **Draw few-shot examples from the exemplar/calibration corpus** (`judex-corpus/leaf_exemplars`) — disjoint from AIReg, so the firewall holds.
@@ -205,7 +208,7 @@ Serve: `vllm serve <base_repo> --dtype bfloat16 --tensor-parallel-size N [--enab
 ### 4.4 Token-slice validity check (the original "Phase 1")
 For the post models that expose **both** verbalized and logprob channels, compare `INV_SOFTMAX(verbalized)` vs token-sliced logits (W1/KL). This empirically tests whether the two channels agree — the assumption the whole base-vs-post comparison rests on. Run it before trusting cross-channel comparisons.
 
-### 4.5 Per-family fits (reuse `judex-evaluator/calibration.py`)
+### 4.5 Per-family fits (reuse `judex.calibration`, i.e. `judex-evaluator/src/judex/calibration.py`)
 For each family, against AIReg GT, fit **both** objectives (we proved neither is a free lunch under low accuracy, so report both):
 - `T*_pre`  — `fit_temperature(pre_dist, gt)` (RPS-min) and the reliability-min variant.
 - `T*_post` — same for the post distributions.
@@ -228,13 +231,28 @@ the material distinction between discrete and distributional labels (umbrella
 is its **E6**). Q4 already checks that the transferred constant improves Murphy
 Reliability on the closed pair without destroying Resolution/RPS; E6 extends
 that check into the paper-grade exhibit. **No new machinery** — E6 is analysis
-on Q4's artifacts, plus two pre-registered exhibits. The closed pair is
+on Q4's artifacts, plus two pre-registered exhibits (with one exception: E6.4's
+E2 half has nothing to re-score — see "open dependencies" below). The closed pair is
 currently **Claude Sonnet 4.6 (medium effort) + GPT 5.4 (medium reasoning)**
+— evaluator families `anthropic_claude_medium` + `openai_gpt_standard` —
 (2026-07-17; Haiku 4.5 / GPT-5.4-mini are ruled out as insufficiently capable
-for the evaluation task). The Claude+GPT AIReg run Q4 needs now exists
-(`stage9-sweep-sonnet-gpt-v2`); re-verify its config vintage before reuse and
-prefer a fresh sweep if the vintage has moved (run-id identity principle;
-~$12–13/doc × 24 docs ≈ $290–300).
+for the evaluation task).
+
+> **CORRECTION (2026-07-18): no existing run realizes that pair at 120 cells.**
+> An earlier draft of this section named `stage9-sweep-sonnet-gpt-v2` as "the
+> Claude+GPT AIReg run Q4 needs". It is not. Verified against the run's own
+> artifacts: `cross_family_evaluation_slice.json` gives families
+> `anthropic_claude` + `openai_gpt` (the bare ids — no `reasoning_effort`), and
+> `provider_usage_summary.json` `by_model` shows its GPT seat is
+> **`gpt-5.4-mini`** ($10.50) — one of the two models this very paragraph rules
+> out. It also fails the vintage test independently: `created_at`
+> 2026-06-21, `stop_reason: "error"`, no `run_identity` block, and it predates
+> contract 0.2.0 (2026-07-05) and the corpus-v2 binding (2026-07-14). The run
+> that *does* use the right pair, `stage9-claude-gpt-medium`, covers 3 docs /
+> 15 items, not 120. **Q4 and E6 therefore require a fresh on-pair sweep**
+> (~$13.6/doc measured × 24 ≈ **$290–330**), and any Q4 result must state which
+> config bundle it ran under (`--config-dir configs_v2exemplars` for corpus-v2
+> exemplars; `configs/` is still the evaluator default and is v1).
 
 - **E6.1 — Pre-correction measurement.** On the closed pair's live AIReg run:
   Murphy REL/RES/UNC, entropy deficit vs GT (mean ΔH), and coverage@90 of the
@@ -264,11 +282,34 @@ prefer a fresh sweep if the vintage has moved (run-id identity principle;
   validation of the transfer (firewall per risk 6: split/CV only; never
   tune-on-test for reported numbers).
 
-**Cost.** $0 beyond Study A Phases 1–4 if `stage9-sweep-sonnet-gpt-v2` is
-vintage-valid; else one fresh closed-pair sweep (~$290–300). **Gates to
+**Cost.** One fresh closed-pair sweep, **~$290–330** (the "$0 if
+`stage9-sweep-sonnet-gpt-v2` is vintage-valid" branch is closed — see the
+correction above; that run is off-pair, not merely stale). **Gates to
 pre-register before running:** the E6.3 invariance row must be exact; the
 E6.1→post REL improvement must clear a doc-clustered CI; E6.4 deltas are
 reported win-or-null.
+
+**Two open dependencies to settle before E6 runs** (both sit outside this repo,
+so they are flagged, not patched here):
+1. **E6.4 assumes E2 artifacts exist.** On `judex-ground-truth` `develop` the
+   Tier-0 battery ships `run_e{3,4,5,5b,8}.py` and `e{3,4,5,5b,8}_results.json`
+   — **E2 is registered, never executed**, so there are no routing signals to
+   "re-score". E3's decision-cost engine *does* exist and consumes
+   temperature-calibrated credences unchanged, so the E3 half of E6.4 is ready
+   and the E2 half is a build, not a re-score.
+2. **The paper specifies a different correction mechanism.** `judex-paper`'s
+   rescoped core paper still describes E6 step (ii) as *"supervised,
+   agreement-filtered temperature scaling"* citing DACA, and scopes its
+   calibration claims to that setting. This guide's transferred-`median(τ_oc)`
+   mechanism is the *correct, later* one — the umbrella battery spec records
+   "MECHANISM CORRECTED 2026-07-17 against the Study A guide" and adopts it —
+   but the paper was not updated. **Study A is right and the paper lags**;
+   §subsec:calibration needs a paper-side rewrite before E6's output can land
+   in it. Escalate rather than silently reconciling in either direction.
+3. **Pin the A–E orientation before E6.4.** §4.2 slices tokens A–E; the E3 cost
+   engine is orientation-sensitive (`grade 1 = very_low`, so `a > l` is false
+   clearance). State the mapping explicitly in the Q4 artifacts or the cost
+   deltas can silently invert.
 
 ---
 
@@ -353,7 +394,8 @@ Record run-ids, fitted `τ_oc`, the Q1–Q4 verdicts, and any negative results i
 | **1b** | **Trial leg 2: Gemma 26B-A4B** — the other cheap, single-GPU pair (ungated Apache-2.0; Google lineage, so the trial spans two distinct lineages; post leg served plain — no reasoning parser). Run back-to-back with Phase 1 as ONE trial (quickstart §12), then **merge**: `--merge qwen=runs/qwen gemma=runs/gemma` → the first two-family `τ_oc` spread before any mid/giant spend. | ~$8 | Gemma clears the accuracy gate; `τ_oc` finite on both; the 2-family spread plausibly clustered. |
 | **2** | Add **Llama-4-Maverick** (mid). Three-family `τ_oc` + cross-family check. | ~$60 | `τ_oc` plausible & accuracy adequate on ≥3 families. |
 | **3** | Commit to the **three giants + GLM** (bf16, multi-node). Full seven-family Q1/Q2/Q3. | ~$700+ | — |
-| **4** | Decision: adopt `median(τ_oc)` transferred constant (config flip in `judex-evaluator`) or report negative; run Q3 decorrelated-dispersion. | $0 | — |
+| **4** | Decision: adopt `median(τ_oc)` transferred constant (paste the emitted block into `judex-evaluator/configs/pipeline.yaml` → `calibration`) or report negative. **Refuse adoption if `tau_oc_any_saturated`** — a pegged τ_oc is a boundary artefact, not a fit. Optional, gated *on* Q3 being negative: the §4.7 decorrelated-dispersion extension. | $0 | — |
+| **4b** | **E6 — the distributional-utility demonstration leg** (§4.8): fresh on-pair closed sweep, then E6.1–E6.5 off those artifacts. Not $0 — no existing 120-cell run uses the current pair. | ~$290–330 | Q1–Q3 gates passed; E6 gates pre-registered before the sweep runs. |
 
 ---
 

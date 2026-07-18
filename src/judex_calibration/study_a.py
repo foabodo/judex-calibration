@@ -34,7 +34,27 @@ from judex.core.metrics import signed_delta, total_variation_distance  # noqa: E
 
 from .aireg import Cell, load_cells
 
-GRID = [math.exp(math.log(0.25) + (math.log(20.0) - math.log(0.25)) * i / 59) for i in range(60)]
+# Study A's OWN temperature search range — passed explicitly to every evaluator fitter.
+# It must reach well past judex-evaluator's ``DEFAULT_TEMPERATURE_BOUNDS = (0.25, 4.0)``
+# (`judex.calibration`), because the failure this study characterises pegs T at ~19 (§0).
+# Passing ``bounds`` is deliberate and load-bearing: inheriting the evaluator default silently
+# censored ``T_rps`` at 4.0 while ``T_rel`` and ``tau_oc`` — both searched on GRID — ran to 20,
+# so the three temperatures were not on the same scale and a pegged T_rps read as a real fit.
+# Owning the range here also means an evaluator-side default change cannot move our numbers.
+T_BOUNDS = (0.25, 20.0)
+GRID = [math.exp(math.log(T_BOUNDS[0]) + (math.log(T_BOUNDS[1]) - math.log(T_BOUNDS[0])) * i / 59)
+        for i in range(60)]
+
+
+def saturated(T: float, tol: float = 1e-6) -> bool:
+    """True when a fitted temperature sits on the search boundary — a peg, not a fit.
+
+    A saturated T means the objective flattened to the marginal (the accuracy-deficit failure
+    mode of §0): it is a boundary artefact, not a measurement, and must never be adopted as the
+    transferred constant. Reported alongside every temperature so a peg is never silently read
+    as a result. NaN (no overlapping cells) counts as not-a-valid-fit.
+    """
+    return (not math.isfinite(T)) or T <= T_BOUNDS[0] * (1 + tol) or T >= T_BOUNDS[1] * (1 - tol)
 
 
 def load_predictions(path: str | Path) -> Dict[str, List[float]]:
@@ -78,7 +98,7 @@ def score_variant(preds: Dict[str, List[float]], cells: List[Cell]) -> dict:
     if not items:
         return {"n": 0}
     pairs = [(it.prediction, it.ground_truth) for it in items]
-    T_rps = fit_temperature(pairs).temperature
+    T_rps = fit_temperature(pairs, bounds=T_BOUNDS).temperature
     T_rel = min(GRID, key=lambda T: _reliability(items, T))
     murphy = murphy_decomposition(items)
     return {
@@ -87,6 +107,8 @@ def score_variant(preds: Dict[str, List[float]], cells: List[Cell]) -> dict:
         "mean_rps": sum(it.rps for it in items) / len(items),
         "mean_w1": sum(it.w1 for it in items) / len(items),
         "T_rps": T_rps, "T_rel": T_rel,
+        "T_rps_saturated": saturated(T_rps), "T_rel_saturated": saturated(T_rel),
+        "T_bounds": list(T_BOUNDS),
         "murphy": {k: round(murphy[k], 5) for k in ("uncertainty", "resolution", "reliability", "mean_rps")},
         "mean_pred_norm_entropy": sum(it.prediction_normalized_entropy for it in items) / len(items),
     }
@@ -151,13 +173,33 @@ def cross_family(families: Dict[str, Dict[str, Dict[str, List[float]]]], cells: 
         row = {v: score_variant(p, cells) for v, p in variants.items()}
         if "pre" in variants and "post" in variants:
             row["tau_oc"] = fit_tau_oc(variants["post"], variants["pre"], cells)
+            row["tau_oc_saturated"] = saturated(row["tau_oc"])
+            # tau_oc can be a perfectly well-behaved number while being meaningless: it aligns
+            # post -> pre, so if the PRE leg's own T* pegged, the reference it aligns to is a
+            # distribution whose calibration could not be fit at all. The fp16 4B pilot is the
+            # worked example — gemma3-4b's pre leg pegs on both objectives while its tau_oc
+            # (4.877) sits mid-range and looks like a measurement. Flag the reference, not just
+            # the value. (The §0 accuracy gate is the primary guard; this is the second line.)
+            row["tau_oc_reference_degenerate"] = bool(
+                row.get("pre", {}).get("T_rps_saturated") or row.get("pre", {}).get("T_rel_saturated"))
         rows[fam] = row
     taus = [r["tau_oc"] for r in rows.values() if isinstance(r.get("tau_oc"), float) and not math.isnan(r["tau_oc"])]
     summary = {}
     if taus:
         taus_sorted = sorted(taus)
+        pegged = sorted(f for f, r in rows.items() if r.get("tau_oc_saturated"))
+        degenerate = sorted(f for f, r in rows.items() if r.get("tau_oc_reference_degenerate"))
         summary = {"tau_oc_median": taus_sorted[len(taus) // 2], "tau_oc_min": min(taus),
-                   "tau_oc_max": max(taus), "tau_oc_spread": max(taus) - min(taus), "n_families": len(taus)}
+                   "tau_oc_max": max(taus), "tau_oc_spread": max(taus) - min(taus), "n_families": len(taus),
+                   # A pegged tau_oc is a boundary artefact, not a measurement (see `saturated`).
+                   # Surfaced here so Q3/Q4 can never adopt a constant that was never actually fit.
+                   "tau_oc_saturated_families": pegged,
+                   "tau_oc_any_saturated": bool(pegged),
+                   # Families whose PRE reference itself pegged — tau_oc is finite but not a
+                   # measurement of post-training overconfidence. Q3 must exclude these.
+                   "tau_oc_degenerate_reference_families": degenerate,
+                   "tau_oc_any_degenerate_reference": bool(degenerate),
+                   "T_bounds": list(T_BOUNDS)}
     return {"families": rows, "tau_oc_summary": summary}
 
 
@@ -172,8 +214,19 @@ def calibration_block(report: dict, *, accuracy_gate=None, bootstrap_ci=None) ->
     NB (see guide §4.6 + docs/integration_remediation_2026_07_01.md): the merged pipeline seam is
     GLOBAL, but at evaluation time it only ever sees the closed evaluator pair (Claude/GPT) — the
     open raters run at construction, not here. So for two closed families + one clustered constant,
-    this block drops into the global ``calibration`` key as-is. Family-scoping is an OPTIONAL
-    refinement (per-family T if tau_oc does not cluster, a different evaluator pair, or Phase-3).
+    this block drops into the global ``calibration`` key as-is (in
+    ``judex-evaluator/configs/pipeline.yaml`` — and in ``configs_v2exemplars/pipeline.yaml`` too if
+    the run uses that bundle). Family-scoping is an OPTIONAL refinement (per-family T if tau_oc does
+    not cluster, a different evaluator pair, or Phase-3).
+
+    ⚠ PROVENANCE IS NOT PERSISTED BY THE EVALUATOR (verified 2026-07-18 against evaluator
+    ``2b6322b``). ``judex.calibration.calibrate_distribution`` reads ``provenance`` **only** on the
+    ``dispersion`` branch; ``mode: temperature`` routes to ``calibrate_invert_softmax(distribution,
+    temperature=...)``, which records ``method: "invert_softmax"`` and drops this whole dict —
+    including ``smoke``. So the block below is accepted verbatim, but once pasted, nothing in the
+    evaluator run records where the constant came from or that it was a smoke value. Keep
+    ``pipeline_calibration_block.json`` as the audit trail alongside the run, and never rely on the
+    evaluator to carry it. (Changing this is an evaluator-side change, out of Study A's scope.)
     """
     summary = report.get("tau_oc_summary", {})
     temperature = summary.get("tau_oc_median")
@@ -190,6 +243,10 @@ def calibration_block(report: dict, *, accuracy_gate=None, bootstrap_ci=None) ->
             "tau_oc_max": summary.get("tau_oc_max"),
             "tau_oc_spread": summary.get("tau_oc_spread"),
             "n_families": summary.get("n_families"),
+            # A pegged tau_oc is a boundary artefact, never adoptable — see `saturated`.
+            "tau_oc_any_saturated": summary.get("tau_oc_any_saturated"),
+            "tau_oc_saturated_families": summary.get("tau_oc_saturated_families"),
+            "T_bounds": summary.get("T_bounds"),
             "accuracy_gate": accuracy_gate,
             "bootstrap_ci": bootstrap_ci,
             "target_families": "closed_evaluators (Claude/GPT); global seam adequate for a clustered constant, else family-scoped",
@@ -198,13 +255,24 @@ def calibration_block(report: dict, *, accuracy_gate=None, bootstrap_ci=None) ->
 
 
 if __name__ == "__main__":
-    # Smoke: treat the existing Gemini/GPT reconciled predictions as one variant to
-    # validate the analysis path end-to-end on real distributions (no API).
+    # Smoke: score an existing JUDEX run's reconciled predictions as one variant, to validate the
+    # analysis path end-to-end on real distributions (no API). Defaults to the LEGACY Gemini/GPT
+    # run — kept only because it is the one 120-cell run on disk; the current closed pair is
+    # Claude + GPT, so these numbers are NOT a Q4 result. Override with STUDY_A_SMOKE_RUN.
+    # `judex-evaluator/runs/` is gitignored, so this smoke is Mac-only by construction (it is
+    # absent on a fresh clone / vast box) — hence the explicit guard rather than a stack trace.
+    run_id = os.environ.get("STUDY_A_SMOKE_RUN", "stage9-gemini-gpt-medium")
+    path = _UMBRELLA / "judex-evaluator" / "runs" / run_id / "metrics_report.json"
+    if not path.exists():
+        raise SystemExit(
+            f"no metrics_report.json at {path}\n"
+            "judex-evaluator/runs/ is gitignored — this smoke only runs where the run exists.\n"
+            "Set STUDY_A_SMOKE_RUN=<run-id> to point at a run you have.")
     cells = load_cells()
-    m = json.loads((_UMBRELLA
-                    / "judex-evaluator/runs/stage9-gemini-gpt-medium/metrics_report.json").read_text())
-    preds = {it["item_label"]: it["prediction"]["probabilities"] for it in m["items"]}
+    preds = {it["item_label"]: it["prediction"]["probabilities"]
+             for it in json.loads(path.read_text())["items"]}
     s = score_variant(preds, cells)
-    print("SMOKE score_variant on gemini-gpt reconciled predictions:")
+    print(f"SMOKE score_variant on {run_id} reconciled predictions "
+          f"({len(preds)} cells; T bounds {T_BOUNDS}):")
     for k, v in s.items():
         print(f"  {k}: {v}")

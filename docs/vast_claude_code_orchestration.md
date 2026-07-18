@@ -218,8 +218,13 @@ the Q4 check at the cross-family median; persist `runs/trial_cheap/` with the sa
 ## 6. After it finishes
 
 - Pull the artifacts (`scp …/qwen_results.tgz .`) or `git fetch` the `vast-run-*` branch; the
-  `pipeline_calibration_block.json` is the drop-in for `judex-evaluator/pipeline.yaml → calibration`
-  (see the guide §4.6 seam note).
+  `pipeline_calibration_block.json` is the drop-in for
+  `judex-evaluator/configs/pipeline.yaml → calibration` (note the `configs/` segment — there is no
+  `judex-evaluator/pipeline.yaml`; if the run used the corpus-v2 exemplar bundle, paste into
+  `configs_v2exemplars/pipeline.yaml` too). **Keep this file** as the audit trail: the evaluator
+  reads `provenance` only on its `dispersion` branch, so under `mode: temperature` everything but
+  `mode`/`temperature` — including the `smoke` flag — is dropped on paste (see the guide §4.6 seam
+  note and `study_a.calibration_block`'s docstring).
 - **Destroy the box yourself** (`vastai destroy instance <id>`) — cost is wall-clock. The brief tells
   the on-box Claude *not* to destroy it, so you keep the kill switch.
 - Rotate the API key/token if you used a rotatable one.
