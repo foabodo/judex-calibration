@@ -230,6 +230,19 @@ def main():
                     print("[PEGGED] wrote pipeline_calibration_block.json, but do NOT adopt this "
                           "constant:\n         - " + "\n         - ".join(why) +
                           "\n         Check the accuracy gate first (§0 load-bearing caveat).")
+                elif _s.get("tau_oc_cluster_rule_ok") is not True:
+                    ratio = _s.get("tau_oc_cluster_ratio")
+                    why = (f"tau_oc max/min = {ratio:.2f} > {study_a.CLUSTER_RULE_MAX_RATIO} across "
+                           f"the clean fits (the definitive rule applies to the gate-passing "
+                           f"subset — verify before any paste)"
+                           if ratio is not None else
+                           f"only {_s.get('tau_oc_clean_families_n', 0)} clean tau_oc fit(s) — a "
+                           f"single family cannot establish Q3 clustering")
+                    print("[NOT-CLUSTERED] wrote pipeline_calibration_block.json, but do NOT adopt "
+                          "this constant:\n         " + why +
+                          "\n         Q3-negative discipline: a median over a non-clustered panel "
+                          "has no principled status.\n         E6's mechanism is the supervised T* "
+                          "+ pre-registered sensitivity band (guide §4.8).")
                 else:
                     print(f"[integrate] wrote {out / 'pipeline_calibration_block.json'} "
                           f"(paste under judex-evaluator configs/pipeline.yaml -> calibration; "
