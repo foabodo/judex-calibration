@@ -73,7 +73,10 @@ hits it on `localhost`. `elicit_base` parses llama.cpp's logprobs shape (server-
 **Setup (once):**
 ```bash
 brew install llama.cpp                     # provides `llama-server` (Metal build)
-# driver/analysis env (you likely already have this — it's the evaluator venv used all along):
+# driver/analysis env — generic-reader path; ON THE PROJECT MAC skip the venv and substitute
+# `conda run -n judex-arm python` (or /Users/fabodo/anaconda3/envs/judex-arm/bin/python) for every
+# `../.venv-cal/bin/python` below (CLAUDE.md: the judex-arm conda env is the standard; §2·Mac-D
+# already uses it). Both work — same driver, same flags.
 python3 -m venv .venv-cal && source .venv-cal/bin/activate
 pip install -e judex-evaluator && pip install -e judex-calibration
 ```
@@ -257,8 +260,11 @@ curl -s http://localhost:8000/v1/completions -H 'Content-Type: application/json'
 ./.venv-vllm/bin/vllm serve Qwen/Qwen3-30B-A3B-Base \
   --quantization bitsandbytes --load-format bitsandbytes --dtype bfloat16 \
   --max-model-len 24576 --gpu-memory-utilization 0.90 \
-  --kv-cache-dtype int8_per_token_head \
   --host 0.0.0.0 --port 8000
+# KV cache stays at the default --kv-cache-dtype auto (model dtype). If VRAM-tight, `fp8` is the
+# valid quantized option — vLLM accepts auto/fp8/fp8_e5m2/fp8_e4m3 only (an earlier revision showed
+# `int8_per_token_head`, which is not a vLLM value and fails at argument parsing). Fine here either
+# way: this int4 smoke's numbers are discarded.
 ```
 This exercises vLLM's **MoE routing / fused-MoE kernels** (the model loads all 128 experts on the one
 card). True **expert-parallel** *sharding* needs multiple GPUs (`--tensor-parallel-size N
@@ -302,6 +308,9 @@ and reuse the int4 serve command from §3.)
 # reads pre.json/post.json, joins to CANONICAL AIReg GT, writes:
 #   runs/smoke_qwen/study_a_report.json          (Q1 T*_pre, Q2 τ_oc, Q3 tau_oc_summary, Q4 closed-side)
 #   runs/smoke_qwen/pipeline_calibration_block.json  (drop-in evaluator block)
+# Q4 needs a closed-evaluator run under judex-evaluator/runs/ (gitignored — Mac-only); where it is
+# absent the report records closed_side_check_Q4: {skipped: true, ...} and prints [Q4] SKIPPED —
+# expected, not an error.
 ```
 
 ## 7. What "the plumbing works" looks like
