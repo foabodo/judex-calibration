@@ -306,6 +306,18 @@ so they are flagged, not patched here):
    but the paper was not updated. **Study A is right and the paper lags**;
    §subsec:calibration needs a paper-side rewrite before E6's output can land
    in it. Escalate rather than silently reconciling in either direction.
+   **RESOLVED 2026-07-18 (user-directed, not silent):** the paper-side rewrite
+   is committed on `judex-paper` branch `claude-calibration-mechanism-rewrite`
+   (`2df3e9e`, unmerged): §subsec:calibration Stage 2 now specifies transferred
+   `median(τ_oc)` as primary under the four gates (accuracy floor, `T*_pre ≈ 1`
+   premise, cross-family clustering, no saturated fit), with the held-out
+   supervised fit and an **agreement-filtered RPS alignment to the base
+   references (τ_DACA — DACA's filter, top-1 objective replaced by the ordinal
+   Brier/RPS)** demoted to triangulating estimators; §protocol E6 step (ii)
+   updated to match, with an explicit gate-failure null clause. The τ_DACA
+   estimator is implemented in this repo (`study_a.fit_tau_daca` /
+   `daca_triangulation`, branch `claude-tau-daca-triangulation`) — free
+   analysis on Q4 + base-leg artifacts, no new inference.
 3. **Pin the A–E orientation before E6.4.** §4.2 slices tokens A–E; the E3 cost
    engine is orientation-sensitive (`grade 1 = very_low`, so `a > l` is false
    clearance). State the mapping explicitly in the Q4 artifacts or the cost
