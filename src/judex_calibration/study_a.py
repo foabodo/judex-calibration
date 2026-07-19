@@ -9,7 +9,11 @@ min), the Murphy decomposition, and mean RPS/W1 (uncalibrated and at T*). For a
 pre/post family it also fits tau_oc = the temperature aligning post -> pre (the
 clean post-training overconfidence). cross_family() tabulates and tests whether
 tau_oc clusters (Q2: is a transferred constant T for the closed evaluators
-justified?).
+justified?). fit_tau_daca()/daca_triangulation() add the third estimator of the
+same constant (paper §subsec:calibration): GT-free, agreement-filtered RPS
+alignment of a closed evaluator to the open BASE references — DACA's filter with
+its top-1 objective replaced by the ordinal Brier (RPS) — compared against the
+transferred tau_oc (primary) and the held-out supervised fit (secondary).
 """
 from __future__ import annotations
 
@@ -201,6 +205,101 @@ def cross_family(families: Dict[str, Dict[str, Dict[str, List[float]]]], cells: 
                    "tau_oc_any_degenerate_reference": bool(degenerate),
                    "T_bounds": list(T_BOUNDS)}
     return {"families": rows, "tau_oc_summary": summary}
+
+
+def fit_tau_daca(closed: Dict[str, List[float]], reference: Dict[str, List[float]],
+                 cells: List[Cell]) -> dict:
+    """GT-free tau estimate: agreement-filtered RPS alignment of CLOSED -> open-BASE reference.
+
+    The third estimator of the Stage-2 constant (paper §subsec:calibration): DACA's
+    agreement filter (Luo et al.) with its top-1-confidence objective replaced by the
+    ordinal Brier score — RPS in CDF space — so alignment is over the full Type-C shape.
+    ``closed`` is a closed evaluator's predictions; ``reference`` is an open BASE model's
+    token-sliced distributions on the same cells (Study A's base-leg artifacts, reused).
+
+    Ground truth NEVER enters the fit — the alignment target is the reference
+    distribution. GT appears in exactly two labeled gate metrics: the reference's argmax
+    accuracy (a below-chance reference identifies nothing — the §0 accuracy gate) and the
+    closed leg's, for the agreement-stratum context. The filter keeps only cells where
+    closed and reference argmax agree, because disagreement items conflate miscalibration
+    with genuine dispute and drive tau into under-confidence (DACA Prop. 3.3); the
+    stratum bias this induces (tau is fit on the sharp/easy stratum) is reported as
+    ``agreement_rate`` rather than hidden.
+
+    The fit itself is ``judex.calibration.fit_temperature`` verbatim with the reference
+    in the ground-truth seat — same RPS objective, same search, Study A's own T_BOUNDS.
+    """
+    by_label = {c.item_label: c for c in cells}
+    gt_by_label = {c.item_label: ComplianceDistribution.from_values(c.gt_probs, c.gt_labels) for c in cells}
+    overlap, pairs = 0, []
+    ref_correct = closed_correct = 0
+    for label in closed.keys() & reference.keys():
+        c = by_label.get(label)
+        if c is None:
+            continue
+        overlap += 1
+        p_closed = _pred_dist(closed[label], c.gt_labels)
+        p_ref = _pred_dist(reference[label], c.gt_labels)
+        ref_correct += p_ref.argmax_index() == c.gt_argmax
+        closed_correct += p_closed.argmax_index() == c.gt_argmax
+        if p_closed.argmax_index() == p_ref.argmax_index():
+            pairs.append((p_closed, p_ref))
+    if not pairs:
+        return {"n_overlap": overlap, "n_agreement": 0, "agreement_rate": 0.0,
+                "tau_daca": float("nan"), "tau_daca_saturated": True,
+                "objective": "rps_alignment_to_reference", "T_bounds": list(T_BOUNDS)}
+    tau = fit_temperature(pairs, bounds=T_BOUNDS).temperature
+    return {
+        "n_overlap": overlap,
+        "n_agreement": len(pairs),
+        "agreement_rate": len(pairs) / overlap,
+        "tau_daca": tau,
+        "tau_daca_saturated": saturated(tau),
+        # Gate metrics only (GT never enters the fit): a reference below chance (0.2 on
+        # K=5) cannot serve as a calibration target, mirroring tau_oc's degenerate-
+        # reference guard.
+        "reference_argmax_acc_gate_only": ref_correct / overlap,
+        "closed_argmax_acc_gate_only": closed_correct / overlap,
+        "reference_below_chance": bool(ref_correct / overlap < 1.0 / 5),
+        "objective": "rps_alignment_to_reference",
+        "T_bounds": list(T_BOUNDS),
+    }
+
+
+def daca_triangulation(closed: Dict[str, List[float]], references: Dict[str, Dict[str, List[float]]],
+                       cells: List[Cell], *, tau_transfer: float | None = None,
+                       T_supervised: float | None = None) -> dict:
+    """Compare the three estimators of the Stage-2 constant on one closed-evaluator leg.
+
+    ``references`` = {family: base-leg predictions} (Study A base artifacts). Per family
+    this fits tau_daca; the summary takes the median over families whose fit is neither
+    saturated nor below-chance-referenced, then compares against the other two
+    estimators when supplied: ``tau_transfer`` (median tau_oc, the primary) and
+    ``T_supervised`` (the accuracy-gated held-out fit on the closed pair, the
+    secondary). Agreement among the three is triangulation; divergence is published,
+    not reconciled — this function only measures, it never adopts.
+    """
+    rows = {fam: fit_tau_daca(closed, preds, cells) for fam, preds in references.items()}
+    valid = sorted(r["tau_daca"] for r in rows.values()
+                   if not r["tau_daca_saturated"] and not r.get("reference_below_chance", False))
+    summary: dict = {"n_references": len(rows), "n_valid": len(valid)}
+    if valid:
+        summary.update({
+            "tau_daca_median": valid[len(valid) // 2],
+            "tau_daca_min": valid[0], "tau_daca_max": valid[-1],
+            "tau_daca_spread": valid[-1] - valid[0],
+        })
+        for name, other in (("tau_transfer", tau_transfer), ("T_supervised", T_supervised)):
+            if other is not None and math.isfinite(other) and other > 0:
+                summary[f"vs_{name}"] = {
+                    "value": other,
+                    "abs_diff": abs(summary["tau_daca_median"] - other),
+                    "log_ratio": math.log(summary["tau_daca_median"] / other),
+                }
+    excluded = sorted(f for f, r in rows.items()
+                      if r["tau_daca_saturated"] or r.get("reference_below_chance", False))
+    summary["excluded_references"] = excluded
+    return {"references": rows, "summary": summary}
 
 
 def calibration_block(report: dict, *, accuracy_gate=None, bootstrap_ci=None) -> dict | None:
