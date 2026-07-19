@@ -171,7 +171,13 @@ Do it in this order and REPORT after each step:
    AND post.json each have 120 cells and were reasoning-ON — if study_a_report.json has `"smoke": true`,
    the τ_oc is MEANINGLESS; rerun the full leg before reporting. Only then read
    runs/qwen/study_a_report.json (Q1 T*_pre, Q2 τ_oc, Q3 tau_oc_summary, Q4 closed_side_check) and
-   runs/qwen/pipeline_calibration_block.json, and summarise the numbers.
+   runs/qwen/pipeline_calibration_block.json, and summarise the numbers. EXPECT
+   `closed_side_check_Q4: {skipped: true, ...}` + a `[Q4] SKIPPED` console line on this box:
+   judex-evaluator/runs/ is gitignored, so the closed-evaluator run is absent on a fresh clone —
+   that is NORMAL, not a failure; do NOT try to fix it (Q4 is re-run later on the Mac). Also treat
+   any `T_*_saturated: true` / `tau_oc_saturated: true` / `tau_oc_reference_degenerate: true` or a
+   `[PEGGED]` banner as a FINDING to report verbatim (a boundary temperature is a peg, not a fit),
+   never a bug to debug.
 
 TROUBLESHOOTING (fix these yourself, don't wait):
 - CUDA OOM / won't load: lower `--gpu-memory-utilization` (0.90→0.85) or `--max-model-len`, or the
