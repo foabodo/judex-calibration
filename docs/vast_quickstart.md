@@ -168,9 +168,17 @@ Reads `pre.json`/`post.json`, joins to the AIReg human GT, and emits `study_a_re
 - **Q3** `tau_oc_summary` (cross-family stability — meaningful once ≥2 families are in; the trial's
   second family (§12) + the merge (§13) give the first real spread),
 - **Q4** `closed_side_check` (the median `τ_oc` applied to the closed pair's (Claude/GPT) AIReg outputs: does Murphy
-  Reliability drop without hurting Resolution/RPS? — needs a Claude+GPT run; the legacy gemini-gpt run is Gemini/GPT).
+  Reliability drop without hurting Resolution/RPS? — needs a Claude+GPT run; the legacy gemini-gpt run is
+  Gemini/GPT, and **as of 2026-07-18 no 120-cell on-pair run exists** (guide §4.8). If the run dir is
+  absent — `runs/` is gitignored, so that is the default on a fresh box — the report records
+  `closed_side_check_Q4: {skipped: true, …}` and prints a `[Q4] SKIPPED` warning rather than silently
+  omitting the question).
 **Accuracy gate:** if `argmax_acc` is low and both `T*` peg at the search bound, Qwen failed the gate
-the same way the closed evaluators did — record it and reconsider before serving the giants.
+the same way the closed evaluators did — record it and reconsider before serving the giants. The
+report makes pegs explicit: `T_rps_saturated`/`T_rel_saturated`/`tau_oc_saturated` (a boundary value
+is an artefact, not a fit), plus `tau_oc_reference_degenerate` when the `pre` leg itself pegged so
+`τ_oc` aligns to a reference that could not be fit; the driver prints `[PEGGED]` instead of the
+`[integrate]` paste banner in either case.
 
 ## 11. Shut down (do this promptly — cost is wall-clock)
 ```bash
@@ -235,7 +243,9 @@ cross-family median. The merge inherits `smoke` from any source dir with a `.smo
   a bigger-VRAM offer. Giants (later families) need `--tensor-parallel-size 8 [--pipeline-parallel-size 2] --enable-expert-parallel`.
 - **Endpoint unreachable:** the offer lacked `static_ip=true` / `direct_port_count>1`; re-pick.
 - **Weights download from HF every launch (vast caches nothing for us):** size `--disk` for the repo
-  (~70 GB Qwen; ≥400 GB to hold base+post on one box), prefer high-`inet_down` offers, and gate the
+  (~70 GB Qwen per leg; the standard **192 GB** holds both cheap-trial legs plus image + cache, as
+  §4/§5 say — size up per `configs/models.yaml` for the mid/giant families), prefer
+  high-`inet_down` offers, and gate the
   HF token/license (step 3). vLLM downloads into the container HF cache; for very large repos set
   `-e HF_HOME=/workspace/hf` (a big mounted path) so the cache lands on the rented disk, not `/`.
 - **Giants (later families) need a caching strategy:** re-pulling 0.7–2 TB from HF per launch is slow
