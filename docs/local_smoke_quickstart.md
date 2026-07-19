@@ -15,7 +15,7 @@ vLLM, the exact server the paid vast run uses).
 > Qwen (or Gemma) only validates the *machinery*, so its τ_oc numbers are **discarded**. Prefer a
 > **Qwen** pre/post pair — the **same lineage** as the panel's `qwen3.5-35b-a3b`, `Qwen3-30B-A3B`
 > matches its **MoE / A3B** shape, and a small Qwen fits the Mac cleanly (bf16, no quant). (The panel
-> Gemma, `gemma-4-26B-A4B`, is too big for the Mac smoke — but **Gemma 3 4B is small enough and is a
+> Gemma, `gemma-4-31B` (swapped from the 26B-A4B 2026-07-19), is too big for the Mac smoke — but **Gemma 3 4B is small enough and is a
 > genuinely distinct lineage**, so it's the recommended **second family** for a two-lineage smoke;
 > see §2·Mac-B/C.)
 
@@ -355,9 +355,10 @@ buffer is ~12 GB at these lengths — use native `llama-server` (brew, or a cmak
 
 ## 9. Other options
 
-- **Gemma 4** (`google/gemma-4-12B`(+`-it`), the MoE `26B-A4B`, or dense `31B`) is the **7th panel
-  model** as of 2026-07-02 (Google was freed when the evaluators went back to Anthropic+GPT) — but
-  `gemma-4-26B-A4B` is too big for the Mac smoke and needs the Linux/vLLM path (§2–5), int4. **Gemma 3
+- **Gemma 4** is the **7th panel model** as of 2026-07-02 (Google was freed when the evaluators went
+  back to Anthropic+GPT); the panel checkpoint is the **dense `gemma-4-31B`** as of 2026-07-19 (the
+  MoE `26B-A4B` failed the cheap-trial accuracy gate and was replaced) — but any panel-size Gemma 4
+  is too big for the Mac smoke and needs the Linux/vLLM path (§2–5), int4. **Gemma 3
   4B (§2·Mac-B)** is the right *Mac* Gemma — small, bf16, and a genuinely distinct lineage from Qwen3,
   which is exactly what a two-lineage smoke needs (see §2·Mac-B/C).
 - **`Qwen3-8B`** (`-Base` + plain) is fine too but bf16 is tight on 24 GB (needs int8 KV); the `4B`

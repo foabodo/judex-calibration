@@ -94,6 +94,14 @@ def main():
                          "Omit for the live experiment (reasoning ON).")
     ap.add_argument("--budget", type=int, default=2048,
                     help="generation/CoT token budget for the reasoning (live) path; ignored under --no-reason")
+    ap.add_argument("--workers", type=int, default=1,
+                    help="concurrent in-flight cells per leg (default 1 = sequential). >1 lets "
+                         "vLLM batch server-side — reclaims idle GPU on multi-GPU boxes. Use only "
+                         "after the batching-equivalence validation (2026-07-19) for the serving stack.")
+    ap.add_argument("--fewshot-k", type=int, default=None,
+                    help="override elicitation.base.fewshot_k from models.yaml for THIS run "
+                         "(e.g. 5 = one exemplar per compliance level — the corrected protocol, "
+                         "2026-07-19); pinned into the leg meta sidecar. Default: the config value.")
     ap.add_argument("--analyze-only", action="store_true")
     ap.add_argument("--limit", type=int, default=0,
                     help="SMOKE ONLY: elicit just N cells (stride-sampled across the 5 Articles) instead of "
@@ -145,9 +153,10 @@ def main():
             # models.yaml); one k-shot block per Article criterion, applied to that Article's cells.
             # --no-reason smoke runs keep the single static SMOKE_FEWSHOT.
             if reason:
-                fewshot_by_crit = fewshot_mod.build_fewshot_by_criterion(cells)
+                k_eff = args.fewshot_k if args.fewshot_k is not None else fewshot_mod.default_k()
+                fewshot_by_crit = fewshot_mod.build_fewshot_by_criterion(cells, k=k_eff)
                 fewshot = lambda c: fewshot_by_crit.get(c.criterion_id, "")
-                print(f"[fewshot] built {len(fewshot_by_crit)} per-Article blocks at k={fewshot_mod.default_k()} "
+                print(f"[fewshot] built {len(fewshot_by_crit)} per-Article blocks at k={k_eff} "
                       f"from {fewshot_mod.DIMENSION_STORE.name}")
             else:
                 fewshot = SMOKE_FEWSHOT
@@ -156,7 +165,9 @@ def main():
                 if url and model:
                     print(f"[{variant}] eliciting {len(cells)} cells from {model} @ {url} ...")
                     elicit_base.run_variant(url, model, cells, str(out / f"{variant}.json"),
-                                            fewshot=fewshot, reason=reason, budget=args.budget)
+                                            fewshot=fewshot, reason=reason, budget=args.budget,
+                                            fewshot_k=k_eff if reason else None,
+                                            workers=args.workers)
                     print(f"[{variant}] wrote {out / f'{variant}.json'}")
 
         variants = load_run_variants(out)

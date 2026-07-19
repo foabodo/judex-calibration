@@ -148,7 +148,7 @@ Do it in this order and REPORT after each step:
 
 1. SERVE THE BASE (detached so it outlives your commands — use its own tmux window, NOT a tracked
    background task): `tmux new-window -d -n vllm "vllm serve Qwen/Qwen3.5-35B-A3B-Base \
-   --dtype bfloat16 --max-model-len 32768 --gpu-memory-utilization 0.92 --port 8000 \
+   --dtype bfloat16 --max-model-len 32768 --gpu-memory-utilization 0.85 --port 8000 \
    > /workspace/vllm.log 2>&1"`. Poll `curl -s http://127.0.0.1:8000/v1/models` until 200
    (weights download first — watch /workspace/vllm.log). Then confirm logprobs actually come back:
    `curl -s http://127.0.0.1:8000/v1/completions -d '{"model":"x","prompt":"Answer:","max_tokens":1,"logprobs":20}' -H 'Content-Type: application/json'`.
@@ -157,13 +157,15 @@ Do it in this order and REPORT after each step:
    - Optional plumbing check (throwaway — its τ_oc is MEANINGLESS; never report or integrate it; note
      it still burns vast wall-clock, unlike the free Mac smoke): add `--limit 6 --no-reason`.
    - THE REAL RUN (this is the study output): OMIT both flags → all 120 cells, reasoning ON.
-   `python scripts/run_qwen_phase1.py --base-url http://127.0.0.1:8000 --base-model Qwen/Qwen3.5-35B-A3B-Base --family qwen --out runs/qwen`
+   `python scripts/run_qwen_phase1.py --base-url http://127.0.0.1:8000 --base-model Qwen/Qwen3.5-35B-A3B-Base --workers 8 --family qwen --out runs/qwen`
+   (`--workers 8` = panel standard, 2026-07-19: concurrent cells let vLLM batch; aggregates are
+   stable within the documented noise band, per-cell chains were never reproducible anyway.)
    For the real run verify runs/qwen/pre.json has **120** sum-to-1 dists (fewer means you ran the check,
    and the run auto-flags `smoke` in the report).
 
 3. SWAP TO THE POST: kill the vLLM window (`tmux kill-window -t vllm`), relaunch the same command on
    Qwen/Qwen3.5-35B-A3B (add `--reasoning-parser qwen3` for the post's native reasoning), wait healthy,
-   then `python scripts/run_qwen_phase1.py --post-url http://127.0.0.1:8000 --post-model Qwen/Qwen3.5-35B-A3B --family qwen --out runs/qwen`.
+   then `python scripts/run_qwen_phase1.py --post-url http://127.0.0.1:8000 --post-model Qwen/Qwen3.5-35B-A3B --workers 8 --family qwen --out runs/qwen`.
    Run the post leg the SAME way as the base — both full-120/reasoning for the real run; never pair a
    check leg with a real leg.
 
@@ -180,10 +182,17 @@ Do it in this order and REPORT after each step:
    never a bug to debug.
 
 TROUBLESHOOTING (fix these yourself, don't wait):
-- CUDA OOM / won't load: lower `--gpu-memory-utilization` (0.90→0.85) or `--max-model-len`, or the
+- CUDA OOM / won't load: lower `--gpu-memory-utilization` or `--max-model-len`, or the
   offer is too small — report the VRAM gap. MoE giants: add `--tensor-parallel-size N --enable-expert-parallel`.
   **Never** reach for fp8/int4/AWQ/GPTQ to make it fit — **bf16 is mandatory** (quantization perturbs
   the logits the study measures); pick a bigger offer instead. int4 is only for the free Mac smoke.
+- CUDA OOM *mid-run* on scattered cells (engine dies + restart-loops): the echo-fallback fp32
+  log-softmax transient (~2.5 GB at a 262k vocab × ~18.3k-token prompt). The serve pin is already
+  0.85 for this reason (2026-07-19); if it still fires, drop to 0.80 and report. Resume the leg with
+  the same `--out` after relaunch — per-cell checkpointing recovers cleanly.
+- Multi-GPU TP hangs at NCCL init or a c10d rendezvous timeout (`1/2 clients joined`): PCIE pairs
+  are banned for TP (use SXM/NVLink); on an SXM host this means a bad host — tell me to re-rent a
+  different machine_id rather than debugging it.
 - Prompt exceeds context: raise `--max-model-len` (corpus-v2 prompts are ~18.3k tokens worst-case,
   + the 2048 CoT budget ⇒ keep **>= 24576**; the standard pin is 32768 — measured 2026-07-14 by
   `scripts/measure_prompt_budget.py`).
@@ -209,15 +218,22 @@ TEARDOWN: after results are safe, stop vLLM (`tmux kill-window -t vllm`). Tell m
 
 ### The Gemma pass (the trial's second family — same brief, these substitutions)
 
-Run the identical brief with: `FAMILY: Gemma (BASE repo google/gemma-4-26B-A4B, POST repo
-google/gemma-4-26B-A4B-it)`; every driver call takes `--family gemma --out runs/gemma`; the post
+> Family swapped 2026-07-19: `gemma-4-26B-A4B` failed the accuracy gate in the first trial
+> (base argmax 0.167 < chance; τ_oc pegged at 20) and was replaced by the dense **`gemma-4-31B`**
+> pair (user decision). Use a fresh run dir for the 31B collection — never resume a 26B dir.
+
+Run the identical brief with: `FAMILY: Gemma (BASE repo google/gemma-4-31B, POST repo
+google/gemma-4-31B-it)`; every driver call takes `--family gemma --out runs/gemma31`; the post
 relaunch takes **NO `--reasoning-parser`** (Gemma 4 has no separate reasoning control — serve it
-plain); weights are ~50 GB bf16 (smaller than Qwen; the same box class works); the results tarball/
-branch is `gemma_results.tgz` / `vast-run-gemma`. Everything else — the 120-cell/reasoning-ON
-discipline, the smoke rules, the persistence rules — is unchanged.
+plain); weights are ~63 GB bf16 dense (same box class as Qwen; do NOT drop to an 80 GB card —
+the echo-fallback transient needs the headroom, see the OOM bullet below); the results tarball/
+branch is `gemma_results.tgz` / `vast-run-gemma`. Expect heavy echo-fallback use on the post leg
+(the 26B needed echo on ~⅓ of cells) — normal, harmless at `--gpu-memory-utilization 0.85`.
+Everything else — the 120-cell/reasoning-ON discipline, the smoke rules, the persistence rules —
+is unchanged.
 
 **Merge (after both families):** from the repo,
-`python scripts/run_qwen_phase1.py --merge qwen=runs/qwen gemma=runs/gemma --out runs/trial_cheap`
+`python scripts/run_qwen_phase1.py --merge qwen=runs/qwen gemma=runs/gemma31 --out runs/trial_cheap`
 — the merged `study_a_report.json` carries the 2-family `tau_oc_summary` (the first Q3 spread) and
 the Q4 check at the cross-family median; persist `runs/trial_cheap/` with the same rules.
 

@@ -11,8 +11,8 @@
 # reasoning control, so its post leg is served plain). Examples:
 #   ID_URL=$(scripts/provision_vast.sh up Qwen/Qwen3.5-35B-A3B-Base)
 #   .../python scripts/run_qwen_phase1.py --base-url "$ID_URL" --base-model Qwen/Qwen3.5-35B-A3B-Base --out runs/qwen
-#   ID_URL=$(scripts/provision_vast.sh up google/gemma-4-26B-A4B)          # Gemma base leg
-#   ID_URL=$(scripts/provision_vast.sh up google/gemma-4-26B-A4B-it post)  # Gemma post leg
+#   ID_URL=$(scripts/provision_vast.sh up google/gemma-4-31B)          # Gemma base leg
+#   ID_URL=$(scripts/provision_vast.sh up google/gemma-4-31B-it post)  # Gemma post leg
 #   scripts/provision_vast.sh down <instance_id>
 #
 # See docs/vast_quickstart.md for the full account->shutdown walkthrough. The vllm/vllm-openai
@@ -25,14 +25,26 @@ set -euo pipefail
 # Cheap-trial defaults (override via env for giants): single H200, sized for the ~18.3k-token
 # corpus-v2 prompts + the 2048 CoT budget (32k-context pin; >=24576 required — measured by
 # scripts/measure_prompt_budget.py) — gpu_ram>=140, not 80. reliability/inet_down_cost guard the pull.
-# Both trial families use these defaults: Qwen 35B-A3B (~70 GB bf16) needs the H200; Gemma
-# 26B-A4B (~50 GB bf16) might squeeze onto 80 GB but the same H200 query removes OOM risk for
-# pennies (cost is dominated by the download, not the card).
+# Both trial families (Qwen 35B-A3B ~70 GB, Gemma 4-31B ~63 GB bf16) use these defaults.
+#
+# HARDWARE LESSONS (2026-07-19 cheap-trial run):
+#  - PREFERRED: a SINGLE >=141 GB card (this query) — zero multi-GPU init surface.
+#  - Budget fallback: 2x A100/H100 **SXM (NVLink)** + VLLM_TP=2. **Never a PCIE pair for TP** —
+#    observed: NCCL init hang (PCIE) and a c10d rendezvous timeout (one bad SXM host); a second
+#    SXM4 machine ran all legs flawlessly. Example:
+#      VAST_OFFER_QUERY='gpu_name=A100_SXM4 gpu_ram>=80 num_gpus=2 static_ip=true direct_port_count>1 inet_down>1000 reliability>0.97 disk_space>192 cuda_vers>=12.4 rentable=true' VLLM_TP=2
+#  - Reuse the SAME machine for subsequent legs where possible: warm image/HF cache makes
+#    re-provision near-instant.
 OFFER_QUERY=${VAST_OFFER_QUERY:-'gpu_ram>=140 num_gpus=1 static_ip=true direct_port_count>1 inet_down>1000 inet_down_cost<0.05 reliability>0.98 disk_space>192 cuda_vers>=12.4 rentable=true'}
 DISK=${VAST_DISK:-192}
 PORT=8000
 MAXLEN=${VLLM_MAX_MODEL_LEN:-32768}
-GPU_UTIL=${VLLM_GPU_UTIL:-0.92}
+# 0.85, NOT 0.92 (2026-07-19): the driver's echo fallback computes prompt logprobs — an fp32
+# log_softmax over the full vocab × an ~18.3k-token prompt (~2.5 GB transient on a 262k vocab).
+# At 0.92 that transient OOM-killed the engine (container restart-loop) on every echo cell of the
+# Gemma post leg; 0.85 leaves headroom and costs only KV the sequential driver never uses.
+GPU_UTIL=${VLLM_GPU_UTIL:-0.85}
+TP=${VLLM_TP:-1}
 POLL_TRIES=${VAST_POLL_TRIES:-120}   # x30s ≈ 60 min for download+load
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing dependency: $1" >&2; exit 1; }; }
@@ -64,11 +76,22 @@ case "$cmd" in
     IID=$(vastai create instance "$OFFER" --image vllm/vllm-openai:latest --disk "$DISK" \
             --env "-p $PORT:$PORT -e HF_TOKEN=$HF_TOKEN" --raw \
             --args --model "$MODEL" --dtype bfloat16 --max-model-len "$MAXLEN" \
-                   --gpu-memory-utilization "$GPU_UTIL" $EXTRA \
+                   --gpu-memory-utilization "$GPU_UTIL" --tensor-parallel-size "$TP" $EXTRA \
           | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("new_contract") or d.get("id") or "")')
     [ -n "$IID" ] || { echo "!! could not parse instance id from create" >&2; exit 1; }
     echo ">> instance=$IID — waiting for the vLLM endpoint (model download+load can take many minutes)..." >&2
+    NUDGED=0
     for _ in $(seq 1 "$POLL_TRIES"); do
+      # vast quirk (observed 2026-07-19): create can leave the box created-but-STOPPED
+      # (intended_status=stopped, never billing GPU, never starting) — nudge it once.
+      if [ "$NUDGED" = "0" ]; then
+        INTENDED=$(vastai show instance "$IID" --raw 2>/dev/null \
+          | python3 -c 'import sys,json; print((json.load(sys.stdin).get("intended_status") or ""))' || true)
+        if [ "$INTENDED" = "stopped" ]; then
+          echo ">> instance created stopped — issuing vastai start" >&2
+          vastai start instance "$IID" >/dev/null 2>&1 || true; NUDGED=1
+        fi
+      fi
       URL=$("$0" url "$IID" 2>/dev/null || true)
       if [ -n "$URL" ] && curl -fsS --max-time 8 "$URL/v1/models" >/dev/null 2>&1; then
         echo ">> READY  instance=$IID  url=$URL  (destroy with: $0 down $IID)" >&2
@@ -92,7 +115,7 @@ print(f"http://{ip}:{hp}" if ip and hp else "", end="")
 '
     ;;
   down)
-    IID=${1:?usage: down <instance_id>}; vastai destroy instance "$IID"; echo "destroyed $IID" >&2
+    IID=${1:?usage: down <instance_id>}; echo y | vastai destroy instance "$IID"; echo "destroyed $IID" >&2   # destroy prompts y/N; pipe yes for non-interactive use
     ;;
   *)
     echo "usage: $0 {up <hf_model_repo> [post] | url <instance_id> | down <instance_id>}" >&2; exit 2

@@ -21,22 +21,30 @@ families:
     params: { total: 35B, active: 3B, moe: true }
     serving: { dtype: bfloat16, tensor_parallel_size: 1, gpu: "1xH100-80", est_cost_usd: 5 }
 
-  gemma:   # 7th annotator, added 2026-07-02 — eligible now that the evaluator pair is Anthropic+GPT
-           # (Google/Gemini freed from the reserved-evaluator role). Google family.
+  gemma:   # Google family. SWAPPED 2026-07-19 (user): gemma-4-26B-A4B → gemma-4-31B (dense) after the
+           # 26B-A4B cheap-trial leg FAILED the accuracy gate (pre argmax 0.167 < 0.2 chance; τ_oc pegged
+           # at the 20.0 bound — see runs/gemma @26B, memory study-a-cheap-trial-executed). The GT
+           # ANNOTATOR seat (corpus seat-7) remains gemma-4-26B-A4B-it — that history does not move.
     tier: cheap
-    base_repo: google/gemma-4-26B-A4B
-    post_repo: google/gemma-4-26B-A4B-it
-    post_api: { provider: vllm_hf, model: google/gemma-4-26B-A4B-it, logprobs: true }  # ungated Apache-2.0; both legs served from HF on vast vLLM. DECIDED 2026-07-03 (user): vllm_hf IS the plan — OpenRouter hosting of the -it leg is verified available (corpus seat-7 collection: Novita bf16 pin, 28/28 clean) but is a just-in-case FALLBACK only, to be invoked solely if unquantized-model logits cannot feasibly be obtained from the HF-downloaded weights; the user does not plan to invoke it.
-    params: { total: 25.2B, active: 3.8B, experts: 128, experts_active: 8, moe: true }
-    serving: { dtype: bfloat16, tensor_parallel_size: 1, gpu: "1xH100-80", est_cost_usd: 8 }  # ~50GB bf16 MoE fits one 80GB GPU; multimodal (text used), 256K ctx
+    base_repo: google/gemma-4-31B
+    post_repo: google/gemma-4-31B-it
+    post_api: { provider: vllm_hf, model: google/gemma-4-31B-it, logprobs: true }  # ungated (verified via HF API 2026-07-19); both legs served from HF on vast vLLM per the 2026-07-03 user decision (vllm_hf IS the plan; OpenRouter is a just-in-case fallback only — NOTE: the Novita bf16 availability verification was for 26B-A4B-it and has NOT been re-verified for 31B-it).
+    params: { total: 31.3B, moe: false }   # dense (Gemma4ForConditionalGeneration), BF16 per HF API
+    serving: { dtype: bfloat16, tensor_parallel_size: 1, gpu: "1xH200-141 (or 2xA100-SXM4 TP2)", est_cost_usd: 10 }  # ~63GB bf16 — too tight for one 80GB card with the echo-fallback fp32 log-softmax transient; size like Qwen
 
-  llama:
+  llama:   # SWAPPED 2026-07-19 (user): Llama-4-Maverick → Llama-3.1-405B dense after the Maverick
+           # base FAILED the gate (argmax 0.250; resolution 0.0197 ≈ noise; BOTH T* pegged at 20;
+           # tau_oc ref-degenerate — runs/llama). The dense 405B base PASSES (0.392 / res 0.0393,
+           # finite T — runs/llama31): second within-lineage dense rescue after Gemma 26B→31B.
+           # Both 3.1 repos are HF-gated (manual, PER-ACCOUNT — verify FILE-LEVEL access, the API
+           # metadata endpoint returns 200 without a grant); granted for the hf-token account
+           # 2026-07-19.
     tier: mid
-    base_repo: meta-llama/Llama-4-Maverick-17B-128E
-    post_repo: meta-llama/Llama-4-Maverick-17B-128E-Instruct
-    post_api: { provider: openrouter, model: meta-llama/llama-4-maverick, logprobs: true }
-    params: { total: 400B, active: 17B, experts: 128, moe: true }
-    serving: { dtype: bfloat16, tensor_parallel_size: 8, expert_parallel: true, gpu: "8xH100-80", est_cost_usd: 60 }
+    base_repo: meta-llama/Llama-3.1-405B
+    post_repo: meta-llama/Llama-3.1-405B-Instruct
+    post_api: { provider: openrouter, model: meta-llama/llama-3.1-405b-instruct, logprobs: true }  # fallback only; availability NOT re-verified for 3.1 (the Maverick/DeepInfra check does not carry)
+    params: { total: 405.9B, moe: false }   # dense, BF16 per HF API
+    serving: { dtype: bfloat16, tensor_parallel_size: 8, gpu: "8xH200-141", est_cost_usd: 90 }  # ~810GB bf16 + KV needs the H200 node; no expert parallel (dense); k=5 prompt 20,506 worst (measured 2026-07-19)
 
   glm:
     tier: mid
@@ -74,13 +82,18 @@ families:
 scale:
   levels: [very_low, low, moderate, high, very_high]
   answer_tokens: [" A", " B", " C", " D", " E"]   # A=very_low ... E=very_high
-# LIVE elicitation contract (reasoning ON, real corpus k=4 few-shot). The Mac smoke (--no-reason)
+# LIVE elicitation contract (reasoning ON, real corpus k=5 few-shot). The Mac smoke (--no-reason)
 # bypasses this — static SMOKE_FEWSHOT, no CoT — which is one reason its tau_oc is discarded.
-# Prompt budget under corpus v2 (measured 2026-07-14, scripts/measure_prompt_budget.py): worst-case
-# live prompt ~18.3k tokens; + fewshot_k=4 is baked into that; + the 2048 CoT budget => required
-# context ~20.4k; serve every leg with --max-model-len >= 24576 (standard pin 32768).
+# fewshot_k=5 (RAISED from 4, 2026-07-19, user directive): one exemplar per compliance level —
+# the stratified round-robin at k=4 systematically omitted very_high (answer E, 27.5% of the GT
+# argmax mass) from EVERY prompt; fixing it lifted Qwen argmax +11pp (base) / +17pp (post) and
+# Gemma-31B +8/+11pp in the controlled k=4-vs-k=5 ablation. k must be >= the 5 scale levels;
+# production judex-evaluator fixed_set is k=5 for the same reason. Prompt budget at k=5 (measured
+# 2026-07-19, Qwen tokenizer): worst-case live prompt ~21.2k tokens + the 2048 CoT budget =>
+# required context ~23.3k; serve every leg with --max-model-len >= 24576 (standard pin 32768) and
+# re-run scripts/measure_prompt_budget.py per family tokenizer before provisioning.
 elicitation:
-  base: { method: token_slice, fewshot_source: judex-corpus/leaf_exemplars, fewshot_k: 4, temperature: 0 }
+  base: { method: token_slice, fewshot_source: judex-corpus/leaf_exemplars, fewshot_k: 5, temperature: 0 }
   # post's verbalized method applies only to the just-in-case API fallback above; the LIVE plan
   # token-slices the post leg on vast vLLM exactly like the base leg (same channel, no confound).
   post: { method: verbalized_plus_logprobs_where_available, temperature: 0 }

@@ -62,10 +62,21 @@ annotators). Questions: **Q1** is the base calibrated (`T*_pre ≈ 1`)? **Q2** p
 `τ_oc`? **Q3** is `τ_oc` stable across families? **Q4** does applying it to the closed pair (Claude/GPT)
 on AIReg improve
 Murphy **reliability** without hurting resolution/RPS?
-**E6 (2026-07-17, guide §4.8):** Q4 extends into the rescoped judex-core paper's
-distributional-utility demonstration — pre/post overconfidence measurement, the
-argmax-invariance ("discrete metrics are blind") exhibit, and downstream routing/
-decision-cost deltas; correction mechanism is the transferred `median(τ_oc)` ONLY.
+**Q3 OUTCOME (2026-07-19): NEGATIVE — no transferable constant.** Gate-passing τ_oc
+{qwen 1.60, llama31 1.86, gemma31 4.88} (GLM 8.84 soft, base marginal): max/min 3.05 > the
+adopted ≤2 rule ⇒ `median(τ_oc)` is NEVER adopted, the emitted calibration block is
+do-not-paste, and the giants phase is SKIPPED per the stopping rule.
+**E6 (guide §4.8; mechanism updated 2026-07-19, paper develop `f7b5706`):** Q4 extends into
+the rescoped judex-core paper's distributional-utility demonstration — pre/post
+overconfidence measurement, the argmax-invariance ("discrete metrics are blind") exhibit
+(**tie-aware**: exact top-two ties flip on fp tie-break, score the row on tie-free items),
+and downstream routing/decision-cost deltas. Correction mechanism = the **accuracy-gated
+held-out supervised T\*** on the closed pair, wrapped in the **pre-registered sensitivity
+band [1.60, 8.84]** (the open-panel range; off-pair evidence: benefit band (1.00, 22.8] ⊇
+the panel range, bootstrap coverage 0.946 — `spec/analysis_2026_07_19_q4_range_robustness.md`;
+sweep instrument `scripts/q4_range_robustness.py`, merged). τ_DACA failed validation and is
+retired (published negative); the §4.7 decorrelated-dispersion pool is E6's GT-free
+*triangulator* (basin-scale concurrence check), never the mechanism.
 Current closed pair: **Sonnet 4.6 (medium effort) + GPT 5.4 (medium reasoning)**
 (evaluator families `anthropic_claude_medium` + `openai_gpt_standard`);
 Haiku 4.5 / GPT-5.4-mini ruled out (insufficiently capable on the task).
@@ -95,7 +106,9 @@ Pipeline (this repo, `src/judex_calibration/`):
 
 ## The 7-model panel (`configs/models.yaml`)
 deepseek-v4-pro · mistral-large-2512 · qwen3.5-35b-a3b · llama-4-maverick · glm-4.5 · kimi-k2-thinking
-· **gemma-4-26B-A4B** — each a base+post pair. **Google is now included** (added 2026-07-02): the
+· **gemma-4-31B** (dense; swapped 2026-07-19 from the MoE 26B-A4B after it failed the cheap-trial
+accuracy gate — base argmax 0.167 < chance, τ_oc pegged at 20; the GT *annotator* seat stays
+gemma-4-26B-A4B-it) — each a base+post pair. **Google is now included** (added 2026-07-02): the
 collaborative-evaluation pair switched back to **Anthropic + GPT**, so Gemini is no longer a reserved
 evaluator and the annotator↔evaluator firewall no longer bars Google. The firewall now only bars
 **Anthropic and OpenAI** models from the annotator panel (they are the reserved evaluators).
@@ -111,7 +124,29 @@ evaluator and the annotator↔evaluator firewall no longer bars Google. The fire
 - **bf16** for the real run — *not* fp8/int4 (quantization perturbs the very logits the study measures).
   int4/Q4 is fine **only for the throwaway Mac smoke (llama.cpp), never on the rented GPU** — on vast,
   always bf16.
-- `--max-model-len 32768` — the standard pin; **≥ 24576 is required** under corpus v2. Measured
+- `--gpu-memory-utilization 0.85` — the standard pin (changed from 0.92 on 2026-07-19): the driver's
+  echo fallback triggers an fp32 log-softmax over the full vocab × the ~18.3k-token prompt (~2.5 GB
+  transient at a 262k vocab) which OOM-killed the engine at 0.92; 0.85 costs only KV the sequential
+  driver never uses.
+- **Multi-GPU TP is the sanctioned budget fallback, SXM/NVLink pairs ONLY** — PCIE pairs hang at NCCL
+  init; a c10d rendezvous timeout means a bad host (re-rent a different machine_id, don't debug).
+  Prefer a single ≥141 GB card when the price gap is ≲$1/hr — failed multi-GPU inits cost more than
+  the card premium. `vastai create instance` can leave a box created-but-stopped: nudge
+  `vastai start` once (provision_vast.sh does this).
+- **k=5 few-shot is the protocol** (2026-07-19, user directive; models.yaml `fewshot_k: 5`): one
+  exemplar per compliance level — k=4's stratified round-robin silently omitted `very_high` (E)
+  from every prompt and cost 8–17pp argmax on every trial leg. `--fewshot-k` overrides per run and
+  is pinned in the leg meta sidecar (mismatched resume hard-errors).
+- **`--workers 8` is the panel standard** (2026-07-19): concurrent cells let vLLM batch — a leg
+  drops from ~45 to ~2–10 min. Per-cell distributions are chaotic under bf16 CoT jitter with or
+  without batching; aggregates hold within ~±10–15% per-leg T ⇒ **single-measurement τ_oc ≈ ±20%**
+  (the documented noise band — see the guide's "Load-bearing caveat").
+- **Gate is resolution-primary** (2026-07-19): Murphy resolution > 0 with margin is the capacity
+  criterion (chance-proof, recalibration-invariant); argmax vs the 0.333 majority-class floor is a
+  reported diagnostic only (the 0.20 uniform floor was misspecified — GT argmax marginal is
+  imbalanced).
+- `--max-model-len 32768` — the standard pin; **≈ 23.3k required** under corpus v2 + k=5 few-shot
+  (measured 2026-07-19; re-measure per family tokenizer before provisioning). Measured
   2026-07-14 (`scripts/measure_prompt_budget.py`, each family's own tokenizer): worst-case live
   prompt ≈ **18.3k tokens** (k=4 v2 few-shot ≈7k + evidence ≈10k + criterion/scaffold), plus the
   2048-token CoT `--budget` ⇒ **≈20.4k required**; 32768 keeps headroom for a raised budget on

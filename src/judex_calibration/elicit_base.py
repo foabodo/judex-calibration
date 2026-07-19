@@ -172,7 +172,8 @@ def elicit_cell(base_url: str, model: str, evidence_text: str, criterion_text: s
 
 
 def run_variant(base_url: str, model: str, cells, out_path: str, *,
-                fewshot="", reason: bool = True, budget: int = 2048) -> dict:
+                fewshot="", reason: bool = True, budget: int = 2048,
+                fewshot_k: "int | None" = None, workers: int = 1) -> dict:
     """Elicit every cell, write {item_label: [p...]} JSON for study_a; returns the map.
 
     ``fewshot`` may be a fixed string (same block for every cell) or a callable
@@ -187,11 +188,19 @@ def run_variant(base_url: str, model: str, cells, out_path: str, *,
     out = Path(out_path)
     meta_path = out.with_suffix(".meta.json")
     leg_meta = {"model": model, "reason": bool(reason), "budget": int(budget)}
+    if fewshot_k is not None:
+        # Pin the few-shot scaffold too (added 2026-07-19): k changes the prompt, so a
+        # resume under a different k would silently mix scaffolds within one leg.
+        leg_meta["fewshot_k"] = int(fewshot_k)
     preds: Dict[str, List[float]] = {}
     if out.exists():
         preds = json.loads(out.read_text())
         prior = json.loads(meta_path.read_text()) if meta_path.exists() else None
-        if preds and prior != leg_meta:
+        # Compare only keys the stored sidecar has: legacy sidecars predate the
+        # fewshot_k pin and must still resume; any key BOTH sides have must match.
+        mismatched = (prior is not None
+                      and any(prior[k] != leg_meta.get(k) for k in prior))
+        if preds and (prior is None or mismatched):
             raise RuntimeError(
                 f"{out} holds {len(preds)} cells from a different leg config "
                 f"(sidecar {prior} != requested {leg_meta}); resume is crash-recovery "
@@ -200,16 +209,35 @@ def run_variant(base_url: str, model: str, cells, out_path: str, *,
             todo = sum(1 for c in cells if c.item_label not in preds)
             print(f"[{out.stem}] resuming: {len(preds)} cells cached, {todo} to go", flush=True)
     meta_path.write_text(json.dumps(leg_meta, indent=2))
-    for c in cells:
-        if c.item_label in preds:
-            continue
+    todo = [c for c in cells if c.item_label not in preds]
+
+    def _one(c):
         fs = fewshot(c) if callable(fewshot) else fewshot
-        d = elicit_cell(base_url, model, c.evidence_text, c.criterion_text,
-                        fewshot=fs, reason=reason, budget=budget)
+        return c, elicit_cell(base_url, model, c.evidence_text, c.criterion_text,
+                              fewshot=fs, reason=reason, budget=budget)
+
+    def _record(c, d):
+        # Main-thread only: mutate + atomic checkpoint (same semantics as the
+        # sequential path; order is irrelevant — preds is keyed by item_label).
         preds[c.item_label] = d["probabilities"]
         tmp = out.parent / (out.name + ".tmp")
         tmp.write_text(json.dumps(preds, indent=2))
         os.replace(tmp, out)
         print(f"[{out.stem}] {len(preds)}/{len(cells)} {c.item_label} "
               f"({d['method']}, covered {d['covered']})", flush=True)
+
+    if workers <= 1:
+        for c in todo:
+            _record(*_one(c))
+    else:
+        # Bounded concurrency (2026-07-19): vLLM batches server-side, so parallel
+        # cells reclaim idle GPU on big boxes. elicit_cell is stateless stdlib
+        # urllib per call — thread-safe. All bookkeeping happens on this thread
+        # via as_completed; a worker exception propagates after in-flight cells
+        # checkpoint, so resume loses nothing.
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futs = [pool.submit(_one, c) for c in todo]
+            for f in as_completed(futs):
+                _record(*f.result())
     return preds

@@ -53,7 +53,7 @@ vastai search offers \
 # from HF at start. --args must be LAST. Expose container :8000 to a public port.
 vastai create instance <OFFER_ID> --image vllm/vllm-openai:latest --disk 192 \
   --env "-p 8000:8000 -e HF_TOKEN=$HF_TOKEN -e HF_HUB_ENABLE_HF_TRANSFER=1" \
-  --args --model Qwen/Qwen3.5-35B-A3B-Base --dtype bfloat16 --max-model-len 32768 --gpu-memory-utilization 0.92
+  --args --model Qwen/Qwen3.5-35B-A3B-Base --dtype bfloat16 --max-model-len 32768 --gpu-memory-utilization 0.85
 vastai show instance <INSTANCE_ID>     # read the public host:port mapped to 8000
 ```
 Giants later: append `--tensor-parallel-size 8 [--pipeline-parallel-size 2] --enable-expert-parallel`
@@ -91,7 +91,7 @@ conda run -n judex-arm python scripts/run_qwen_phase1.py \
 # stop the base server, then relaunch (post reasons natively — live methodology).
 # The reasoning parser is FAMILY-SPECIFIC: qwen3 for Qwen; Gemma's post (-it) takes NO parser.
 vllm serve Qwen/Qwen3.5-35B-A3B --dtype bfloat16 --port 8000 --max-model-len 32768 \
-  --gpu-memory-utilization 0.92 --reasoning-parser qwen3
+  --gpu-memory-utilization 0.85 --reasoning-parser qwen3
 conda run -n judex-arm python scripts/run_qwen_phase1.py --post-url http://<host>:<port> \
   --post-model Qwen/Qwen3.5-35B-A3B --family qwen --out runs/qwen
 ```
@@ -102,13 +102,13 @@ conda run -n judex-arm python scripts/run_qwen_phase1.py --analyze-only --family
 vastai destroy instance <INSTANCE_ID>     # cost is wall-clock — destroy promptly
 ```
 
-### 6. Second trial family — Gemma 4 26B-A4B (quickstart §12)
-Same Mode-C flow with base `google/gemma-4-26B-A4B` / post `google/gemma-4-26B-A4B-it`
-(~50 GB bf16; the same offer query works), `--family gemma --out runs/gemma`, and **no reasoning
-parser** on the post leg. Then merge the two families for the cross-family Q3 report:
+### 6. Second trial family — Gemma 4-31B (quickstart §12; swapped from 26B-A4B 2026-07-19)
+Same Mode-C flow with base `google/gemma-4-31B` / post `google/gemma-4-31B-it`
+(~63 GB bf16 dense; the same offer query works — do NOT downsize to an 80 GB card),
+`--family gemma --out runs/gemma31`, and **no reasoning parser** on the post leg. Then merge the two families for the cross-family Q3 report:
 ```bash
 conda run -n judex-arm python scripts/run_qwen_phase1.py \
-  --merge qwen=runs/qwen gemma=runs/gemma --out runs/trial_cheap
+  --merge qwen=runs/qwen gemma=runs/gemma31 --out runs/trial_cheap
 ```
 
 ---
