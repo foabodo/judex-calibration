@@ -203,8 +203,46 @@ def cross_family(families: Dict[str, Dict[str, Dict[str, List[float]]]], cells: 
                    # measurement of post-training overconfidence. Q3 must exclude these.
                    "tau_oc_degenerate_reference_families": degenerate,
                    "tau_oc_any_degenerate_reference": bool(degenerate),
-                   "T_bounds": list(T_BOUNDS)}
+                   "T_bounds": list(T_BOUNDS),
+                   **cluster_fields(rows)}
     return {"families": rows, "tau_oc_summary": summary}
+
+
+# The adopted Q3 stopping rule (user directive, 2026-07-19): a transferred median(tau_oc)
+# is adoptable only if max/min <= 2 across the GATE-PASSING families. Measured outcome the
+# same day: clean-fit ratio 5.52 (gate-passing subset 3.05) => Q3-NEGATIVE, adoption path
+# closed; E6's mechanism is the supervised T* + pre-registered sensitivity band (guide §4.8).
+CLUSTER_RULE_MAX_RATIO = 2.0
+
+
+def cluster_fields(rows: Dict[str, dict]) -> dict:
+    """Clustering-rule fields for the tau_oc summary — the last accidental-adoption guard.
+
+    Gate passage (resolution-primary; guide §"Load-bearing caveat") is decided OUTSIDE this
+    module, so the ratio here spans the CLEAN fits: unsaturated, non-degenerate-reference
+    families. Subsetting can only shrink a max/min ratio, so ``rule_ok=True`` is decisive
+    for every gate-passing subset, while ``rule_ok=False`` means do-not-adopt pending the
+    external gate decision (a gate subset *could* still cluster — verify before any paste).
+    ``rule_ok=None`` = fewer than two clean fits: a single family cannot establish Q3
+    clustering, so there is nothing a median may be adopted from.
+    """
+    clean = sorted(r["tau_oc"] for r in rows.values()
+                   if isinstance(r.get("tau_oc"), float) and math.isfinite(r["tau_oc"])
+                   and not r.get("tau_oc_saturated")
+                   and not r.get("tau_oc_reference_degenerate"))
+    rule = (f"adoptable only if max/min <= {CLUSTER_RULE_MAX_RATIO} over the gate-passing "
+            f"families (user directive 2026-07-19); ratio spans the clean fits "
+            f"(unsaturated, non-degenerate-reference)")
+    if len(clean) >= 2 and clean[0] > 0:
+        ratio = clean[-1] / clean[0]
+        return {"tau_oc_clean_families_n": len(clean),
+                "tau_oc_cluster_ratio": ratio,
+                "tau_oc_cluster_rule_ok": bool(ratio <= CLUSTER_RULE_MAX_RATIO),
+                "tau_oc_cluster_rule": rule}
+    return {"tau_oc_clean_families_n": len(clean),
+            "tau_oc_cluster_ratio": None,
+            "tau_oc_cluster_rule_ok": None,
+            "tau_oc_cluster_rule": rule}
 
 
 def fit_tau_daca(closed: Dict[str, List[float]], reference: Dict[str, List[float]],
@@ -345,6 +383,13 @@ def calibration_block(report: dict, *, accuracy_gate=None, bootstrap_ci=None) ->
             # A pegged tau_oc is a boundary artefact, never adoptable — see `saturated`.
             "tau_oc_any_saturated": summary.get("tau_oc_any_saturated"),
             "tau_oc_saturated_families": summary.get("tau_oc_saturated_families"),
+            # The Q3 clustering rule (see `cluster_fields`): a median over a non-clustered
+            # panel has no principled status — never adopt unless rule_ok is True AND the
+            # gate-passing subset confirms it.
+            "tau_oc_clean_families_n": summary.get("tau_oc_clean_families_n"),
+            "tau_oc_cluster_ratio": summary.get("tau_oc_cluster_ratio"),
+            "tau_oc_cluster_rule_ok": summary.get("tau_oc_cluster_rule_ok"),
+            "tau_oc_cluster_rule": summary.get("tau_oc_cluster_rule"),
             "T_bounds": summary.get("T_bounds"),
             "accuracy_gate": accuracy_gate,
             "bootstrap_ci": bootstrap_ci,
