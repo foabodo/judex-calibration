@@ -63,7 +63,8 @@ case "$cmd" in
     EXTRA=""
     # Serving flags that apply to BOTH legs (architecture, not variant):
     case "$MODEL" in
-      zai-org/GLM-*)  EXTRA="--enable-expert-parallel" ;;  # MoE (355B-A32B): EP per models.yaml serving block
+      zai-org/GLM-*)                     EXTRA="--enable-expert-parallel" ;;  # MoE (355B-A32B): EP per models.yaml serving block
+      meta-llama/Llama-4-Maverick-*)     EXTRA="--enable-expert-parallel" ;;  # MoE (400B-A17B, 128 experts): same rationale as GLM
     esac
     if [ "$VARIANT" = "post" ]; then
       case "$MODEL" in
