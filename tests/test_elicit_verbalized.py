@@ -7,10 +7,14 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
 from judex_calibration import elicit_verbalized as ev
 
-GOOD_JSON = ('{"compliance_level": "low", '
+GOOD_JSON = ('{"findings": [{"requirement": "Art 10(2): governance practices", '
+             '"status": "unmet", "evidence": "SILENT: no governance section."}], '
+             '"compliance_level": "low", '
              '"compliance_distribution": {"very_low": 0.20, "low": 0.45, "moderate": 0.25, '
              '"high": 0.10, "very_high": 0.00}, '
-             '"confidence_distribution": {"low": 0.15, "medium": 0.60, "high": 0.25}}')
+             '"compliance_justification": "Governance is undocumented.", '
+             '"confidence_distribution": {"low": 0.15, "medium": 0.60, "high": 0.25}, '
+             '"confidence_justification": "Single silent finding; absence uncorroborated."}')
 
 
 def _fake_completions(json_text, reasoning=" The evidence shows gaps in data governance."):
@@ -71,9 +75,36 @@ class ParseTests(unittest.TestCase):
         self.assertFalse(rec["compliance_on_grid"])
 
     def test_mismatched_level_flagged(self):
-        rec = ev.parse_contract_json(GOOD_JSON.replace('"low"', '"high"', 1))
+        rec = ev.parse_contract_json(GOOD_JSON.replace('"compliance_level": "low"',
+                                                       '"compliance_level": "high"'))
         self.assertTrue(rec["parse_ok"])
         self.assertFalse(rec["level_matches_argmax"])
+
+    def test_full_contract_complete(self):
+        rec = ev.parse_contract_json(GOOD_JSON)
+        self.assertTrue(rec["contract_complete"])
+        self.assertEqual(rec["contract_missing"], [])
+        self.assertEqual(rec["n_findings"], 1)
+
+    def test_missing_findings_parses_but_incomplete(self):
+        no_findings = GOOD_JSON.replace('"findings": [{"requirement": "Art 10(2): governance practices", '
+                                        '"status": "unmet", "evidence": "SILENT: no governance section."}], ', "")
+        rec = ev.parse_contract_json(no_findings)
+        self.assertTrue(rec["parse_ok"])
+        self.assertFalse(rec["contract_complete"])
+        self.assertIn("findings", rec["contract_missing"])
+
+    def test_bad_finding_status_incomplete(self):
+        rec = ev.parse_contract_json(GOOD_JSON.replace('"status": "unmet"', '"status": "missing"'))
+        self.assertTrue(rec["parse_ok"])
+        self.assertIn("findings", rec["contract_missing"])
+
+    def test_empty_justification_incomplete(self):
+        rec = ev.parse_contract_json(GOOD_JSON.replace(
+            '"confidence_justification": "Single silent finding; absence uncorroborated."',
+            '"confidence_justification": "  "'))
+        self.assertTrue(rec["parse_ok"])
+        self.assertIn("confidence_justification", rec["contract_missing"])
 
 
 class FloorTests(unittest.TestCase):
@@ -94,11 +125,15 @@ class RenderTests(unittest.TestCase):
                                        "high": 0.0, "very_high": 0.0},
            "confidence_distribution": {"low": 0.6, "medium": 0.3, "high": 0.1},
            "compliance_justification": "Almost no governance evidence.",
+           "confidence_justification": "Judgement rests on silence.",
+           "findings": [{"requirement": "Art 10(2)", "status": "unmet",
+                         "evidence": "SILENT: nothing documented.", "extra_key": "dropped"}],
            "text": "The system card omits any data governance section."}
 
     def test_answer_json_round_trips_through_parser(self):
         rec = ev.parse_contract_json(ev.render_answer_json(self.ROW))
         self.assertTrue(rec["parse_ok"])
+        self.assertTrue(rec["contract_complete"], rec.get("contract_missing"))
         self.assertEqual(rec["compliance_level"], "very_low")
         self.assertTrue(rec["level_matches_argmax"])
         self.assertTrue(rec["compliance_on_grid"] and rec["confidence_on_grid"])

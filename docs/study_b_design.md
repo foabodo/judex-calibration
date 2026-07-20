@@ -60,25 +60,29 @@ Both legs of a family run on the **same** vast vLLM `/v1/completions` endpoint c
   scaffold selects (`fewshot.select_rows`, stratified fixed_set), re-rendered as
   (Evidence, Criterion, Reasoning, **reduced-contract JSON**). The v2 store rows carry the full
   contract shape (verified in B0), so the rendering is store-native, no synthesis.
-- **Reduced contract (design decision):** the answer JSON is
-  `{compliance_level, compliance_distribution, confidence_distribution}` — the two measured
-  objects plus the argmax name. The prose fields (findings, both justifications) are dropped
-  from the ANSWER: the reasoning span plays their role, and full-contract answers would add
-  ~1–2k generated tokens/cell of parse-fragile prose. Production-fidelity trade-off is
-  acknowledged: B-Q1 as gated here = "can bases emit the contract's *distributional core*".
-  An optional full-contract probe on a 15-cell subset can be added in B1 as a diagnostic if
-  the user wants the stricter reading (cheap, ~+10% of B1 cost).
+- **FULL contract (USER DECISION 2026-07-20, superseding the B0 reduced-contract draft):**
+  the answer JSON is the complete six-field contract 0.2.0 shape in contract order —
+  findings, compliance_level, compliance_distribution, compliance_justification,
+  confidence_distribution, confidence_justification. Few-shot exemplars render all six
+  fields from the store rows (findings restricted to the contract's
+  requirement/status/evidence keys). B-Q1 is therefore the strict reading: "can bases emit
+  the full production contract."
 - **Two stages per cell** (Approach C, verbalized): (1) generate reasoning, stop before
-  `JSON:`; (2) re-feed `prompt + reasoning + "\nJSON:"`, greedy-generate ≤400 tokens.
-- **Parse policy (pre-registered):** balanced-brace extraction → JSON decode → both
-  distributions validated (all keys, non-negative, positive sum) and renormalized. One pass,
-  **no resampling** (temperature 0 is deterministic), no repair beyond extraction. A failed
-  cell is recorded (`parse_ok: false` + error class) and counts against the B-Q1 gate.
-  Diagnostics recorded per cell, reported not gated: raw sums, 0.05-grid conformance,
-  compliance_level↔argmax consistency.
-- **Prompt budget (measured in B0):** contract rendering adds 1,052 chars (~250 tokens) per
-  Article block over Study A's letter scaffold ⇒ worst case ≈ 23.6k required; the 32768 pin
-  holds. Re-measure per family tokenizer before provisioning (inherited rule).
+  `JSON:`; (2) re-feed `prompt + reasoning + "\nJSON:"`, greedy-generate ≤1600 tokens.
+- **Parse policy (pre-registered, two-tier):** balanced-brace extraction → JSON decode →
+  `parse_ok` = both distributions valid (all keys, non-negative, positive sum; renormalized)
+  — the minimum for τ_v scoring; `contract_complete` = additionally findings a non-empty
+  array of {requirement, status∈{met, partially_met, unmet, indeterminate}, evidence}
+  objects, a valid compliance_level, and non-empty justification strings — **the B-Q1 gated
+  rate**. One pass, **no resampling** (temperature 0 is deterministic), no repair beyond
+  extraction. Failures are recorded with error classes; per-field `contract_missing` counts
+  are reported. Diagnostics recorded per cell, reported not gated: raw sums, 0.05-grid
+  conformance, compliance_level↔argmax consistency, n_findings.
+- **Prompt budget (re-measured under the FULL contract, Qwen tokenizer, real store):**
+  worst-case stage-1 prompt **24,996 tokens** (Art 14 / Scenario B | Use 1); required
+  context = prompt + 2048 reasoning + scaffold + 1600 JSON generation ≈ **28,652** ⇒ the
+  32768 pin holds with ~4k headroom. Re-measure per family tokenizer before provisioning
+  (inherited rule).
 - **Artifacts:** `runs/study_b_<family>/{pre,post}_verbalized.json` = {item_label: full cell
   record}; meta sidecar pins (model, reason, budget, fewshot_k, **channel=verbalized,
   epsilon**) — mismatched resume hard-errors. `study_b_report.json` from
@@ -88,7 +92,7 @@ Both legs of a family run on the **same** vast vLLM `/v1/completions` endpoint c
 
 | Constant | Value | Rationale |
 |---|---|---|
-| Contract-compliance gate (B-Q1) | parse rate ≥ **0.90** per leg | below this, the leg's parsed subset is a selected sample; τ_v on it is not the panel measurement |
+| Contract-compliance gate (B-Q1) | **contract_complete rate ≥ 0.90** per leg (FULL six-field tier; parse_rate reported alongside) | below this, the leg's emissions are not the production contract; τ_v still scores the parse_ok subset for data efficiency |
 | Capability gate | resolution-primary (Murphy resolution > 0 with margin) on the parsed compliance view, both legs | inherited verbatim |
 | τ_v stopping rule (B-Q3) | max/min ≤ 2 over gate-passing families | same form as Study A's adopted rule |
 | ε-floor | **0.005** (half the 0.05 grid step), applied at ANALYSIS time; stored vectors keep exact zeros | §5 |
@@ -149,6 +153,14 @@ on-pair sweep's data (~$290–330, separately gated); the only existing on-pair 
 `stage9-claude-gpt-medium` (15 items), used in B0/B1 as free machinery-prototyping data only.
 
 ## 7. Phases and cost
+
+> **APPROVED 2026-07-20 (user):** design approved with the FULL-contract amendment (§3);
+> B1 **and** B2 spend approved, self-hosted vast only, GLM excluded. Execution plan:
+> Qwen and Gemma boxes provision in parallel (cheap, ~$3–4/hr each — parallelism is
+> cost-neutral in GPU-hours and halves wall-clock); the 8×H200 Llama box launches only
+> after the FIRST base leg clears the B-Q1 contract-complete gate (the load-bearing
+> feasibility unknown — gating the expensive box on it is the cost-effective ordering).
+> A B-Q1 base failure still means STOP for that family and report, never a logit fallback.
 
 | Phase | What | Cost | Gate to proceed |
 |---|---|---|---|

@@ -18,12 +18,13 @@ deterministic) and never silently rerouted to the logit channel (B-Q1 is the que
 
 The few-shot exemplars come from the corpus-v2 dimension store, whose rows carry the
 full contract shape (findings, both distributions, both justifications) — rendered here
-as (Evidence, Criterion, Reasoning, reduced-contract JSON) so the base sees exactly the
-shape it must continue. Reduced contract = {compliance_level, compliance_distribution,
-confidence_distribution}: the two measured objects plus the argmax name; the long prose
-fields (findings, justifications) are dropped from the ANSWER for cost/parse robustness
-— the reasoning span plays their role (the design doc records this decision and its
-production-fidelity trade-off).
+as (Evidence, Criterion, Reasoning, FULL-contract JSON) so the base sees exactly the
+shape it must continue. FULL contract (USER DECISION 2026-07-20, superseding the B0
+reduced-contract draft): all six top-level fields of contract 0.2.0, in contract order —
+findings, compliance_level, compliance_distribution, compliance_justification,
+confidence_distribution, confidence_justification. The B-Q1 gate is two-tier:
+``parse_ok`` (both distributions valid — the minimum for tau_v scoring) and
+``contract_complete`` (all six fields well-formed — the gated rate).
 
 stdlib only (urllib). Pure HTTP/parse logic, unit-tested without a live server.
 """
@@ -69,11 +70,19 @@ def _dist_json(d: Dict[str, float], keys: Sequence[str]) -> str:
     return "{" + ", ".join(f'"{k}": {float(d.get(k, 0.0)):.2f}' for k in keys) + "}"
 
 
+FINDING_KEYS = ("requirement", "status", "evidence")
+FINDING_STATUSES = ("met", "partially_met", "unmet", "indeterminate")
+
+
 def render_answer_json(row: dict) -> str:
-    """The reduced-contract JSON a few-shot exemplar answers with."""
-    return ("{" + f'"compliance_level": "{row["compliance_level"]}", '
+    """The FULL-contract JSON a few-shot exemplar answers with (contract 0.2.0 field order)."""
+    findings = [{k: f.get(k, "") for k in FINDING_KEYS} for f in row.get("findings", [])]
+    return ("{" + f'"findings": {json.dumps(findings)}, '
+            f'"compliance_level": "{row["compliance_level"]}", '
             f'"compliance_distribution": {_dist_json(row["compliance_distribution"], LABELS)}, '
-            f'"confidence_distribution": {_dist_json(row["confidence_distribution"], CONF_LABELS)}' + "}")
+            f'"compliance_justification": {json.dumps((row.get("compliance_justification") or "").strip())}, '
+            f'"confidence_distribution": {_dist_json(row["confidence_distribution"], CONF_LABELS)}, '
+            f'"confidence_justification": {json.dumps((row.get("confidence_justification") or "").strip())}' + "}")
 
 
 def render_block(row: dict, criterion_text: str) -> str:
@@ -126,7 +135,7 @@ def generate_reasoning(base_url: str, model: str, prompt: str, budget: int = 204
     return out["choices"][0].get("text", "")
 
 
-def generate_json(base_url: str, model: str, answer_prompt: str, max_tokens: int = 400) -> str:
+def generate_json(base_url: str, model: str, answer_prompt: str, max_tokens: int = 1600) -> str:
     """Stage 2: greedy JSON continuation after the scaffold."""
     out = _completions(base_url, {
         "model": model, "prompt": answer_prompt, "max_tokens": max_tokens, "temperature": 0,
@@ -209,11 +218,26 @@ def parse_contract_json(text: str) -> dict:
     comp_vals = [float(comp_raw[k]) for k in LABELS]
     conf_vals = [float(conf_raw[k]) for k in CONF_LABELS]
     level = obj.get("compliance_level")
+    # contract_complete: the FULL-contract tier (the B-Q1 gated rate) — all six 0.2.0
+    # fields well-formed, not just the two distributions parse_ok requires.
+    findings = obj.get("findings")
+    findings_ok = (isinstance(findings, list) and len(findings) > 0
+                   and all(isinstance(f, dict) and all(k in f for k in FINDING_KEYS)
+                           and f.get("status") in FINDING_STATUSES for f in findings))
+    missing = [name for name, ok in (
+        ("findings", findings_ok),
+        ("compliance_level", level in LABELS),
+        ("compliance_justification", bool(str(obj.get("compliance_justification") or "").strip())),
+        ("confidence_justification", bool(str(obj.get("confidence_justification") or "").strip())),
+    ) if not ok]
     return {
         "parse_ok": True,
         "compliance": comp, "confidence": conf,
         "compliance_level": level if level in LABELS else None,
         "level_matches_argmax": (level == LABELS[comp.index(max(comp))]) if level in LABELS else False,
+        "contract_complete": not missing,
+        "contract_missing": missing,
+        "n_findings": len(findings) if isinstance(findings, list) else 0,
         # QA diagnostics (reported, not gated): raw sums pre-renormalization + 0.05-grid conformance
         "compliance_sum": round(sum(comp_vals), 4), "confidence_sum": round(sum(conf_vals), 4),
         "compliance_on_grid": _on_grid(comp_vals), "confidence_on_grid": _on_grid(conf_vals),
@@ -316,10 +340,20 @@ def contract_compliance_summary(recs: Dict[str, dict], n_cells: int) -> dict:
     for r in recs.values():
         if not r.get("parse_ok"):
             fails[r.get("parse_error", "?")] = fails.get(r.get("parse_error", "?"), 0) + 1
+    complete = [r for r in parsed if r.get("contract_complete")]
+    miss_counts: Dict[str, int] = {}
+    for r in parsed:
+        for m in r.get("contract_missing", []):
+            miss_counts[m] = miss_counts.get(m, 0) + 1
     return {
         "n_cells": n_cells, "n_elicited": n, "n_parsed": len(parsed),
         "parse_rate": (len(parsed) / n) if n else 0.0,
         "parse_failures": fails,
+        # FULL-contract tier (user decision 2026-07-20): the B-Q1 gated rate
+        "n_contract_complete": len(complete),
+        "contract_complete_rate": (len(complete) / n) if n else 0.0,
+        "contract_missing_counts": miss_counts,
+        "mean_n_findings": (sum(r["n_findings"] for r in parsed) / len(parsed)) if parsed else None,
         "level_matches_argmax_rate": (sum(r["level_matches_argmax"] for r in parsed) / len(parsed)) if parsed else None,
         "compliance_on_grid_rate": (sum(r["compliance_on_grid"] for r in parsed) / len(parsed)) if parsed else None,
         "confidence_on_grid_rate": (sum(r["confidence_on_grid"] for r in parsed) / len(parsed)) if parsed else None,

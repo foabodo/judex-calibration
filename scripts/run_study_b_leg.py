@@ -26,8 +26,10 @@ from judex_calibration.aireg import load_cells
 from judex_calibration import elicit_verbalized as ev
 from judex_calibration import study_a
 
-# Pre-registered B-Q1 gate (design doc §4): a leg is contract-compliant iff >= 90% of
-# its elicited cells parse to valid compliance+confidence distributions.
+# Pre-registered B-Q1 gate (design doc §4; FULL-contract tier per the user's 2026-07-20
+# approval): a leg is contract-compliant iff >= 90% of its elicited cells emit the complete
+# six-field contract 0.2.0 shape. parse_rate (distributions-only) is reported alongside;
+# tau_v scores the parse_ok subset (valid distributions) for data efficiency.
 PARSE_RATE_GATE = 0.90
 
 
@@ -45,7 +47,7 @@ def analyze(out_dir: Path, cells) -> dict:
             continue
         recs = json.loads(p.read_text())
         gate = ev.contract_compliance_summary(recs, n_cells=len(cells))
-        gate["parse_gate_ok"] = gate["parse_rate"] >= PARSE_RATE_GATE
+        gate["parse_gate_ok"] = gate["contract_complete_rate"] >= PARSE_RATE_GATE
         # Epsilon-floor BEFORE any temperature machinery: stored vectors keep the
         # contract's exact grid zeros, but judex.calibration's inverse-softmax would
         # turn ln(1e-12 clip) into ~-27.6 logits — the pre-registered EPSILON (0.005,
@@ -95,8 +97,9 @@ def main():
         report = analyze(out_dir, cells)
         for leg, r in report["legs"].items():
             g = r["contract_compliance"]
-            print(f"  {leg}: parse {g['n_parsed']}/{g['n_elicited']} "
-                  f"({g['parse_rate']:.2%}, gate>={PARSE_RATE_GATE:.0%}: "
+            print(f"  {leg}: parse {g['n_parsed']}/{g['n_elicited']} ({g['parse_rate']:.2%}); "
+                  f"full-contract {g['n_contract_complete']}/{g['n_elicited']} "
+                  f"({g['contract_complete_rate']:.2%}, gate>={PARSE_RATE_GATE:.0%}: "
                   f"{'PASS' if g['parse_gate_ok'] else 'FAIL'})")
         if "tau_v" in report:
             print(f"  tau_v = {report['tau_v']:.4f}"
