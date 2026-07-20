@@ -174,12 +174,15 @@ band amendment exists because this rule was once violated).
   the real v2 store (25/25 exemplar JSONs parse); prompt-budget delta (+250 tokens, pin holds);
   B-Q4 machinery prototyping against `stage9-claude-gpt-medium`'s 15 on-pair contract outputs
   (numbers labeled prototype, never results).
-- **Mac smoke: BLOCKED** — `llama-server` is no longer installed on this Mac (no brew, no
-  binary on PATH; prior smokes predate its removal). Everything except the live-server
-  round-trip is covered by the offline tests (transport is the same `_completions` function
-  Study A's smoke-validated). Unblock: `brew install llama.cpp`, then
-  `scripts/run_study_b_leg.py --out runs/smoke_b_qwen_mac --leg pre --limit 5 --base-url
-  http://127.0.0.1:8000 --model qwen3-4b-base` (numbers discarded).
+- **Mac smoke: EXECUTED (2026-07-20, numbers discarded).** The brew `llama-server` binary is
+  gone from this Mac, but the judex-arm conda env carries `llama-cpp-python` 0.3.32 with its
+  server module — `python -m llama_cpp.server --model
+  ~/models/qwen3-4b-base-gguf-v2/Qwen3-4B-Base.Q4_K_M.gguf --n_gpu_layers -1 --n_ctx 32768`
+  serves the same OpenAI-compatible `/v1/completions` the transport targets. Smoke results
+  (`runs/smoke_b_qwen_mac{,_reason}`, auto-marked smoke): 3/3 no-reason cells + 1 full
+  two-stage cell (reasoning span 1,001 chars) all parse; parse_rate 1.0, on-grid 1.0,
+  level↔argmax 1.0, under the real k=5 contract few-shot. Machinery validated end-to-end;
+  int4 4B numbers are meaningless and discarded per the smoke discipline.
 
 ## 9. Non-goals / invariants
 
