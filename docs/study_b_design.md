@@ -159,9 +159,81 @@ on-pair sweep's data (~$290–330, separately gated); the only existing on-pair 
 Note: the handoff estimated B2 at $30–90; the dominant term is Llama-3.1-405B (8×H200,
 $33/hr, ~810 GB download + two legs). A descoped B2 without llama31 is ~$15–25 but drops the
 gate-passing set to 2 families, weakening the B-Q3 verdict. User's call at the B1→B2 gate.
+**Llama-3.1-405B stays in the plan** — it is not the family Study A ruled out (see §7b).
 
 GLM base is NOT run (gate-marginal in Study A; its τ-type values are excluded — the 2026-07-20
 band amendment exists because this rule was once violated).
+
+### 7a. API-based cost alternative for POST legs
+
+Unlike Study A's token-slice channel — which needs `logprobs: true` and so is blocked on any
+provider that doesn't expose them (GLM's `post_api` entry in `models.yaml` is `logprobs:
+false`, ruling it out there) — Study B's verbalized channel needs only text generation. Any
+OpenAI-compatible chat completions endpoint (OpenRouter, or a family's native API) can serve
+the **POST (instruct)** leg. This does **not** extend to the **PRE (base)** leg: commercial
+inference APIs serve chat/instruct-tuned checkpoints, not raw pretrained bases, so PRE always
+needs self-hosted vLLM on vast regardless of this option — this section prices the POST leg
+only, as a substitute for that leg's SHARE of the self-hosted box time (chiefly the ~810 GB
+POST-weights download, which the PRE leg's box time does not amortize).
+
+**Pricing (OpenRouter list rates, checked 2026-07-20 — verify before use, list prices drift and
+paid usage may route to a different backend at a different rate):**
+
+| Family (post_repo) | Input $/1M | Output $/1M | Source |
+|---|---|---|---|
+| Qwen3.5-35B-A3B | $0.14 | $1.00 | openrouter.ai/qwen/qwen3.5-35b-a3b |
+| Gemma-4-31B-it | $0.10 | $0.35 | openrouter.ai/google/gemma-4-31b-it |
+| GLM-4.5 | $0.60 | $2.20 | openrouter.ai/z-ai/glm-4.5 |
+| Llama-3.1-405B-Instruct | ~$0.80 (low) – ~$3.50 (high) both directions | — | OpenRouter's own page did not expose a rate (client-rendered); cross-provider anchors: DeepInfra $0.80/$0.80, Fireworks $3.00/$3.00, Together $3.50/$3.50 per 1M — re-check OpenRouter's actual routed rate before committing |
+
+**Two very different cost regimes, both real:**
+
+- **Reasoning DISABLED, single call** (`elicit_post.elicit_verbalized`'s existing pattern —
+  extend it with the `confidence_distribution` key): ≈21k input tokens/cell (the measured
+  k=5 few-shot+evidence+criterion size) + ≈400 output tokens/cell (JSON only), × 120 cells:
+
+  | Family | Est. cost, POST leg only |
+  |---|---|
+  | Qwen | ≈ $0.40 |
+  | Gemma-31B-it | ≈ $0.27 |
+  | GLM-4.5 | ≈ $1.62 |
+  | Llama-3.1-405B-Instruct | ≈ $2 – $9 |
+
+  Cheap, but **not what Study A/B's design otherwise specifies**: the live protocol is
+  reasoning-ON (`elicit_post.py`'s own docstring flags disabling reasoning as a *different*,
+  ~100×-cheaper, non-reasoning judgement — a legitimate but DIFFERENT measurement, not a
+  cost-saving substitute for the live leg without saying so).
+
+- **Reasoning ENABLED, two-stage** (matching this repo's live design — generate reasoning,
+  then generate JSON, mirroring `elicit_verbalized.py`'s base-leg approach): input roughly
+  doubles (the JSON-generation call re-sends the prompt + reasoning span) and output gains a
+  reasoning span up to the 2048-token budget **per cell**. For a thinking-capable post model
+  (Qwen3.5-35B-A3B, GLM-4.5), a provider that bills hidden reasoning tokens as output can push
+  this materially higher and less predictable than the disabled-reasoning estimate above —
+  this is the exact trap `elicit_post.py` was written to dodge for Study A's post leg. No
+  clean estimate is offered here for this regime; if pursued, cap `max_tokens` explicitly and
+  monitor live spend rather than trusting a pre-computed number.
+
+**Verdict for B2:** self-hosting all legs on vast remains the primary plan — it is the only
+path that measures reasoning-ON pre AND post in the identical channel/scaffold (the isolation
+principle in §3), and the PRE leg needs the box regardless. The API alternative is offered as
+a **cost-reduction option specifically for large families' POST leg** (skip the ~810 GB
+instruct-weights download) if the user wants to trade some cross-leg isolation for savings —
+a call for the user to make at the B1→B2 gate, not a default.
+
+### 7b. Why "Llama" was ruled out — and why that Llama is not this Llama
+
+Nothing in Study B ruled out Llama. The rule-out is **inherited from Study A** and concerns a
+**different model**: the *original* panel entry was **Llama-4-Maverick** (MoE), which failed
+Study A's cheap-trial resolution-primary gate on 2026-07-19 — argmax accuracy 0.250 (≈ chance),
+Murphy resolution ≈ 0.0197 (noise-level), both T* pegged at the 20.0 bound, and its τ_oc was
+flagged reference-degenerate. The user then swapped it for **Llama-3.1-405B** (dense) as a
+within-lineage rescue — the same swap pattern used for Gemma (26B-A4B → 31B dense). That dense
+405B model subsequently **passed** the gate (argmax 0.392, resolution 0.0393, finite T*) and
+is the family in every Study A/B cost table since (`configs/models.yaml`, memory
+`study-a-cheap-trial-executed.md`). So "Llama" was never absent from Study B's plan — §7's B2
+row has carried Llama-3.1-405B since B0 landed; the model that was actually excluded is one
+Study B never touches.
 
 ## 8. What is free vs. not (verified in B0)
 
