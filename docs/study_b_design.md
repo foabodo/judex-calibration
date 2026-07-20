@@ -28,8 +28,9 @@ store few-shot, k=5, firewall-disjoint; resolution-primary capability gate; `T_B
 (0.25, 20.0)` passed explicitly, boundary = peg never a fit; single-measurement noise band
 ±10–15% per-leg T (τ ratios ≈ ±20%); doc-clustered bootstrap (24 docs, seeded); vast vLLM bf16
 serving playbook (`--gpu-memory-utilization 0.85`, `--max-model-len 32768`, `--workers 8`);
-run-id identity; panel {qwen, gemma31, llama31} gate-passing (GLM EXCLUDED from Study B —
-user decision 2026-07-20, superseding the handoff's post-only-target idea); `develop`
+run-id identity; panel {qwen, gemma31, llama31} gate-passing, plus GLM-4.5 as a
+user-directed extension (excluded at the B0 review, REVERSED later 2026-07-20 after the
+llama31 T_c peg — both legs, self-hosted, labeled extension; see §7); `develop`
 integration branch; nothing from `runs/` committed.
 
 ## 2. Questions
@@ -174,12 +175,15 @@ $33/hr, ~810 GB download + two legs). A descoped B2 without llama31 is ~$15–25
 gate-passing set to 2 families, weakening the B-Q3 verdict. User's call at the B1→B2 gate.
 **Llama-3.1-405B stays in the plan** — it is not the family Study A ruled out (see §7b).
 
-**GLM is EXCLUDED from Study B entirely (user decision 2026-07-20).** The handoff had floated
-a GLM post-only leg as a channel-comparison target; the user rejected it. Rationale on record:
-its base leg fails the resolution-primary gate (gate-marginal in Study A; its τ-type values
-are excluded — the 2026-07-20 band amendment exists because this rule was once violated), so
-GLM could never contribute a τ_v, and a post-only leg would have been an API-served
-channel-caveated orphan in an otherwise self-hosted design. No GLM leg runs in any phase.
+**GLM: excluded at the B0 review, REVERSED later 2026-07-20 (user decision) as a labeled
+extension.** The original exclusion rationale stands on record: its base fails Study A's
+token-slice resolution-primary gate, so it was excluded from the pre-registered campaign.
+After the campaign delivered the llama31 T_c peg (B-Q4), the user directed GLM's addition to
+see how it behaves in the verbalized setting. Terms of the extension: BOTH legs, self-hosted
+vast 8×H200 TP8+EP (no API orphan), same instrument and gates; its verbalized-channel gate
+status is measured fresh (the Study A gate failure was a different channel); results are
+reported as an extension — the pre-registered B-Q3 ratio over the original gate-passing set
+is not retroactively redefined, but the extended set's ratio is reported alongside.
 
 ### 7a. API-based cost alternative for POST legs — CONSIDERED AND REJECTED
 
