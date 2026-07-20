@@ -130,3 +130,40 @@ None affecting the pre-registered quantities. One diagnostic addition: a labeled
 re-elicitation of Gemma post failures to capture raw text (stored separately; the recorded
 failures stand). Llama's boxes provisioned faster than budgeted; spend landed at or below
 the ~$80–115 B2 estimate plus ~$15–25 for B1.
+
+
+## Extension (2026-07-21, user-directed): GLM-4.5 both legs — the B0 exclusion reversed
+
+After the llama31 T_c peg, the user directed GLM's addition (design §7 amendment; both legs
+self-hosted vast 8×H200 TP8+EP, same instrument; artifacts `runs/study_b_glm/`; boxes
+destroyed; ~$60–90).
+
+- **B-Q1: both legs PASS** — pre 116/120 (96.7%), post 111/120 (92.5%). No decoding
+  collapse in either direction.
+- **The Study A gate failure is CHANNEL-BOUND (the campaign's second such reversal):** the
+  same GLM-4.5-Base whose token-slice leg failed the resolution-primary gate (which forced
+  the 2026-07-20 band amendment) is, in the verbalized channel, the **best base of the
+  panel** — argmax 0.543, resolution 0.0465, both T* finite. Reason-then-emit-JSON reaches
+  capability that the single-letter logit read did not. (Verbalized-channel gate status is
+  measured fresh per the §7 extension terms; nothing about Study A's token-slice verdict or
+  the band amendment is retroactively touched.)
+- **τ_v(glm) = 1.0252** — the same grid point as llama31 (and the cross-mode gemma_api
+  value). Extended in-mode gate-passing set {qwen 1.281, llama31 1.025, glm 1.025}:
+  **ratio 1.25 ≤ 2 — the clustering rule PASSES at n = 3 all-vast** (n = 4 at the same
+  ratio counting the confound-labeled gemma_api leg). The survivorship caveat is now
+  essentially discharged: every family measured in this channel clusters, including both
+  families that broke or escaped Study A's token-slice clustering.
+- **B-Q4: a third interior T_c — GLM does not peg.** T_c = 8.835 (folds 7.1–12.8, none
+  saturated), LODO ΔBrier −0.058, CI [−0.104, −0.006] excluding 0 ⇒ calibratable. Level
+  overconfidence again (p̂(C) 0.779 vs accuracy 0.595). BUT Kendall τ_b ≈ −0.014: unlike
+  qwen (−0.174) and gemma_api (−0.169), GLM's stated confidence carries no per-cell ranking
+  signal — its calibration gain is pure level-correction. Exploratory observation (not a
+  pre-registered test): the three interior T_c's {4.53, 4.88, 8.84} have max/min 1.95 —
+  inside the ≤2 form — while llama31's peg remains the lone outlier; a shared confidence
+  constant is still not adoptable (one family pegs, one lacks signal), but the interior
+  fits are closer than the initial three-way read suggested.
+
+Final panel picture (post confidence): qwen = level + signal (T_c 4.9); gemma_api = level +
+signal (T_c 4.5, cross-mode); glm = level only (T_c 8.8); llama31 = nothing (peg). And in
+τ_v, the production channel's pre→post inflation is uniformly small (1.03–1.28) and
+clusters, in sharp contrast to the token-slice channel's dispersed 1.60–4.88.
