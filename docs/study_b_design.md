@@ -28,7 +28,8 @@ store few-shot, k=5, firewall-disjoint; resolution-primary capability gate; `T_B
 (0.25, 20.0)` passed explicitly, boundary = peg never a fit; single-measurement noise band
 ±10–15% per-leg T (τ ratios ≈ ±20%); doc-clustered bootstrap (24 docs, seeded); vast vLLM bf16
 serving playbook (`--gpu-memory-utilization 0.85`, `--max-model-len 32768`, `--workers 8`);
-run-id identity; panel {qwen, gemma31, llama31} gate-passing + GLM post-only; `develop`
+run-id identity; panel {qwen, gemma31, llama31} gate-passing (GLM EXCLUDED from Study B —
+user decision 2026-07-20, superseding the handoff's post-only-target idea); `develop`
 integration branch; nothing from `runs/` committed.
 
 ## 2. Questions
@@ -153,7 +154,7 @@ on-pair sweep's data (~$290–330, separately gated); the only existing on-pair 
 |---|---|---|---|
 | **B0** (this) | inventory, design doc, machinery + tests, Mac smoke | $0 | user approves design |
 | **B1** | Qwen both legs, verbalized, 1×H200 (~$2.5–4/hr, proven box class) | **~$10–20** | B-Q1 gate on the base leg; STOP + report if failed |
-| **B2** | Gemma-31B both legs (~$10–15); Llama-3.1-405B both legs on 8×H200 (~$70–100); GLM **post-only** via OpenRouter verbalized (~$3–8, no logprobs needed — channel-caveat labeled, contributes no τ_v) | **~$85–125** | user approval; B-Q3 verdict + B-Q4 fits after |
+| **B2** | Gemma-31B both legs (~$10–15); Llama-3.1-405B both legs on 8×H200 (~$70–100) — all self-hosted vast vLLM (user decision 2026-07-20) | **~$80–115** | user approval; B-Q3 verdict + B-Q4 fits after |
 | **B3** | synthesis: τ_v vs τ_oc channel comparison, closed-pair implications, protocol-instrument recommendation (report only), paper write-up | $0 | — |
 
 Note: the handoff estimated B2 at $30–90; the dominant term is Llama-3.1-405B (8×H200,
@@ -161,10 +162,20 @@ $33/hr, ~810 GB download + two legs). A descoped B2 without llama31 is ~$15–25
 gate-passing set to 2 families, weakening the B-Q3 verdict. User's call at the B1→B2 gate.
 **Llama-3.1-405B stays in the plan** — it is not the family Study A ruled out (see §7b).
 
-GLM base is NOT run (gate-marginal in Study A; its τ-type values are excluded — the 2026-07-20
-band amendment exists because this rule was once violated).
+**GLM is EXCLUDED from Study B entirely (user decision 2026-07-20).** The handoff had floated
+a GLM post-only leg as a channel-comparison target; the user rejected it. Rationale on record:
+its base leg fails the resolution-primary gate (gate-marginal in Study A; its τ-type values
+are excluded — the 2026-07-20 band amendment exists because this rule was once violated), so
+GLM could never contribute a τ_v, and a post-only leg would have been an API-served
+channel-caveated orphan in an otherwise self-hosted design. No GLM leg runs in any phase.
 
-### 7a. API-based cost alternative for POST legs
+### 7a. API-based cost alternative for POST legs — CONSIDERED AND REJECTED
+
+> **RESOLVED (user decision 2026-07-20): every Study B leg runs self-hosted on vast vLLM.**
+> The analysis below is retained as the record of what was considered and why it was not
+> adopted (savings ~$4–10 total, contingent on unverified API token-billing behavior, at the
+> price of reintroducing the serving-mode confound the isolation principle exists to prevent).
+> GLM rows below are additionally moot — GLM is excluded from Study B entirely (§7).
 
 Unlike Study A's token-slice channel — which needs `logprobs: true` and so is blocked on any
 provider that doesn't expose them (GLM's `post_api` entry in `models.yaml` is `logprobs:
@@ -232,13 +243,14 @@ search-snippet price.
   clean estimate is offered here for this regime; if pursued, cap `max_tokens` explicitly and
   monitor live spend rather than trusting a pre-computed number.
 
-**Verdict for B2:** self-hosting all legs on vast remains the primary plan — it is the only
+**Verdict for B2 (now decided):** self-hosting all legs on vast is the plan — it is the only
 path that measures reasoning-ON pre AND post in the identical channel/scaffold (the isolation
-principle in §3), and the PRE leg needs the box regardless. The API alternative is a real
-**cost-reduction option for Qwen/Gemma/GLM's POST leg** (skip the instruct-weights download)
-if the user wants to trade some cross-leg isolation for savings. **For Llama it is not an
-option at all** — no verified route exists — so Llama's full B2 cost (~$70–100, both legs,
-8×H200) stands unconditionally if llama31 stays in scope.
+principle in §3), and the PRE leg needs the box regardless. The API option's realistic net
+savings (~$2–5/family on Qwen/Gemma, given the download-dominated cost structure in
+`docs/vast_quickstart.md`) did not justify the confound; for Llama no API route exists at all
+(no OpenRouter endpoints; DeepInfra reportedly redirects to a Hermes fine-tune), so its full
+cost (~$70–100, both legs, 8×H200) was always unconditional. **User adopted the self-hosted
+plan 2026-07-20.**
 
 ### 7b. Why "Llama" was ruled out — and why that Llama is not this Llama
 
