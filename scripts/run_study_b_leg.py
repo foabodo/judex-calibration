@@ -24,7 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from judex_calibration.aireg import load_cells
 from judex_calibration import elicit_verbalized as ev
-from judex_calibration import study_a
+from judex_calibration import study_a, study_b
 
 # Pre-registered B-Q1 gate (design doc §4; FULL-contract tier per the user's 2026-07-20
 # approval): a leg is contract-compliant iff >= 90% of its elicited cells emit the complete
@@ -37,15 +37,17 @@ def leg_path(out_dir: Path, leg: str) -> Path:
     return out_dir / f"{leg}_verbalized.json"
 
 
-def analyze(out_dir: Path, cells) -> dict:
+def analyze(out_dir: Path, cells, eps_sensitivity: bool = False) -> dict:
     report = {"channel": "verbalized", "epsilon": ev.EPSILON,
               "parse_rate_gate": PARSE_RATE_GATE, "legs": {}}
     views = {}
+    leg_recs = {}
     for leg in ("pre", "post"):
         p = leg_path(out_dir, leg)
         if not p.exists():
             continue
         recs = json.loads(p.read_text())
+        leg_recs[leg] = recs
         gate = ev.contract_compliance_summary(recs, n_cells=len(cells))
         gate["parse_gate_ok"] = gate["contract_complete_rate"] >= PARSE_RATE_GATE
         # Epsilon-floor BEFORE any temperature machinery: stored vectors keep the
@@ -55,7 +57,8 @@ def analyze(out_dir: Path, cells) -> dict:
         comp = {k: ev.floor_and_renormalize(v) for k, v in ev.compliance_view(recs).items()}
         views[leg] = comp
         report["legs"][leg] = {"contract_compliance": gate,
-                               "score": study_a.score_variant(comp, cells) if comp else {"n": 0}}
+                               "score": study_a.score_variant(comp, cells) if comp else {"n": 0},
+                               "confidence_bq4": study_b.analyze_confidence(recs, cells)}
     if "pre" in views and "post" in views:
         tau_v = study_a.fit_tau_oc(views["post"], views["pre"], cells)
         report["tau_v"] = tau_v
@@ -63,6 +66,9 @@ def analyze(out_dir: Path, cells) -> dict:
         report["tau_v_note"] = ("verbalized-channel analog of tau_oc, measured FRESH; "
                                 "never convert to/from Study A's tau_oc (channels are "
                                 "incommensurable — grid-quantized, no deterministic bridge)")
+        if eps_sensitivity:
+            report["epsilon_sensitivity"] = study_b.epsilon_sensitivity(
+                leg_recs["pre"], leg_recs["post"], cells)
     # a leg elicited on <120 cells is smoke regardless of the sentinel
     smoke = (out_dir / ".smoke").exists() or any(
         leg["contract_compliance"]["n_elicited"] < len(cells) for leg in report["legs"].values())
@@ -87,6 +93,8 @@ def main():
     ap.add_argument("--limit", type=int, help="SMOKE: first N cells only (numbers discarded)")
     ap.add_argument("--no-reason", action="store_true", help="SMOKE: skip the reasoning stage")
     ap.add_argument("--analyze", action="store_true", help="score existing legs; no elicitation")
+    ap.add_argument("--eps-sensitivity", action="store_true",
+                    help="include the once-only pre-registered epsilon check (B1 report only)")
     args = ap.parse_args()
 
     out_dir = Path(args.out)
@@ -94,7 +102,7 @@ def main():
     cells = load_cells()
 
     if args.analyze:
-        report = analyze(out_dir, cells)
+        report = analyze(out_dir, cells, eps_sensitivity=args.eps_sensitivity)
         for leg, r in report["legs"].items():
             g = r["contract_compliance"]
             print(f"  {leg}: parse {g['n_parsed']}/{g['n_elicited']} ({g['parse_rate']:.2%}); "

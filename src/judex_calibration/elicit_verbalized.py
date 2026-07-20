@@ -353,9 +353,9 @@ def contract_compliance_summary(recs: Dict[str, dict], n_cells: int) -> dict:
         "n_contract_complete": len(complete),
         "contract_complete_rate": (len(complete) / n) if n else 0.0,
         "contract_missing_counts": miss_counts,
-        "mean_n_findings": (sum(r["n_findings"] for r in parsed) / len(parsed)) if parsed else None,
-        "level_matches_argmax_rate": (sum(r["level_matches_argmax"] for r in parsed) / len(parsed)) if parsed else None,
-        "compliance_on_grid_rate": (sum(r["compliance_on_grid"] for r in parsed) / len(parsed)) if parsed else None,
-        "confidence_on_grid_rate": (sum(r["confidence_on_grid"] for r in parsed) / len(parsed)) if parsed else None,
+        "mean_n_findings": (sum(r.get("n_findings", 0) for r in parsed) / len(parsed)) if parsed else None,
+        "level_matches_argmax_rate": (sum(r.get("level_matches_argmax", False) for r in parsed) / len(parsed)) if parsed else None,
+        "compliance_on_grid_rate": (sum(r.get("compliance_on_grid", False) for r in parsed) / len(parsed)) if parsed else None,
+        "confidence_on_grid_rate": (sum(r.get("confidence_on_grid", False) for r in parsed) / len(parsed)) if parsed else None,
         "epsilon": EPSILON,
     }
