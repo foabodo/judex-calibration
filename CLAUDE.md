@@ -77,6 +77,8 @@ the panel range, bootstrap coverage 0.946 — `spec/analysis_2026_07_19_q4_range
 sweep instrument `scripts/q4_range_robustness.py`, merged). τ_DACA failed validation and is
 retired (published negative); the §4.7 decorrelated-dispersion pool is E6's GT-free
 *triangulator* (basin-scale concurrence check), never the mechanism.
+On-pair sweep decision logic = `docs/e6_onpair_decision_protocol.md`, ADOPTED 2026-07-19 —
+one source of truth; do not restate the ladder elsewhere.
 Current closed pair: **Sonnet 4.6 (medium effort) + GPT 5.4 (medium reasoning)**
 (evaluator families `anthropic_claude_medium` + `openai_gpt_standard`);
 Haiku 4.5 / GPT-5.4-mini ruled out (insufficiently capable on the task).

@@ -372,6 +372,11 @@ must clear a doc-clustered CI; the **on-pair benefit band must cover the
 panel range [1.60, 8.84]** (criteria + grid + bootstrap frozen per E6.2);
 E6.4 deltas are reported win-or-null.
 
+**Decision logic (ADOPTED 2026-07-19):** the on-pair sweep's mechanism-selection
+logic — which instrument gates, which merely reports, the failure ladder, and the
+terminal band-only state — is specified once, in
+`docs/e6_onpair_decision_protocol.md`. Do not restate or vary it here.
+
 **Two open dependencies to settle before E6 runs** (both sit outside this repo,
 so they are flagged, not patched here):
 1. **E6.4 assumes E2 artifacts exist.** On `judex-ground-truth` `develop` the
