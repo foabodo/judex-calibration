@@ -81,9 +81,52 @@ def analyze(out_dir: Path, cells, eps_sensitivity: bool = False) -> dict:
     return report
 
 
+def merge(specs, cells) -> dict:
+    """Cross-family B-Q3: per-family tau_v + the clustering rule over gate-passers.
+
+    specs = {family: run_dir}. Reuses study_a.cluster_fields verbatim (the rule fields
+    read 'tau_oc' keys — they are tau_v here; the report says so). Gate passage
+    (contract_complete >= 0.90 both legs + resolution-primary) is decided from each
+    family's study_b_report.json.
+    """
+    rows, smoke = {}, False
+    for fam, d in specs.items():
+        d = Path(d)
+        rp = d / "study_b_report.json"
+        if not rp.exists():
+            raise SystemExit(f"--merge: no study_b_report.json in {d} (family {fam!r}) — run --analyze first")
+        r = json.loads(rp.read_text())
+        smoke = smoke or r.get("smoke", False)
+        legs = r.get("legs", {})
+        gates_ok = all(legs.get(l, {}).get("contract_compliance", {}).get("parse_gate_ok")
+                       for l in ("pre", "post"))
+        res_pre = legs.get("pre", {}).get("score", {}).get("murphy", {}).get("resolution")
+        rows[fam] = {
+            "tau_v": r.get("tau_v"), "tau_v_saturated": r.get("tau_v_saturated"),
+            "contract_gates_ok_both_legs": gates_ok,
+            "pre_resolution": res_pre,
+            "pre_T_rps_saturated": legs.get("pre", {}).get("score", {}).get("T_rps_saturated"),
+            "confidence_bq4_post": legs.get("post", {}).get("confidence_bq4"),
+        }
+    # study_a.cluster_fields consumes {'tau_oc': ...}-shaped rows; feed only families
+    # passing BOTH Study B gates so the ratio is the pre-registered B-Q3 quantity.
+    clean = {f: {"tau_oc": v["tau_v"], "tau_oc_saturated": v["tau_v_saturated"],
+                 "tau_oc_reference_degenerate": bool(v["pre_T_rps_saturated"])}
+             for f, v in rows.items() if v["contract_gates_ok_both_legs"]}
+    cluster = study_a.cluster_fields(clean)
+    out = {"families": rows, "gate_passing": sorted(clean),
+           "bq3_cluster": {k.replace("tau_oc", "tau_v"): v for k, v in cluster.items()},
+           "smoke": smoke}
+    if smoke:
+        out["smoke_note"] = "SMOKE — a merged source is smoke; numbers discarded"
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True, help="run dir, e.g. runs/study_b_qwen (one per family)")
+    ap.add_argument("--merge", nargs="+", metavar="FAMILY=DIR",
+                    help="cross-family B-Q3 report from per-family run dirs; writes to --out")
     ap.add_argument("--leg", choices=["pre", "post"], help="which twin this serving run is")
     ap.add_argument("--base-url", help="OpenAI-compatible /v1 server root")
     ap.add_argument("--model", help="model id as served")
@@ -100,6 +143,25 @@ def main():
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     cells = load_cells()
+
+    if args.merge:
+        specs = {}
+        for spec in args.merge:
+            fam, sep, d = spec.partition("=")
+            if not sep or not fam or not d or fam in specs:
+                raise SystemExit(f"--merge expects unique FAMILY=DIR, got {spec!r}")
+            specs[fam] = d
+        report = merge(specs, cells)
+        p = out_dir / "study_b_cross_family.json"
+        p.write_text(json.dumps(report, indent=2))
+        print(f"wrote {p}")
+        bq3 = report["bq3_cluster"]
+        print(f"  gate-passing: {report['gate_passing']}")
+        print(f"  tau_v cluster ratio: {bq3.get('tau_v_cluster_ratio')} "
+              f"(rule_ok: {bq3.get('tau_v_cluster_rule_ok')})")
+        if report.get("smoke"):
+            print("  [SMOKE] numbers discarded")
+        return
 
     if args.analyze:
         report = analyze(out_dir, cells, eps_sensitivity=args.eps_sensitivity)
