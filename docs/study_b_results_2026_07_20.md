@@ -94,6 +94,36 @@ The verbalized-confidence instrument (B-Q4) shows a real level-bias correction i
 learnable per-family but not transferable — any closed-pair application requires on-pair
 contract outputs (the E6 sweep) and its own fit. Protocol changes remain user decisions.
 
+## Addendum (2026-07-21): Gemma post re-collected via 16-bit API — the panel completes
+
+USER DECISION: rather than accept a 2-family panel, the Gemma-4-31B-it post leg was
+re-collected through OpenRouter's chat API pinned to 16-bit providers (`quantizations
+[bf16, fp16]`, `allow_fallbacks false`; every one of the 120 cells was served by
+**OpenInference @ bf16** — the study's own vast precision). Serving-mode confound accepted
+and labeled: channel `verbalized_api_chat` (chat template; no raw continuation), artifacts
+in `runs/study_b_gemma31_api/` (the vast failure leg stands untouched). Cost ≈ $0.60.
+
+- **The collapse is channel-bound, not weights-bound:** the same weights that degenerated
+  under greedy raw-completions continuation emit **93.3% contract-complete** (112/120,
+  gate PASS) under the chat template — and post argmax 0.678 is the best of the panel
+  (resolution 0.056, T_rps 2.24 finite).
+- **Cross-mode τ_v(gemma) = 1.0252** (vast pre × API post; confound-labeled). Extended
+  gate-passing set {qwen 1.281, llama31 1.025, gemma31_api 1.025}: **ratio 1.25 ≤ 2 —
+  the B-Q3 clustering rule still PASSES at n = 3**, and the survivorship caveat weakens
+  materially: the family that broke Study A's token-slice clustering (τ_oc 4.88) clusters
+  tightly in the verbalized channel once its emissions parse. (The pre-registered original
+  2-family verdict stands; this is the extension read, per the amended §7 discipline.)
+- **B-Q4 gains a second clean fit — and the two agree:** Gemma-API T_c = **4.528**
+  (interior; folds 4.2–5.25, none saturated), LODO ΔBrier −0.069, CI [−0.111, −0.028]
+  excluding 0 ⇒ calibratable; Kendall −0.169 (right sign). Against Qwen's T_c 4.877
+  (folds 3.9–6.1): **ratio 1.08** — the two informative confidence temperatures sit
+  practically on top of each other near ≈ 4.5–4.9, with llama31's peg the lone outlier.
+  The B-Q4 story upgrades from "only Qwen" to "two clean, mutually consistent fits;
+  llama31's stated confidence uninformative". Level overconfidence is again extreme
+  (mean p̂(C) 0.95 vs realized 0.678). A shared confidence constant remains unadopted —
+  n = 2 clean fits, one cross-channel — but the agreement is now a reportable regularity
+  rather than a single point.
+
 ## Deviations from plan
 
 None affecting the pre-registered quantities. One diagnostic addition: a labeled 2-cell
