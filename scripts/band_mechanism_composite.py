@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """2(d) band-mechanism formalization: zero-fit fallback + composite decision protocol.
 
-$0, analysis-only. Characterizes a fixed T = 3.761 (the pre-registered band's
-geometric midpoint, [1.60, 8.84]) as a zero-supervision fallback, quantifies
+$0, analysis-only. Characterizes a fixed T = 2.794 (the pre-registered band's
+geometric midpoint, [1.60, 4.88]) as a zero-supervision fallback, quantifies
 direction-safety and bounded-regret guarantees for any T inside the band, and
 computes the concurrence table feeding the composite decision protocol drafted
-in spec/analysis_2026_07_XX_band_mechanism_composite.md.
+in spec/analysis_2026_07_19_band_mechanism_composite.md.
+
+Band + anchor amended 2026-07-20 (GLM's gate-failed tau_oc excised —
+umbrella spec/amendment_2026_07_20_band_glm_excision.md); amended results:
+spec/analysis_2026_07_19_band_mechanism_composite_results_amended.json.
 
 Every target is scored with judex_calibration.study_a.closed_side_check
 (Murphy decomposition at bins=10, verbatim production path) applied to a
 FIXED T — never fit against the target. GT: aireg.load_cells() only. GT is
-used to SCORE every mechanism's output, never to select 3.761 (which is fixed
+used to SCORE every mechanism's output, never to select 2.794 (which is fixed
 by the pre-existing band, chosen before this script ran).
 
 Targets (7): 4 open post legs (gate-passing; the promotion doc's honest
@@ -39,22 +43,23 @@ sys.path.insert(0, str(REPO / "src"))
 # ---------------------------------------------------------------------------
 # Frozen constants (fixed by prior, already-merged instruments; not fit here)
 # ---------------------------------------------------------------------------
-BAND = (1.60, 8.84)  # pre-registered E6 sensitivity band (open-panel range)
-ANCHOR_MIDPOINT = math.sqrt(BAND[0] * BAND[1])  # 3.7607... — the zero-fit point
+BAND = (1.60, 4.88)  # pre-registered E6 sensitivity band (gate-passing range, amended 2026-07-20)
+ANCHOR_MIDPOINT = math.sqrt(1.6007889248849985 * 4.877199362107526)  # 2.7942 — the zero-fit point
 TRANSFERRED_CONSTANT = 1.86  # median(tau_oc) baseline, Q3-dead as a point mechanism
 TOLERANT_BAND_STAGE9 = (1.00, 22.8)  # q4_range_robustness verdict, stage9-only
 
-# Frozen pool-shrunk T-hat per target, verbatim from
-# spec/analysis_2026_07_19_dispersion_pool_promotion.md Table (Task 1b / Task 2).
-# NOT recomputed here — reused as a fixed T to score, exactly like 3.761.
+# Frozen pool-shrunk T-hat per target, verbatim from the 2026-07-20 amendment
+# re-derivation (promotion doc amendment block; lambda=0.35, anchor 2.794 —
+# spec/analysis_2026_07_19_dispersion_pool_promotion_results_amended.json).
+# NOT recomputed here — reused as a fixed T to score, exactly like 2.794.
 POOL_THAT = {
-    "stage9": 6.013,
-    "phase23": 6.280,
-    "qwen_post": 1.387,
-    "llama31_post": 3.007,
-    "glm_post": 3.871,
-    "gemma31_post": 5.373,
-    "glm_pre": 2.130,
+    "stage9": 5.240,
+    "phase23": 5.456,
+    "qwen_post": 1.342,
+    "llama31_post": 2.754,
+    "glm_post": 3.481,
+    "gemma31_post": 4.721,
+    "glm_pre": 1.999,
 }
 
 RES_TOL_FRAC = 0.10  # q4_range_robustness's resolution tolerance, reused verbatim
@@ -186,7 +191,7 @@ def main():
         fixed_points = {
             "identity": 1.0,
             "transferred_constant_1.86": TRANSFERRED_CONSTANT,
-            "zero_fit_3.761": ANCHOR_MIDPOINT,
+            "zero_fit_2.794": ANCHOR_MIDPOINT,
             "pool_shrunk_that": POOL_THAT[name],
             "supervised_Tstar": T_star,
         }
@@ -221,11 +226,11 @@ def main():
                 "d_rps": m["mean_rps"] - rps0,
             }
 
-        band_membership = {tag: band_ok(scored[tag]) for tag in ("zero_fit_3.761",)}
+        band_membership = {tag: band_ok(scored[tag]) for tag in ("zero_fit_2.794",)}
         band_membership["band_lower_1.60"] = band_ok(eval_at(BAND[0], rows)[0])
-        band_membership["band_upper_8.84"] = band_ok(eval_at(BAND[1], rows)[0])
+        band_membership["band_upper_4.88"] = band_ok(eval_at(BAND[1], rows)[0])
 
-        # -- doc-clustered bootstrap on gap-closure at 3.761 and pool T-hat ---
+        # -- doc-clustered bootstrap on gap-closure at 2.794 and pool T-hat ---
         docs = np.array([r[3] for r in rows])
         uniq_docs = sorted(set(docs.tolist()))
         doc_items = {d: np.flatnonzero(docs == d) for d in uniq_docs}
@@ -238,12 +243,12 @@ def main():
         n_items = len(rows)
         rng = np.random.default_rng(int(rng_master.integers(0, 2**31 - 1)))
         B = args.bootstrap
-        boot_gap = {tag: [] for tag in ("transferred_constant_1.86", "zero_fit_3.761", "pool_shrunk_that")}
-        boot_delta_rel = {"zero_fit_3.761": [], "band_lower_1.60": [], "band_upper_8.84": []}
-        boot_delta_res = {"zero_fit_3.761": [], "band_lower_1.60": [], "band_upper_8.84": []}
-        boot_delta_rps = {"zero_fit_3.761": [], "band_lower_1.60": [], "band_upper_8.84": []}
+        boot_gap = {tag: [] for tag in ("transferred_constant_1.86", "zero_fit_2.794", "pool_shrunk_that")}
+        boot_delta_rel = {"zero_fit_2.794": [], "band_lower_1.60": [], "band_upper_4.88": []}
+        boot_delta_res = {"zero_fit_2.794": [], "band_lower_1.60": [], "band_upper_4.88": []}
+        boot_delta_rps = {"zero_fit_2.794": [], "band_lower_1.60": [], "band_upper_4.88": []}
         edge_items = {"band_lower_1.60": eval_at(BAND[0], rows)[1],
-                      "band_upper_8.84": eval_at(BAND[1], rows)[1]}
+                      "band_upper_4.88": eval_at(BAND[1], rows)[1]}
         edge_pred_cdfs = {k: cdf_matrix([it.prediction for it in v]) for k, v in edge_items.items()}
         edge_gids = {k: group_ids(v) for k, v in edge_items.items()}
         edge_rps = {k: np.array([it.rps for it in v]) for k, v in edge_items.items()}
@@ -264,7 +269,7 @@ def main():
                                                    rps_by_tag[tag], w1_by_tag[tag])
                 boot_gap[tag].append((rps0_b - rps_t) / denom_b if abs(denom_b) > 1e-12 else np.nan)
             for tag in boot_delta_rel:
-                if tag == "zero_fit_3.761":
+                if tag == "zero_fit_2.794":
                     rel_t, res_t, rps_t, _ = weighted_murphy(w, gt_cdfs, pred_cdfs_by_tag[tag],
                                                                gids_by_tag[tag], rps_by_tag[tag], w1_by_tag[tag])
                 else:
@@ -299,12 +304,13 @@ def main():
             },
         }
         print(f"[{name}] n={len(rows)} T*={T_star:.3f}{' SAT' if T_star_saturated else ''} "
-              f"gap@3.761={gap_closure['zero_fit_3.761']} gap@pool={gap_closure['pool_shrunk_that']}")
+              f"gap@2.794={gap_closure['zero_fit_2.794']} gap@pool={gap_closure['pool_shrunk_that']}")
 
     # -- 2. Exploratory minimax fixed point over the band --------------------
-    # Uses the point (non-bootstrap) gap-closure across the 5 in-band-T* honest
-    # validation targets (T* strictly inside [1.60, 8.84]); labeled exploratory
-    # because it is selected against the validation targets. 3.761 stays primary.
+    # Uses the point (non-bootstrap) gap-closure across the in-band-T* honest
+    # validation targets (T* strictly inside the amended [1.60, 4.88]); labeled
+    # exploratory because it is selected against the validation targets. 2.794
+    # stays primary.
     inband_targets = [n for n in results if results[n].get("T_star_supervised") is not None
                       and BAND[0] < results[n]["T_star_supervised"] < BAND[1]]
     minimax = {}
@@ -336,19 +342,19 @@ def main():
             "curve": minimax_curve,
             "best_by_min_gap": best_min,
             "best_by_mean_gap": best_mean,
-            "distance_from_3.761_log": {
+            "distance_from_2.794_log": {
                 "best_by_min_gap": math.log(best_min["T"] / ANCHOR_MIDPOINT),
                 "best_by_mean_gap": math.log(best_mean["T"] / ANCHOR_MIDPOINT),
             },
             "label": "EXPLORATORY — selected against the validation targets; never promoted "
-                     "over the pre-registered 3.761 midpoint",
+                     "over the pre-registered 2.794 midpoint",
         }
 
     # -- 3. Guarantees summary -------------------------------------------------
     worst_reliability_harm = None
     worst_res_harm = None
     worst_rps_harm = None
-    for tag in ("band_lower_1.60", "zero_fit_3.761", "band_upper_8.84"):
+    for tag in ("band_lower_1.60", "zero_fit_2.794", "band_upper_4.88"):
         for name, r in results.items():
             if r.get("status") == "SKIPPED":
                 continue
@@ -369,7 +375,7 @@ def main():
         t_star = r["T_star_supervised"]
         if not (BAND[0] < t_star < BAND[1]):
             continue
-        regret = r["scored"]["zero_fit_3.761"]["mean_rps"] - r["scored"]["supervised_Tstar"]["mean_rps"]
+        regret = r["scored"]["zero_fit_2.794"]["mean_rps"] - r["scored"]["supervised_Tstar"]["mean_rps"]
         if max_regret is None or regret > max_regret[0]:
             max_regret = (regret, name)
 
@@ -384,20 +390,23 @@ def main():
         },
         "bounded_regret": {
             "max_rps_shortfall_zero_fit_vs_supervised": max_regret,
-            "definition": "max over targets with T* strictly inside (1.60, 8.84) of "
-                          "mean_rps(T=3.761) - mean_rps(T=T*)",
+            "definition": "max over targets with T* strictly inside (1.60, 4.88) of "
+                          "mean_rps(T=2.794) - mean_rps(T=T*)",
         },
     }
 
     dump = {
         "meta": {
-            "date": "2026-07-19", "band": list(BAND), "anchor_midpoint": ANCHOR_MIDPOINT,
+            "date": "2026-07-20",
+            "amendment": "spec/amendment_2026_07_20_band_glm_excision.md",
+            "band": list(BAND), "anchor_midpoint": ANCHOR_MIDPOINT,
             "transferred_constant": TRANSFERRED_CONSTANT, "res_tol_frac": RES_TOL_FRAC,
             "bootstrap_B": args.bootstrap, "seed": args.seed,
             "gt": "canonical aireg.load_cells() bundle (2026-07-09 vintage, tau=0.675, continuous)",
             "off_pair_warning": "stage9/phase23 are LEGACY closed runs; indicative only, never an "
-                                "E6 result; pool T-hat values are copied verbatim from "
-                                "analysis_2026_07_19_dispersion_pool_promotion.md, not refit here",
+                                "E6 result; pool T-hat values are copied verbatim from the "
+                                "2026-07-20 amendment re-derivation (lambda=0.35, anchor 2.794), "
+                                "not refit here",
         },
         "targets": results,
         "minimax_exploratory": minimax,

@@ -12,10 +12,14 @@ temperature for a closed-pair run with NO supervision on the closed models:
               pooled per-item squared gap), bounds (0.25, 20.0) explicit;
   estimate  = log-space shrinkage of the raw fit toward the pre-registered
               sensitivity band's geometric midpoint:
-                T_hat = exp((1-LAMBDA)*ln T_raw + LAMBDA*ln sqrt(1.60*8.84)).
+                T_hat = exp(0.65*ln T_raw + 0.35*ln sqrt(1.6008*4.8772)).
 
 Provenance: promotion analysis 2026-07-19 (umbrella
-spec/analysis_2026_07_19_dispersion_pool_promotion.md). The shrinkage repairs
+spec/analysis_2026_07_19_dispersion_pool_promotion.md), as AMENDED 2026-07-20
+by the band amendment (umbrella spec/amendment_2026_07_20_band_glm_excision.md:
+GLM's gate-failed tau_oc excised; band = the gate-passing range [1.60, 4.88],
+anchor = its geometric midpoint 2.794; lambda re-selected by the same frozen
+rule — see the promotion doc's amendment block). The shrinkage repairs
 the two characterized defects of the raw fit — closed-run overshoot from
 objective flatness under heterogeneous item widths, and the sharpening flip
 when the pool loses its wide member — at <=3pp mean RPS-gap cost on the six
@@ -61,17 +65,26 @@ POOL_BASES = {  # family -> base (pre) leg file name under --bases-runs-dir
     "llama31": "llama31/pre.json",
 }
 REPLICATE_SOURCE = "cross_family_phase1"  # augment construction: cfp1 + bases
-BAND = (1.60, 8.84)                       # pre-registered E6 sensitivity band
-ANCHOR = math.sqrt(BAND[0] * BAND[1])     # 3.7608... (band geometric midpoint)
-LAMBDA = 0.30                             # log-space shrinkage weight
+# Band + anchor amended 2026-07-20 (GLM's gate-failed tau_oc excised —
+# spec/amendment_2026_07_20_band_glm_excision.md): band = gate-passing tau_oc
+# range; anchor = geometric midpoint of the exact shipped values.
+BAND = (1.60, 4.88)                       # pre-registered E6 sensitivity band (amended)
+ANCHOR = math.sqrt(1.6007889248849985 * 4.877199362107526)  # 2.7942 (band geometric midpoint)
+LAMBDA = 0.35                             # log-space shrinkage weight (re-selected 2026-07-20
+                                          # by the frozen rule under the amended anchor:
+                                          # plateau {0.25,0.30,0.35} tied, best mean -> 0.35)
 MIN_POOL_ENTROPY = 1.00                   # nats; vetting floor (flip at ~0.96)
 # Concurrence criterion for the sweep analysis (advisory here, SECONDARY —
 # RPS-gap closure is the primary acceptance): the arms concur when
-# |ln(T_hat / T_star)| <= ln(CONCURRENCE_RATIO). Frozen at the doc-clustered
-# bootstrap envelope of |ln(T_hat/T_star)| on the validated in-band legacy
-# closed runs (q95 = 1.18 on phase23 => e^1.18 ~= 3.25). Wide because BOTH
-# arms' temperatures are within-basin weakly identified on closed runs; the
-# point drift alone is ln 0.97.
+# |ln(T_hat / T_star)| <= ln(CONCURRENCE_RATIO). Frozen 2026-07-19 at the
+# doc-clustered bootstrap envelope of |ln(T_hat/T_star)| on the legacy closed
+# validation runs (then q95 = 1.18 on phase23 => e^1.18 ~= 3.25). Kept frozen
+# by the 2026-07-20 amendment: the amended-estimator envelope tightens
+# (q95 = 1.04 => 2.83), so 3.25 remains conservative. Wide because BOTH
+# arms' temperatures are within-basin weakly identified on closed runs.
+# NOTE (amendment knock-on): under the amended band the legacy closed runs'
+# shrunk T_hat (5.24 / 5.46) sit ABOVE the band's upper edge — A3 is
+# materially stricter for closed-run-like targets than under the r1 freeze.
 CONCURRENCE_RATIO = 3.25
 
 LABELS = ("very_low", "low", "moderate", "high", "very_high")
@@ -84,6 +97,8 @@ FULL_TO_SHORT = {
 }
 
 # 2026-07-19 promotion-analysis raw fits (legacy off-pair runs) for --selftest.
+# T_raw is anchor-independent (unchanged by the 2026-07-20 amendment); the
+# selftest additionally re-pins T_hat against the amended anchor via shrink().
 SELFTEST_EXPECT = {
     "stage9-gemini-gpt-medium": 7.352,
     "phase23-deference-fix-native": 7.822,
@@ -196,10 +211,13 @@ def main() -> None:
         for run_id, expected in SELFTEST_EXPECT.items():
             finals, reps = load_closed_run(eval_runs / run_id, by_doc_article)
             res = estimate(finals, reps, bases)
-            good = abs(math.log(res["T_raw"] / expected)) < 5e-3
+            expected_hat = math.exp((1 - LAMBDA) * math.log(expected) + LAMBDA * math.log(ANCHOR))
+            good = (abs(math.log(res["T_raw"] / expected)) < 5e-3
+                    and abs(math.log(res["T_hat"] / expected_hat)) < 5e-3)
             ok &= good
             print(f"[selftest] {run_id}: T_raw={res['T_raw']:.3f} expected~{expected} "
-                  f"T_hat={res['T_hat']:.3f} {'OK' if good else 'MISMATCH'} (INDICATIVE off-pair)")
+                  f"T_hat={res['T_hat']:.3f} expected~{expected_hat:.3f} "
+                  f"{'OK' if good else 'MISMATCH'} (INDICATIVE off-pair)")
         raise SystemExit(0 if ok else 1)
 
     if not args.closed_run_dir:

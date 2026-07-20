@@ -39,8 +39,11 @@ def main():
     u = d["uncalibrated"]
     band = d["verdict"]["band_tolerant"]
     refs = {k: v for k, v in d["meta"]["reference_taus"].items() if k != "identity"}
+    # "tau_oc_glm_soft" is the pre-amendment key of the frozen 2026-07-19 dump;
+    # amended dumps use "tau_oc_glm_excised" (band amendment 2026-07-20).
     ref_short = {"tau_oc_qwen": "qwen 1.60", "tau_oc_llama31": "llama 1.86",
-                 "tau_oc_gemma31": "gemma 4.88", "tau_oc_glm_soft": "glm 8.84"}
+                 "tau_oc_gemma31": "gemma 4.88", "tau_oc_glm_excised": "glm (excised)",
+                 "tau_oc_glm_soft": "glm (excised)"}
 
     # ---- Fig 1: delta curves vs tau, band shaded --------------------------
     panels = [
@@ -91,7 +94,8 @@ def main():
 
     # ---- Fig 2: heterogeneity — mean dRPS by Article and GT level ---------
     het = d["heterogeneity"]
-    tau_keys = ["tau_oc_qwen", "tau_oc_llama31", "tau_oc_gemma31", "tau_oc_glm_soft"]
+    tau_keys = ["tau_oc_qwen", "tau_oc_llama31", "tau_oc_gemma31",
+                "tau_oc_glm_excised" if "tau_oc_glm_excised" in het else "tau_oc_glm_soft"]
     tau_labels = [f"τ={het[k]['tau']:.2f}" for k in tau_keys]
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
     for ax, (field, xlab) in zip(axes, [("by_article", "Article"), ("by_gt_level", "GT argmax level")]):

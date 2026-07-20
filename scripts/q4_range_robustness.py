@@ -41,18 +41,22 @@ import numpy as np
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
-# The measured open-panel range this analysis interrogates (gate-passing tau_oc
-# min .. GLM soft max). GLM's base leg passed the resolution gate only marginally,
-# so 8.84 is the soft outer edge; the hard gate-passing spread is 1.60-4.88.
+# The pre-registered E6 sensitivity band = the gate-passing tau_oc range
+# (AMENDED 2026-07-20: GLM's gate-failed tau_oc excised from the band —
+# umbrella spec/amendment_2026_07_20_band_glm_excision.md). GLM's measured
+# value is retained ONLY as an excised diagnostic marker (its base leg fails
+# the resolution-primary gate; aligning a post model to a gate-failing
+# reference inflates tau_oc). The legacy pre-amendment range (up to the
+# excised point) is still swept for continuity with the frozen 2026-07-19 dump.
 REFERENCE_TAUS = {
     "tau_oc_qwen": 1.6007889248849985,
     "tau_oc_llama31": 1.8571440700827275,
     "tau_oc_gemma31": 4.877199362107526,
-    "tau_oc_glm_soft": 8.835204542762193,
+    "tau_oc_glm_excised": 8.835204542762193,  # measured datum; NOT a band edge
     "identity": 1.0,
 }
-OPEN_PANEL_RANGE = (REFERENCE_TAUS["tau_oc_qwen"], REFERENCE_TAUS["tau_oc_glm_soft"])
-HARD_GATE_RANGE = (REFERENCE_TAUS["tau_oc_qwen"], REFERENCE_TAUS["tau_oc_gemma31"])
+AMENDED_BAND_RANGE = (REFERENCE_TAUS["tau_oc_qwen"], REFERENCE_TAUS["tau_oc_gemma31"])
+LEGACY_OPEN_PANEL_RANGE = (REFERENCE_TAUS["tau_oc_qwen"], REFERENCE_TAUS["tau_oc_glm_excised"])
 
 
 def default_umbrella() -> Path:
@@ -374,12 +378,12 @@ def main():
         "band_tolerant": {**refined["tolerant"], "contiguous_on_grid": contig,
                           "res_tol_frac": args.res_tol},
         "band_strict": {**refined["strict"], "contiguous_on_grid": contig_s},
-        "covers_open_panel_range_tolerant": covers(refined["tolerant"]["lower"],
-                                                   refined["tolerant"]["upper"], OPEN_PANEL_RANGE),
-        "covers_hard_gate_range_tolerant": covers(refined["tolerant"]["lower"],
-                                                  refined["tolerant"]["upper"], HARD_GATE_RANGE),
-        "open_panel_range": list(OPEN_PANEL_RANGE),
-        "hard_gate_range": list(HARD_GATE_RANGE),
+        "covers_amended_band_tolerant": covers(refined["tolerant"]["lower"],
+                                               refined["tolerant"]["upper"], AMENDED_BAND_RANGE),
+        "covers_legacy_open_panel_tolerant": covers(refined["tolerant"]["lower"],
+                                                    refined["tolerant"]["upper"], LEGACY_OPEN_PANEL_RANGE),
+        "amended_band_range": list(AMENDED_BAND_RANGE),
+        "legacy_open_panel_range_pre_amendment": list(LEGACY_OPEN_PANEL_RANGE),
     }
     print(f"[band] tolerant (res -{args.res_tol:.0%} allowed): "
           f"[{refined['tolerant']['lower']}, {refined['tolerant']['upper']}] "
@@ -387,8 +391,8 @@ def main():
     print(f"[band] strict   (res may not drop): "
           f"[{refined['strict']['lower']}, {refined['strict']['upper']}] "
           f"contiguous={contig_s}")
-    print(f"[band] covers open-panel range {OPEN_PANEL_RANGE}: "
-          f"{verdict['covers_open_panel_range_tolerant']}")
+    print(f"[band] covers amended band {AMENDED_BAND_RANGE}: "
+          f"{verdict['covers_amended_band_tolerant']}")
 
     # -- 4. Heterogeneity ---------------------------------------------------
     articles = np.array([r[4] for r in rows])
@@ -424,9 +428,9 @@ def main():
     base_gids = group_ids(base_items)
     base_pred_cdfs = cdf_matrix([it.prediction for it in base_items])
     boot = {"lower": [], "upper": [], "empty": 0, "noncontiguous": 0,
-            "covers_open_panel": 0, "covers_hard_gate": 0,
-            "open_panel_fail_lower": 0, "open_panel_fail_upper": 0,
-            "open_panel_fail_interior_gap": 0}
+            "covers_amended_band": 0, "covers_legacy_open_panel": 0,
+            "amended_band_fail_lower": 0, "amended_band_fail_upper": 0,
+            "amended_band_fail_interior_gap": 0}
     n_items = len(rows)
     for b in range(B):
         w = np.zeros(n_items)
@@ -446,18 +450,18 @@ def main():
         if not c:
             boot["noncontiguous"] += 1
         boot["lower"].append(l); boot["upper"].append(h)
-        for rng_name, rng_ in (("covers_open_panel", OPEN_PANEL_RANGE),
-                               ("covers_hard_gate", HARD_GATE_RANGE)):
+        for rng_name, rng_ in (("covers_amended_band", AMENDED_BAND_RANGE),
+                               ("covers_legacy_open_panel", LEGACY_OPEN_PANEL_RANGE)):
             inside = (grid >= rng_[0] - 1e-9) & (grid <= rng_[1] + 1e-9)
             if l <= rng_[0] + 1e-9 and h >= rng_[1] - 1e-9 and bi[inside].all():
                 boot[rng_name] += 1
-            elif rng_name == "covers_open_panel":
+            elif rng_name == "covers_amended_band":
                 if l > rng_[0] + 1e-9:
-                    boot["open_panel_fail_lower"] += 1
+                    boot["amended_band_fail_lower"] += 1
                 elif h < rng_[1] - 1e-9:
-                    boot["open_panel_fail_upper"] += 1
+                    boot["amended_band_fail_upper"] += 1
                 else:
-                    boot["open_panel_fail_interior_gap"] += 1
+                    boot["amended_band_fail_interior_gap"] += 1
     lo_arr, hi_arr = np.array(boot["lower"]), np.array(boot["upper"])
     bootstrap = {
         "B": B, "seed": args.seed, "empty_bands": boot["empty"],
@@ -468,12 +472,12 @@ def main():
         "upper_edge": {"median": float(np.median(hi_arr)),
                        "p2.5": float(np.percentile(hi_arr, 2.5)),
                        "p97.5": float(np.percentile(hi_arr, 97.5))},
-        "p_covers_open_panel_range": boot["covers_open_panel"] / B,
-        "p_covers_hard_gate_range": boot["covers_hard_gate"] / B,
-        "open_panel_noncoverage_breakdown": {
-            "lower_edge_above_1.60": boot["open_panel_fail_lower"],
-            "upper_edge_below_8.84": boot["open_panel_fail_upper"],
-            "interior_grid_point_dropout": boot["open_panel_fail_interior_gap"],
+        "p_covers_amended_band": boot["covers_amended_band"] / B,
+        "p_covers_legacy_open_panel_range": boot["covers_legacy_open_panel"] / B,
+        "amended_band_noncoverage_breakdown": {
+            "lower_edge_above_band_min": boot["amended_band_fail_lower"],
+            "upper_edge_below_band_max": boot["amended_band_fail_upper"],
+            "interior_grid_point_dropout": boot["amended_band_fail_interior_gap"],
         },
         "note": "band edges quantized to the sweep grid inside the bootstrap; "
                 "cluster = document (24 docs x 5 Articles)",
@@ -482,15 +486,17 @@ def main():
           f"[{bootstrap['lower_edge']['p2.5']:.3f}, {bootstrap['lower_edge']['p97.5']:.3f}], "
           f"upper edge {bootstrap['upper_edge']['median']:.3f} "
           f"[{bootstrap['upper_edge']['p2.5']:.3f}, {bootstrap['upper_edge']['p97.5']:.3f}]")
-    print(f"[bootstrap] P(band covers open-panel range) = "
-          f"{bootstrap['p_covers_open_panel_range']:.3f}; "
-          f"P(covers hard-gate range) = {bootstrap['p_covers_hard_gate_range']:.3f}; "
+    print(f"[bootstrap] P(band covers amended band) = "
+          f"{bootstrap['p_covers_amended_band']:.3f}; "
+          f"P(covers legacy open-panel range) = {bootstrap['p_covers_legacy_open_panel_range']:.3f}; "
           f"empty={boot['empty']} noncontiguous={boot['noncontiguous']}")
 
     # -- 6. Dump ------------------------------------------------------------
     dump = {
         "meta": {
             "date": "2026-07-19",
+            "amendment": "band amended 2026-07-20 (GLM's gate-failed tau_oc excised): "
+                         "spec/amendment_2026_07_20_band_glm_excision.md",
             "closed_run": args.closed_run,
             "off_pair_warning": "stage9-gemini-gpt-medium is the LEGACY Gemini+GPT pair, NOT "
                                 "the current Claude+GPT pair. Indicative only; never an E6 "

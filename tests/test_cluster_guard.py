@@ -37,7 +37,10 @@ class ClusterFieldsTests(unittest.TestCase):
         self.assertIs(out["tau_oc_cluster_rule_ok"], True)
 
     def test_measured_study_a_panel_fails(self):
-        # The actual 2026-07-19 outcome: {1.60, 1.86, 4.88} + GLM 8.84 -> ratio 5.52 > 2.
+        # The actual 2026-07-19 outcome: {1.60, 1.86, 4.88} + GLM's measured value ->
+        # ratio 5.52 > 2. GLM's tau_oc is a guard INPUT here (frozen campaign record);
+        # it was excised from the E6 band by the 2026-07-20 amendment
+        # (umbrella spec/amendment_2026_07_20_band_glm_excision.md) — declared survivor.
         out = cluster_fields({"qwen": _row(1.6007889248849985),
                               "llama31": _row(1.8571440700827275),
                               "gemma31": _row(4.877199362107526),

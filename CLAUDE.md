@@ -63,7 +63,9 @@ annotators). Questions: **Q1** is the base calibrated (`T*_pre ≈ 1`)? **Q2** p
 on AIReg improve
 Murphy **reliability** without hurting resolution/RPS?
 **Q3 OUTCOME (2026-07-19): NEGATIVE — no transferable constant.** Gate-passing τ_oc
-{qwen 1.60, llama31 1.86, gemma31 4.88} (GLM 8.84 soft, base marginal): max/min 3.05 > the
+{qwen 1.60, llama31 1.86, gemma31 4.88} (GLM's τ_oc EXCISED 2026-07-20 — its base leg fails
+the resolution-primary gate, so the value is a bad-reference artifact; umbrella
+`spec/amendment_2026_07_20_band_glm_excision.md`): max/min 3.05 > the
 adopted ≤2 rule ⇒ `median(τ_oc)` is NEVER adopted, the emitted calibration block is
 do-not-paste, and the giants phase is SKIPPED per the stopping rule.
 **E6 (guide §4.8; mechanism updated 2026-07-19, paper develop `f7b5706`):** Q4 extends into
@@ -72,8 +74,10 @@ overconfidence measurement, the argmax-invariance ("discrete metrics are blind")
 (**tie-aware**: exact top-two ties flip on fp tie-break, score the row on tie-free items),
 and downstream routing/decision-cost deltas. Correction mechanism = the **accuracy-gated
 held-out supervised T\*** on the closed pair, wrapped in the **pre-registered sensitivity
-band [1.60, 8.84]** (the open-panel range; off-pair evidence: benefit band (1.00, 22.8] ⊇
-the panel range, bootstrap coverage 0.946 — `spec/analysis_2026_07_19_q4_range_robustness.md`;
+band [1.60, 4.88]** (the gate-passing τ_oc range — AMENDED 2026-07-20, GLM's gate-failed
+τ_oc excised: `spec/amendment_2026_07_20_band_glm_excision.md`; off-pair evidence: benefit
+band (1.00, 22.8] ⊇ the panel range, bootstrap coverage 0.965 —
+`spec/analysis_2026_07_19_q4_range_robustness.md` + amendment block;
 sweep instrument `scripts/q4_range_robustness.py`, merged). τ_DACA failed validation and is
 retired (published negative); the §4.7 decorrelated-dispersion pool is E6's GT-free
 *triangulator* (basin-scale concurrence check), never the mechanism.
