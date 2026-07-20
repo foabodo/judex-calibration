@@ -176,15 +176,33 @@ needs self-hosted vLLM on vast regardless of this option — this section prices
 only, as a substitute for that leg's SHARE of the self-hosted box time (chiefly the ~810 GB
 POST-weights download, which the PRE leg's box time does not amortize).
 
-**Pricing (OpenRouter list rates, checked 2026-07-20 — verify before use, list prices drift and
-paid usage may route to a different backend at a different rate):**
+**Pricing (OpenRouter list rates, checked 2026-07-20 against OpenRouter's own
+`/api/v1/models/<id>/endpoints` JSON, not just the rendered page — verify again before use,
+list prices drift):**
 
 | Family (post_repo) | Input $/1M | Output $/1M | Source |
 |---|---|---|---|
 | Qwen3.5-35B-A3B | $0.14 | $1.00 | openrouter.ai/qwen/qwen3.5-35b-a3b |
 | Gemma-4-31B-it | $0.10 | $0.35 | openrouter.ai/google/gemma-4-31b-it |
 | GLM-4.5 | $0.60 | $2.20 | openrouter.ai/z-ai/glm-4.5 |
-| Llama-3.1-405B-Instruct | ~$0.80 (low) – ~$3.50 (high) both directions | — | OpenRouter's own page did not expose a rate (client-rendered); cross-provider anchors: DeepInfra $0.80/$0.80, Fireworks $3.00/$3.00, Together $3.50/$3.50 per 1M — re-check OpenRouter's actual routed rate before committing |
+| Llama-3.1-405B-Instruct | **NO VIABLE API ROUTE** | — | see below |
+
+**Llama-3.1-405B-Instruct has no verified API route — checked directly, not estimated.**
+OpenRouter's `/api/v1/models/meta-llama/llama-3.1-405b-instruct/endpoints` (and the `:free`
+variant) both return an **empty `endpoints` array**: no provider is currently routed through
+OpenRouter for this model at all, so there is no OpenRouter rate to quote — the previous
+version of this table's "~$0.80–$3.50" range was built from third-party pages found via search
+and should be disregarded. Checking one of those third parties directly compounds the
+problem: DeepInfra's own listing for this exact checkpoint is reported (2026-07 search
+results) to redirect low-demand requests to `NousResearch/Hermes-3-Llama-3.1-405B` — a
+different fine-tune, not the weights this study self-hosts, so even that path would break the
+same-weights isolation principle (§3) if used. **Conclusion: for Llama, self-hosting on vast
+is not merely the preferred option — it is the only verified-available path for the POST leg**
+(`models.yaml`'s own `post_api` fallback entry for this family already carried an
+"availability NOT re-verified for 3.1" caveat; this checks that caveat and it does not clear).
+Re-verify directly (`curl openrouter.ai/api/v1/models/<id>/endpoints`, or query the specific
+third-party provider's own API) if this matters again before B2, rather than trusting a
+search-snippet price.
 
 **Two very different cost regimes, both real:**
 
@@ -197,7 +215,7 @@ paid usage may route to a different backend at a different rate):**
   | Qwen | ≈ $0.40 |
   | Gemma-31B-it | ≈ $0.27 |
   | GLM-4.5 | ≈ $1.62 |
-  | Llama-3.1-405B-Instruct | ≈ $2 – $9 |
+  | Llama-3.1-405B-Instruct | **N/A — no viable route, see above** |
 
   Cheap, but **not what Study A/B's design otherwise specifies**: the live protocol is
   reasoning-ON (`elicit_post.py`'s own docstring flags disabling reasoning as a *different*,
@@ -216,10 +234,11 @@ paid usage may route to a different backend at a different rate):**
 
 **Verdict for B2:** self-hosting all legs on vast remains the primary plan — it is the only
 path that measures reasoning-ON pre AND post in the identical channel/scaffold (the isolation
-principle in §3), and the PRE leg needs the box regardless. The API alternative is offered as
-a **cost-reduction option specifically for large families' POST leg** (skip the ~810 GB
-instruct-weights download) if the user wants to trade some cross-leg isolation for savings —
-a call for the user to make at the B1→B2 gate, not a default.
+principle in §3), and the PRE leg needs the box regardless. The API alternative is a real
+**cost-reduction option for Qwen/Gemma/GLM's POST leg** (skip the instruct-weights download)
+if the user wants to trade some cross-leg isolation for savings. **For Llama it is not an
+option at all** — no verified route exists — so Llama's full B2 cost (~$70–100, both legs,
+8×H200) stands unconditionally if llama31 stays in scope.
 
 ### 7b. Why "Llama" was ruled out — and why that Llama is not this Llama
 
