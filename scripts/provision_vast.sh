@@ -61,10 +61,15 @@ case "$cmd" in
     # The reasoning parser is FAMILY-SPECIFIC: Qwen's post thinks natively (qwen3 parser);
     # Gemma 4 has no separate reasoning control, so its post leg is served plain.
     EXTRA=""
+    # Serving flags that apply to BOTH legs (architecture, not variant):
+    case "$MODEL" in
+      zai-org/GLM-*)  EXTRA="--enable-expert-parallel" ;;  # MoE (355B-A32B): EP per models.yaml serving block
+    esac
     if [ "$VARIANT" = "post" ]; then
       case "$MODEL" in
-        Qwen/*|qwen/*)             EXTRA="--reasoning-parser qwen3" ;;
-        google/gemma-*|*/gemma-*)  EXTRA="" ;;
+        Qwen/*|qwen/*)             EXTRA="$EXTRA --reasoning-parser qwen3" ;;
+        google/gemma-*|*/gemma-*)  : ;;
+        zai-org/GLM-*)             : ;;  # raw /v1/completions driver — no chat reasoning parser needed
         *) echo ">> NOTE: no reasoning parser configured for $MODEL post leg; serving plain" >&2 ;;
       esac
     fi
