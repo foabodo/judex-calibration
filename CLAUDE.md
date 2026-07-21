@@ -66,8 +66,9 @@ channel, retained unedited as the logit-era record; never reuse its constants (b
 [1.60, 4.88], anchor 2.794, λ 0.35). Architecture + R0 evidence:
 `docs/verbalized_calibration_plan.md` + `docs/verbalized_r0_analyses_2026_07_21.md`
 (+ `scripts/verbalized_reframe_r0.py`). Post-run driver for the sweep:
-`scripts/e6_r3_arms.py` (arms 1/2/3a/3b; arm 4 = `study_b.analyze_confidence` on extracted
-per-seat confidence). Study B data: `runs/study_b_*` (gitignored, this Mac);
+`scripts/e6_r3_arms.py` (**all four arms** + across-band profile + E6 exhibit blocks +
+concurrence table + `--selftest` regression gate — upgraded 2026-07-21 r3 overhaul;
+arm 4 is computed by the driver, no manual step). Study B data: `runs/study_b_*` (gitignored, this Mac);
 results of record `docs/study_b_results_2026_07_20.md`. Both papers carry the contribution
 (synthesis-validation v6 `4fc1e94`; core v3 `4eca63d`). Next paid step = the on-pair E6
 sweep (~$445, user-gated; umbrella `spec/runbook_2026_07_20_e6_onpair_sweep.md`).
