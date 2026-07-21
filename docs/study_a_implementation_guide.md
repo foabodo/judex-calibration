@@ -277,10 +277,29 @@ For each family, against AIReg GT, fit **both** objectives (we proved neither is
 - **Document-clustered bootstrap** (reuse the pattern; resample the 24 docs) CIs on `τ_oc` and on the cross-family spread.
 - **Decision rule:** if `τ_oc` clusters tightly *and* the bases clear the accuracy gate, adopt `median(τ_oc)` as the transferred constant for the closed evaluators. `study_a.calibration_block()` emits a drop-in `pipeline.yaml → calibration` block (`mode: temperature`; written to `runs/<run>/pipeline_calibration_block.json`). **Seam note:** the merged `pipeline.yaml` calibration seam is **global** (applied at the Phase-1 gleaning site to whichever families run, no `family_id`). At evaluation time those families are the two **closed** evaluators (now **Claude + GPT**) — the open annotator raters run only at *construction* and are never calibrated here — so for the intended case (two closed families + one clustered constant) pasting the block into the top-level `calibration` key is **adequate**. **Family-scoping is an optional refinement**, needed only if τ_oc doesn't cluster (per-family T), if an arm runs a different evaluator pair, or to move the correction to Phase-3; it is specified in `docs/integration_remediation_2026_07_01.md` (a separate, approved evaluator change, relevant only at this Phase-4 decision). Else, report negative. **§4.8 (E6) extends this Q4 check into the rescoped core paper's demonstration leg** — run it off the same Phase-4 artifacts. **OUTCOME (2026-07-19): Q3-NEGATIVE — the adoption path is CLOSED.** Gate-passing τ_oc = {qwen 1.60, llama31 1.86, gemma31 4.88} (GLM's τ_oc EXCISED 2026-07-20 — its base leg fails the resolution-primary gate, so the value is a bad-reference artifact; umbrella `spec/amendment_2026_07_20_band_glm_excision.md`): max/min 3.05 > the adopted ≤2 stopping rule ⇒ `median(τ_oc)` is never adopted and any emitted `pipeline_calibration_block.json` is do-not-paste. Q4 survives in **range-robust** form: on the off-pair legacy run, *every* τ in the gate-passing panel range improves Reliability without Resolution/RPS damage — benefit band (1.00, 22.8] ⊇ [1.60, 4.88], doc-clustered bootstrap coverage 0.965 (`spec/analysis_2026_07_19_q4_range_robustness.md` + its 2026-07-20 amendment block, umbrella; sweep instrument `scripts/q4_range_robustness.py`, merged to develop). E6's mechanism is therefore the supervised T\* + pre-registered sensitivity band — see §4.8 (updated).
 
+> **SUPERSEDED IN INFLUENCE (2026-07-21, user-directed verbalized-first reframe):** the
+> clustering methodology of this section was re-executed in the **production verbalized
+> channel** (Study B), where the clustering gate **PASSES** (τ_v ratio 1.346 ≤ 2 over the
+> adoption panel {qwen, gemma31, glm, maverick}); the project's calibration mechanism is now
+> the transferred verbalized constant **T_J = 1.153** with band **[1.03, 1.38]** under
+> protocol r3 (`docs/e6_onpair_decision_protocol_r3.md`, ADOPTED 2026-07-21). This section
+> remains the Study A (token-logit) record; its Q3-negative is retained in both papers as
+> the channel-selection negative result. See `docs/verbalized_calibration_plan.md`.
+
 ### 4.7 Decorrelated dispersion (exploratory extension — see §0)
 Add the base-model distributions to the dispersion replicate pool for the closed evaluators (a *decorrelated, well-calibrated* reference, fixing the correlated-overconfidence blindness) and re-run `dispersion_calibration_recovery` on the existing `stage9-gemini-gpt-medium` / `phase23-deference-fix-native` runs. **Pitfall:** do not match the evaluator's *width* to a base model's width (a well-calibrated weak model is appropriately wide; copying it over-widens). Use base disagreement only as *added dispersion*. **OUTCOME (2026-07-19): RAN, POSITIVE CONTROL** — the 3-base pool recovers 66–97% of the supervised RPS improvement on both legacy closed runs and reproduces the supervised family ordering exactly on the four open post variants (Kendall +1.0); magnitude stays basin-scale, entropy matching blind to location error. Per the paper (develop `f7b5706`) it enters E6 as the **GT-free triangulator** — concurrence = an unsaturated fit landing inside the on-pair benefit band; divergence is published, not reconciled. `mode: dispersion` remains NOT promoted (needs the fresh on-pair sweep).
 
 ### 4.8 E6 — the distributional-utility demonstration leg (2026-07-17 addendum)
+
+> **SUPERSEDED (2026-07-21):** this section's correction mechanism (accuracy-gated
+> supervised T\* wrapped in the [1.60, 4.88] band) and its governing protocol (r2) are
+> retired with the logit channel. E6's mechanism is now the transferred verbalized
+> constant T_J = 1.153 under **protocol r3** (`docs/e6_onpair_decision_protocol_r3.md`,
+> ADOPTED 2026-07-21; four-arm architecture in `docs/verbalized_calibration_plan.md`;
+> post-run driver `scripts/e6_r3_arms.py`). The exhibits below that are
+> channel-independent (argmax-invariance/tie handling, E6.4's decision-endpoint delta,
+> the E2-half build note) carry over unchanged; the section is otherwise the logit-era
+> record — do not execute its mechanism steps.
 
 **Context.** The rescoped judex-core paper carries an experiment battery proving
 the material distinction between discrete and distributional labels (umbrella
