@@ -1,123 +1,120 @@
-# Study B results — verbalized-channel pre/post calibration campaign (2026-07-20/21)
+# Study B results — verbalized-channel pre/post calibration campaign (2026-07-20/21, FINAL)
 
 Executed under the approved design (`docs/study_b_design.md`, full-contract amendment) plus
-two user-directed extensions: the Gemma post re-collection via 16-bit API (2026-07-21) and
-the GLM-4.5 extension (§7 amendment; collected in a parallel session, `1cb98cd`). All vast
-legs self-hosted vLLM bf16, k=5 full-contract few-shot, workers 8, temperature 0, 120 AIReg
-cells each; the one API leg is OpenRouter pinned to 16-bit providers (all 120 cells served
-OpenInference @ bf16 — the study's own precision). Per-cell artifacts in gitignored
-`runs/study_b_{qwen,gemma31,gemma31_api,llama31,glm}/`; reports of record are each dir's
-`study_b_report.json` + `runs/study_b_cross/study_b_cross_family.json` (five-way merge).
-All boxes destroyed after Mac-side verification. Total spend ≈ $200–250 (llama31's and
-GLM's 8×H200 boxes dominate; the API leg cost ≈ $0.60).
+three user-directed extensions: the Gemma-31B post re-collection via 16-bit API, the GLM-4.5
+extension (§7 amendment; parallel session, `1cb98cd`), and the Study-A-failures retest
+(Gemma-4-26B-A4B + Llama-4-Maverick, incl. a 26B API re-collection after its own raw-channel
+collapse). All vast legs self-hosted vLLM bf16, k=5 full-contract few-shot, workers 8,
+temperature 0, 120 AIReg cells each; API legs are OpenRouter pinned to 16-bit providers with
+fallbacks disabled (gemma31: 120/120 OpenInference @ bf16; gemma26: 120/120 DekaLLM @ bf16).
+Per-cell artifacts in gitignored `runs/study_b_*/`; the report of record is
+`runs/study_b_cross/study_b_cross_family.json` (eight-way merge). All boxes destroyed after
+Mac-side verification. Total campaign spend ≈ **$280–370** (four 8×H200 model-pairs dominate:
+llama31, glm, maverick ×2 boxes each; API legs ≈ $1.20 combined).
 
-## B-Q1 — can the models emit the full production contract? YES, and gate outcomes are CHANNEL-BOUND
+## B-Q1 — full-contract emission: YES across the board, and gate outcomes are CHANNEL-BOUND
 
 Contract-complete rate (gate ≥ 0.90), full six-field 0.2.0 tier:
 
 | Family | PRE (base) | POST (instruct) | Channel note |
 |---|---|---|---|
 | Qwen3.5-35B-A3B | **91.7% PASS** | **95.8% PASS** | vast raw-completions |
-| Gemma-4-31B | **100% PASS** | raw-completions **30.8% FAIL** → chat-API bf16 **93.3% PASS** | reversal ① |
+| Gemma-4-31B | **100% PASS** | raw **30.8% FAIL** → chat-API bf16 **93.3% PASS** | reversal ① |
+| Gemma-4-26B-A4B | **95.0% PASS** (capability-weak, see below) | raw **0.83% FAIL** → chat-API bf16 **100% PASS** | reversal ①′ |
 | Llama-3.1-405B | **95.0% PASS** | **98.3% PASS** | vast raw-completions |
-| GLM-4.5 (extension) | **96.7% PASS** | **92.5% PASS** | reversal ② |
+| Llama-4-Maverick | **98.3% PASS** | **98.3% PASS** | reversal ③ — clean BOTH legs |
+| GLM-4.5 | **96.7% PASS** | **92.5% PASS** | reversal ② |
 
-The load-bearing feasibility unknown resolves POSITIVE — pretrained bases emit the full
-contract at 92–100%, all parsed emissions on the 0.05 grid, failures all-or-nothing.
+Structural findings:
 
-**The campaign's sharpest structural finding is a pair of opposite-direction reversals
-showing that gate outcomes track the CHANNEL, not the weights:**
-
-- **Reversal ① (Gemma-4-31B-it):** under greedy raw-completions continuation the instruct
-  twin collapses into a repetition loop (`{"findings": [{"` then "la la la…"; diagnostic in
-  `runs/study_b_gemma31/diagnostics_post_failures.json`) — 30.8% FAIL. The same weights
-  under the chat template emit 93.3% complete contracts with the **best post argmax of the
-  panel (0.678)**. The recorded vast failure stands as the raw-channel result; the API pair
-  lives in `runs/study_b_gemma31_api/` (channel `verbalized_api_chat`, confound-labeled).
-- **Reversal ② (GLM-4.5 base):** the family whose token-slice gate failure drove the
-  2026-07-20 band amendment **passes both verbalized gates** — 96.7% contract-complete,
-  argmax 0.543 (best BASE of the panel), resolution 0.047, T_rps 2.55 finite. Its Study A
-  exclusion was a fact about the logit channel, not about the model's compliance judgement.
+- **Raw-completions post-leg collapse is a Gemma-4 family trait, not a size accident:**
+  31B-it degenerates at 30.8% and 26B-A4B-it near-totally at 0.83% (same signature —
+  `{"findings": [{"` then repetition; `no_json_object` dominant), and BOTH reverse
+  completely under the chat template (93.3%, 100%). No other family's instruct twin shows
+  it (Qwen 95.8, Llama-3.1 98.3, Maverick 98.3, GLM 92.5 — all on raw completions).
+- **Study A's token-slice gate failures do not transfer to the verbalized channel — with one
+  partial exception.** All three retested Study A failures pass the verbalized CONTRACT
+  gate: Maverick cleanly on both legs (base argmax 0.325, resolution 0.038, finite T);
+  GLM's base is the best base of the panel (0.543 / 0.047); but **Gemma-26B-A4B's base,
+  while 95% contract-compliant, stays capability-weak** — resolution 0.0134 (below the
+  0.0197 that failed Maverick in Study A) and argmax 0.298 (< the 0.333 majority floor).
+  Under the inherited resolution-primary gate its base FAILS on capability, the one case
+  where Study A's verdict partially survives the channel switch: the model can emit the
+  form but not the discrimination. Its τ_v is therefore excluded from the gate-passing set.
 
 ## B-Q2 — τ_v (verbalized pre→post overconfidence temperature)
 
 | Family | τ_v | status |
 |---|---|---|
-| Qwen | 1.2811 | clean fit, in-mode |
-| Llama-405B | 1.0252 | clean fit, in-mode |
-| GLM-4.5 | 1.0252 | clean fit, in-mode (extension) |
-| Gemma-31B | 1.0252 | cross-mode (vast pre × API post) — confound-labeled |
+| Qwen | 1.2811 | clean, in-mode |
+| Llama-3.1-405B | 1.0252 | clean, in-mode |
+| GLM-4.5 | 1.0252 | clean, in-mode (extension) |
+| Llama-4-Maverick | 1.3798 | clean, in-mode (extension) |
+| Gemma-31B | 1.0252 | cross-mode (vast pre × API post), confound-labeled |
+| Gemma-26B | 1.1894 | EXCLUDED — base fails resolution-primary (weak reference) |
 
-(The vast Gemma pair's 1.8571 is excluded: gate-failing selected sample.) ε-sensitivity
-(pre-registered, once, on B1): τ_v(qwen) stable at 1.281 for ε ∈ {0.001, 0.005}.
+ε-sensitivity (pre-registered, once, on B1): τ_v(qwen) stable at 1.281 for ε ∈ {0.001, 0.005}.
 
-## B-Q3 — τ_v clusters, robustly
+## B-Q3 — τ_v clusters at every panel width
 
-- **Pre-registered verdict (original gate-passing set, n=2):** {qwen 1.281, llama31 1.025}
-  → ratio **1.25 ≤ 2, rule PASSES.**
-- **Extension read:** in-mode n=3 {qwen, llama31, glm} → ratio **1.25**; with the
-  cross-mode Gemma point, n=4 → ratio **1.25**. Three families sit on the same grid point
-  (1.0252) with Qwen mildly above. The survivorship concern raised at n=2 is now largely
-  dissolved: BOTH families that were missing (gemma via channel failure, glm via the old
-  token-slice gate) cluster once measured in a channel they can emit in.
-- **Channel comparison:** τ_v < τ_oc for every family — qwen 1.28 vs 1.60, llama31 1.03 vs
-  1.86, gemma31 1.03 (cross-mode) vs 4.88, glm 1.03 vs excised. The verbalized channel
-  carries systematically less pre→post overconfidence than the token-slice channel
-  (consistent with the 2(c) grid-quantization/entropy audit); three of four families are
-  essentially uninflated verbally. Parallel measurements, never conversions.
+- **Pre-registered verdict (original set, n=2):** ratio 1.25 ≤ 2 — **PASSES**.
+- **Extension reads:** in-mode n=4 {qwen, llama31, glm, maverick} → ratio **1.346**;
+  with cross-mode gemma31, n=5 → **1.346**. (Including even the excluded gemma26 value
+  would not change the ratio — 1.189 is interior.) Every family measurable in this channel
+  lands in [1.03, 1.38]: a genuinely tight verbalized-overconfidence band, against Study A's
+  token-slice ratio of 3.05 on the same panel lineages.
+- **Channel comparison:** τ_v < τ_oc for every family with both measurements (1.28 vs 1.60;
+  1.03 vs 1.86; 1.03 vs 4.88-excised; extensions never had valid τ_oc). The verbalized
+  channel is systematically flatter (consistent with the 2(c) grid-quantization audit).
 
-No constant is adopted into any config from these results (report-only, per the design).
+No constant is adopted into any config (report-only).
 
-## B-Q4 — verbalized confidence: universally overconfident in LEVEL; calibratable with heterogeneous signal quality
+## B-Q4 — verbalized confidence: universal LEVEL overconfidence; a signal-quality spectrum
 
-Stated confidence overstates correctness everywhere: mean p̂(C) vs realized argmax-accuracy
-= 0.833/0.602 (qwen), 0.950/0.678 (gemma-API), 0.715/0.483 (llama31), 0.779/0.595 (glm).
+Stated confidence overstates correctness everywhere — mean p̂(C) vs realized accuracy:
+0.833/0.602 (qwen), 0.950/0.678 (gemma31-API), 0.945/0.575 (gemma26-API), 0.715/0.483
+(llama31), 0.779/0.595 (glm), 0.755/0.500 (maverick).
 
-Pre-registered verdict (doc-clustered LODO, ΔBrier CI excluding 0) + peg discipline:
-
-| Post leg | T_c (full) | folds | LODO ΔBrier [CI] | verdict | Kendall τ_b(s, W1) |
+| Post leg | T_c (full) | folds | LODO ΔBrier [CI] | Kendall τ_b(s,W1) | reading |
 |---|---|---|---|---|---|
-| Qwen | 4.877 | 3.9–6.1, none peg | −0.052 [−0.090, −0.013] | **calibratable** | −0.174 (right sign) |
-| Gemma-API | 4.528 | 4.2–5.25, none peg | −0.069 [−0.111, −0.028] | **calibratable** | −0.169 (right sign) |
-| GLM | 8.835 | 7.1–12.8, none peg | −0.058 [−0.104, −0.006] | calibratable, **level-only** | −0.014 (≈ 0) |
-| Llama-405B | **20.0 PEG** | folds hit bound | −0.071 [−0.108, −0.034] | fires, but **degenerate** | +0.069 (wrong sign) |
+| Gemma-31B-API | 4.528 | 4.2–5.25 | −0.069 [−0.111, −0.028] | −0.169 | **calibratable w/ signal** |
+| Qwen | 4.877 | 3.9–6.1 | −0.052 [−0.090, −0.013] | −0.174 | **calibratable w/ signal** |
+| Maverick | 7.070 | 5.7–11.0 | −0.058 [−0.099, −0.013] | −0.095 | calibratable, weak signal |
+| GLM | 8.835 | 7.1–12.8 | −0.058 [−0.104, −0.006] | −0.014 | level-only |
+| Gemma-26B-API | 12.808 | 9.5–20.0 (a fold pegs) | −0.132 [−0.211, −0.050] | −0.022 | level-only, unstable folds |
+| Llama-3.1-405B | **20.0 PEG** | at bound | −0.071 [−0.108, −0.034] | +0.069 | degenerate flattening |
 
-Honest stratification: **Qwen and Gemma are the real confidence-calibration story** — two
-interior temperatures that agree (4.877 vs 4.528, **ratio 1.08**), stable folds, right-sign
-per-cell error association. **GLM** adds a third interior fit and the three-way interior
-ratio is 1.95 (≤ 2), but its association is ≈ zero: its stated confidence carries a
-correctable LEVEL bias and no per-cell ranking signal — a level-only calibration.
-**Llama31's** peg is degenerate base-rate flattening (never adoptable). So the panel spans
-the full spectrum: informative-and-calibratable (qwen, gemma), level-only (glm),
-uninformative (llama). No shared confidence constant is adopted — but the qwen↔gemma
-agreement is a reportable regularity, and the interior-T_c ratio landing inside the ≤2 form
-is worth carrying to the paper as an exploratory observation (NOT a pre-registered pass;
-the B-Q3 rule was registered for τ_v, not T_c). Router value (E2's S09 framing) mirrors the
-association column: modest for qwen/gemma, absent for glm/llama; AURC is unmoved by T_c
-everywhere (monotone-ish map).
+The six-leg panel resolves into a clean gradient: **fitted T_c magnitude rises as per-cell
+association quality falls** (4.5–4.9 with real signal → 7–13 with weak-to-none → the peg
+with wrong-sign). The two signal-bearing temperatures agree tightly (ratio 1.08). The
+practical reading for any future application: the LODO "calibratable" verdict alone is
+insufficient — it fires even for pure base-rate flattening; the association diagnostic is
+the adoption bar. No shared confidence constant exists (interior-T_c spread 4.5→12.8);
+router value tracks the association column.
 
 ## Implications for the closed pair (report-only)
 
-The production channel's own pre→post overconfidence is small and clustered (three families
-at ≈1.03, one at 1.28) — well below the token-slice τ_oc values that motivated the
-[1.60, 4.88] band. This does not amend the band (closed-pair supervised territory under the
-adopted composite protocol); it is off-pair evidence that verbalized emissions are flatter
-than logits. On confidence: a per-family level-bias correction is learnable and two of four
-families agree on its magnitude, but signal quality is family-heterogeneous — any
-closed-pair application needs on-pair contract outputs (the E6 sweep) and its own fit, with
-the association diagnostic (not just the LODO verdict) as the adoption bar. Protocol
-changes remain user decisions; recommendation unchanged: per-family fit only, never
-transferred.
+The production channel's own pre→post overconfidence is small and tightly banded
+([1.03, 1.38]) — well below the token-slice values behind the [1.60, 4.88] band, which is
+unaffected (closed-pair supervised territory under the adopted composite protocol). The
+Gemma-4 raw-continuation pathology is irrelevant to the closed pair (chat-API-served) but
+matters for any future open-model verbalized measurement: **serve instruct models through
+their chat template.** Confidence: level-bias correction is learnable per-family; adoption
+bar = association diagnostic, not the LODO verdict. Protocol changes remain user decisions.
 
 ## Deviations from plan
 
-- GLM exclusion (B0 review) was REVERSED by the user (design §7 amendment) after the
-  llama31 T_c peg; collected as a labeled extension in a parallel session (`1cb98cd`),
-  both legs self-hosted per the amended terms.
-- The all-self-hosted decision was amended by the user for ONE leg (Gemma post) after the
-  raw-channel collapse: 16-bit API re-collection, confound-labeled; the vast failure leg
-  stands as the raw-channel record.
-- One diagnostic addition: a labeled 2-cell re-elicitation of the Gemma vast-post failures
-  to capture raw text (stored separately; the recorded failures stand).
+- GLM exclusion REVERSED by the user (§7 amendment); collected in a parallel session.
+- The all-self-hosted decision was amended by the user for the two Gemma post legs after
+  their raw-channel collapses (16-bit API re-collection, confound-labeled; the vast failure
+  legs stand as the raw-channel record).
+- Study-A-failures retest (gemma26 + maverick) added by user direction 2026-07-21; the
+  archived Maverick serving spec (8×H100-80, $60) was found infeasible (803 GB bf16 weights
+  > 640 GB VRAM) and re-provisioned on 8×H200.
+- One mid-leg crash (OpenRouter HTTP-200 error body without `choices`) recovered via the
+  checkpoint/resume discipline after a transport-retry patch (`4c2eab8`); 26 cached cells
+  reused, none re-elicited.
+- A labeled 2-cell diagnostic re-elicitation of the Gemma-31B vast-post failures (raw text
+  capture; recorded failures stand).
 - No pre-registered quantity was altered; extension reads are reported alongside, never in
   place of, the pre-registered verdicts.
