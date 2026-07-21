@@ -62,10 +62,19 @@ LEGS = {
     "glm":         ("runs/study_b_glm", "in_mode"),
     "maverick":    ("runs/study_b_maverick", "in_mode"),
 }
-# The arm-1 gate-passing sets (study_b_results 2026-07-20 + the gemma26 capability
-# exclusion): in-mode n=4 is primary; +gemma31_api is the n=5 channel-labeled extension.
-GATE_IN_MODE = ["qwen", "llama31", "glm", "maverick"]
-GATE_WITH_API = GATE_IN_MODE + ["gemma31_api"]
+# The arm-1 adoption panel (USER DECISION 2026-07-21): {qwen, gemma31, glm, maverick}.
+# gemma31's measurement is the chat-template collection (study_b_gemma31_api) — the
+# vLLM greedy-continuation collapse is a serving pathology, not a property of the
+# weights, so the chat-template leg IS the family's tau_v; the serving transport is
+# provenance (leg meta sidecars), not a headline caveat. llama31 is EXCLUDED from
+# every adoption-relevant set by the same decision (accumulated instrument anomalies
+# — sole wrong-sign B-Q4 association with a pegged T_c — carry caveat burden
+# disproportionate to its contribution). The exclusion is numerically inert: its
+# tau_v (1.025) duplicates gemma31's grid point, so the multiset {1.025, 1.025,
+# 1.281, 1.380} — and with it the median, band, and cluster ratio — is unchanged.
+# Decided before any on-pair data exists (pre-hoc for adoption).
+PANEL = ["qwen", "gemma31_api", "glm", "maverick"]
+PANEL_SENSITIVITY_PLUS_LLAMA31 = PANEL + ["llama31"]  # sensitivity read only
 # gemma26_api passes the contract gates but its BASE fails the capability floor
 # (resolution 0.0134) => weak-reference, excluded from every adoption set.
 CAPABILITY_EXCLUDED = ["gemma26", "gemma26_api"]
@@ -315,7 +324,7 @@ def load_closed_replicates(eval_runs: Path, cells) -> dict:
 
 # --------------------------------------------------------------- C. tau_DACA
 def daca_prototype(views, closed_preds, cells, tau_transfer: float) -> dict:
-    refs = {f: views[f][0] for f in GATE_WITH_API}           # floored BASE legs
+    refs = {f: views[f][0] for f in PANEL}                   # floored BASE legs
     proto_pairs = [(dist(p, {c.item_label: c for c in cells}, lb),
                     ComplianceDistribution.from_values(
                         next(c for c in cells if c.item_label == lb).gt_probs,
@@ -333,7 +342,7 @@ def daca_prototype(views, closed_preds, cells, tau_transfer: float) -> dict:
                  "rides the E6 on-pair sweep."),
         "T_supervised_prototype_15_items": T_sup_proto,
         "T_supervised_prototype_saturated": saturated(T_sup_proto),
-        "reference_channel_labels": {f: views[f][2] for f in GATE_WITH_API},
+        "reference_serving_provenance": {f: views[f][2] for f in PANEL},
     }
     return tri
 
@@ -348,7 +357,7 @@ def dispersion_pool(views, cells, cells_by_label, closed_preds, closed_reps) -> 
     against the logit band [1.60, 4.88]; carrying them into this channel would be
     an unfrozen retune. Raw fits only; the anchor/lambda re-derivation is R1.
     """
-    pools = {"P4_in_mode_bases": GATE_IN_MODE, "P5_plus_gemma31_api": GATE_WITH_API}
+    pools = {"P4_panel_bases": PANEL, "P5_sensitivity_plus_llama31": PANEL_SENSITIVITY_PLUS_LLAMA31}
     out = {}
     for name, fams in pools.items():
         bases = {f: views[f][0] for f in fams}
@@ -383,7 +392,7 @@ def dispersion_pool(views, cells, cells_by_label, closed_preds, closed_reps) -> 
                                            bounds=T_BOUNDS)
         out[name] = {
             "members": fams,
-            "channel_labels": {f: views[f][2] for f in fams},
+            "serving_provenance": {f: views[f][2] for f in fams},
             "n_common_cells": len(common),
             "pool_mixture_entropy_mean_nats": h_all,
             "pool_entropy_ok_vs_logit_era_floor_1.00": h_all >= 1.00,
@@ -421,9 +430,9 @@ def main() -> None:
         pre, post = load_leg(REPO / rel)
         views[fam] = (floored_view(pre), floored_view(post), channel)
 
-    gate_sets = {"in_mode_n4": GATE_IN_MODE, "with_api_n5": GATE_WITH_API}
+    gate_sets = {"panel_n4": PANEL, "sensitivity_plus_llama31_n5": PANEL_SENSITIVITY_PLUS_LLAMA31}
     lofo = lofo_transfer(views, cells, cells_by_label, gate_sets)
-    tau_transfer = lofo["in_mode_n4"]["median_interpolated"]
+    tau_transfer = lofo["panel_n4"]["median_interpolated"]
 
     closed_preds = load_closed_predictions(eval_runs)
     closed_reps = load_closed_replicates(eval_runs, cells)

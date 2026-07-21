@@ -34,15 +34,32 @@ analysis). Study B repeated the same design in the **production channel** and th
 same methodology came back alive:
 
 - τ_v (W1-aligned post→pre inverse-softmax temperature on ε-floored verbalized
-  vectors) ∈ [1.025, 1.380] over the gate-passing panel, none saturated;
-- clustering **passes**: max/min = 1.346 ≤ 2 at n=4 in-mode ({qwen 1.281, llama31
-  1.025, glm 1.025, maverick 1.380}), n=5 adding gemma31_api's cross-mode 1.025;
+  vectors) ∈ [1.025, 1.380] over the adoption panel, none saturated;
+- clustering **passes**: max/min = 1.346 ≤ 2 over the panel **{qwen 1.281, gemma31
+  1.025, glm 1.025, maverick 1.380}** (membership fixed by user decision
+  2026-07-21 — see the panel provisions below);
 - gate outcomes track the channel, not the weights (all three Study A gate failures
   re-tested: two reverse cleanly, one — gemma26 — is the lone partial corroboration
   and is capability-excluded);
 - the closed pair natively emits this channel, so a verbalized-derived constant is
   **channel-matched** to the evaluators it would correct — the transport
   impossibility that blocked Study A's Q4 simply does not arise.
+
+Panel provisions (user decision 2026-07-21):
+
+- **gemma31's τ_v is its chat-template collection.** The greedy-continuation
+  collapse under vLLM is a Gemma-4 serving pathology, not a property of the
+  weights; the chat-template leg is the family's measurement. The serving
+  transport is recorded once in methods/leg-meta provenance and is **not**
+  carried as a headline distinction in tables or downstream analyses.
+- **llama31 is excluded from every adoption-relevant set.** Its accumulated
+  instrument anomalies (notably the sole wrong-sign B-Q4 confidence association
+  with a pegged T_c) would attach a caveat chain to every downstream use. The
+  exclusion is recorded in methods as a panel-membership decision and is
+  **numerically inert**: llama31's τ_v (1.025) duplicates gemma31's grid point,
+  so the panel multiset, median, band, and cluster ratio are unchanged. Decided
+  before any on-pair data exists (pre-hoc for adoption). llama31 remains
+  measured evidence in the phenomenon-level analyses (R0 §A).
 
 Narrative position (user-directed): Study A appears exactly once in the
 contribution's story, as **the channel-selection negative result** — logits are the
@@ -52,12 +69,12 @@ right channel. (Provenance stays factual everywhere; see §6.)
 
 Honesty clauses that ride with the premise (from R0 analysis A):
 
-- The 60-pt log grid does not contain 1.0 (neighbors 0.952 / 1.025); three of five
-  gate-passing τ_v are the first grid point above 1. "All τ_v ≥ 1" therefore reads:
-  no family under-confident, two clearly sharpened.
+- The 60-pt log grid does not contain 1.0 (neighbors 0.952 / 1.025); two of the four
+  panel τ_v are the first grid point above 1. "All τ_v ≥ 1" therefore reads:
+  no family under-confident, two (qwen, maverick) clearly sharpened.
 - Post-training sharpening is a **subpopulation phenomenon**: τ_v ≈ 1 wherever
   post/pre modes agree, 2.7–4.2 where they disagree; the scalar entropy flip in
-  llama31/maverick is stratum composition, not a contradiction. The W1-aligned and
+  maverick (and non-panel llama31) is stratum composition, not a contradiction. The W1-aligned and
   entropy-matched temperatures are different estimands; the production system is
   W1/RPS-scored, so the W1-aligned one is metric-matched.
 - The in-channel correction is **modest** (oracle tempering gain ≈ 1% of the
@@ -76,26 +93,26 @@ pre-registered in `study_b_design.md` §4:
 2. **Resolution-primary capability floor** (Murphy resolution > 0 with margin, both
    legs) — gemma26's base fails this (0.0134) and its τ_v is excluded as
    weak-reference, permanently;
-3. **Clustering max/min ≤ 2** over the gate-passing families — PASSES (1.346);
+3. **Clustering max/min ≤ 2** over the panel families — PASSES (1.346);
 4. **No peg** — any `T_BOUNDS`-boundary temperature is a boundary artifact, never
    adoptable.
 
 Candidate constant and band:
 
-- gate-passing τ_v: in-mode n=4 {1.025, 1.025, 1.281, 1.380}; n=5 with gemma31_api
-  (cross-mode, channel-labeled) adds 1.025;
-- **verbalized sensitivity band [1.03, 1.38]** (the gate-passing range) — note it
+- panel τ_v: {qwen 1.281, gemma31 1.025, glm 1.025, maverick 1.380} — multiset
+  {1.025, 1.025, 1.281, 1.380};
+- **verbalized sensitivity band [1.03, 1.38]** (the panel range) — note it
   does not even overlap the logit-era band [1.60, 4.88]; that contrast is the paper
   exhibit;
 - the numeric median is **convention-dependent and must be frozen in protocol r3
-  before on-pair data exists**: interpolated 1.153 / study_a upper-median 1.281 on
-  n=4; 1.025 on n=5. R0's LOFO check (analysis B) shows every convention lands
-  within the band of every held-out family (max |log ratio| 0.297), transfer is
-  safe (worst case ≈ 1.9% W1 cost) and modestly beneficial GT-side, so the
-  convention choice is not outcome-critical — but it is exactly the kind of degree
-  of freedom that must be closed pre-hoc. Recommendation to take into r3: the
-  **interpolated median on the in-mode n=4 set (1.153)**, with the n=5 value (1.025)
-  reported as channel-sensitivity.
+  before on-pair data exists**: interpolated 1.153 / study_a upper-median 1.281.
+  R0's LOFO check (analysis B) shows every convention lands within the band of
+  every held-out family (max |log ratio| 0.297), transfer is safe (worst case
+  ≈ 1.9% W1 cost) and modestly beneficial GT-side, so the convention choice is not
+  outcome-critical — but it is exactly the kind of degree of freedom that must be
+  closed pre-hoc. Recommendation to take into r3: the **interpolated median on the
+  panel (1.153)**; the +llama31 sensitivity read (median 1.025, also in-band) is
+  reported once in the analyses doc, not carried forward.
 
 Arm-1 adoption is decided on the R1 sweep via `closed_side_check` (reliability
 strictly better, RPS no worse, resolution within tolerance), now well-posed because
@@ -117,22 +134,23 @@ Both logit-era GT-free machines re-run on verbalized data. Their logit-era failu
 do not pre-judge the retry; neither does Study B pre-judge success. Both publish
 either way. R0 prototypes (smoke-grade, 15 closed items) set expectations:
 
-- **τ_DACA-verbalized** (`fit_tau_daca`/`daca_triangulation`, verbalized base
-  references): the R0 prototype does **not** corroborate arm 1 — valid-fit median
-  0.38 (sharpen) vs τ_transfer 1.15 (flatten), two of five references pegged at the
-  lower bound. The suspected mechanism is the familiar reference
-  non-exchangeability, now with sharp verbalized bases vs a hedging production
-  pair. Expectation for R1: the logit-era failure mode is the base case; a real
-  E6-data verdict either way is a publishable data point about GT-free calibration.
-- **Verbalized dispersion pool** (rebuilt from the gate-passing verbalized base
+- **τ_DACA-verbalized** (`fit_tau_daca`/`daca_triangulation`, panel base
+  references): the R0 prototype does **not** corroborate arm 1 — both valid fits
+  {0.28, 0.87} sit below 1 (sharpen) vs τ_transfer 1.15 (flatten), and two of four
+  references peg at the lower bound. The suspected mechanism is the familiar
+  reference non-exchangeability, now with sharp verbalized bases vs a hedging
+  production pair. Expectation for R1: the logit-era failure mode is the base
+  case; a real E6-data verdict either way is a publishable data point about
+  GT-free calibration.
+- **Verbalized dispersion pool** (rebuilt from the panel's verbalized base
   legs): arrives healthy — mixture entropy 1.18 nats (≥ the 1.00 vetting floor),
-  no LOBO fragility (min 1.109), decorrelated by construction and measurement (min
-  pairwise TVD 0.33–0.39; the correlated-internal-pool negative does not recur).
-  Prototype closed-run T_raw **lands inside the verbalized band** bases-only (1.17 /
-  1.26) — the first time a raw pool fit has concurred with the primary arm without
+  no LOBO fragility (min 1.090), decorrelated by construction and measurement (min
+  pairwise TVD ≈ 0.33; the correlated-internal-pool negative does not recur).
+  Prototype closed-run T_raw **lands inside the verbalized band** bases-only
+  (1.28) — the first time a raw pool fit has concurred with the primary arm without
   a shrinkage guard (logit-era raw fits overshot to 7.3–7.8). Two things must be
   frozen in r3 before the sweep: **pool membership** (bases-only vs cfp1-augmented —
-  the augmented variant fits 1.70–1.78, above-band, so this choice is load-bearing
+  the augmented variant fits 1.70–1.75, above-band, so this choice is load-bearing
   in-channel) and the **anchor/λ question** (the logit-era shrinkage constants 2.794
   / 0.35 are dead with their band; either re-derive against [1.03, 1.38] by the same
   frozen rule, or adopt the raw fit with a concurrence criterion — r3 decides).
@@ -144,9 +162,10 @@ B-Q4's one-parameter T_c on the 3-level confidence distribution, with the
 (LODO fires even for base-rate flattening); adoption of any per-family T_c requires
 the confidence signal to carry per-cell information (Kendall τ_b between p̂(C) and
 realized W1, negative with margin). The measured panel resolves into a gradient —
-interior T_c 4.5–4.9 where confidence carries signal (gemma31_api 4.53, qwen 4.88),
-7–13 where weak/level-only (maverick, glm, gemma26_api), a wrong-sign 20.0 peg
-(llama31). Stated confidence is universally overconfident in level (p̂(C) 0.72–0.95
+interior T_c 4.5–4.9 where confidence carries signal (gemma31 4.53, qwen 4.88),
+7–13 where weak/level-only (maverick, glm, gemma26), and a wrong-sign 20.0 peg in
+llama31 (one basis of its panel exclusion — the anomaly stays recorded here as
+measured evidence). Stated confidence is universally overconfident in level (p̂(C) 0.72–0.95
 vs realized 0.48–0.68). R1 application: fit T_c for the closed pair on the E6 sweep,
 apply the same association bar, and report the confidence-channel calibration as the
 novel instrument of the contribution. This also owns the S09-scalar risk surfaced by
@@ -182,10 +201,11 @@ See `docs/verbalized_r0_analyses_2026_07_21.md` for the full record:
 r3 replaces r2's instrument ladder with a verbalized-first one. Open decisions r3
 must close, each currently a free parameter:
 
-1. Median convention for the arm-1 constant (recommended: interpolated, in-mode n=4
-   ⇒ 1.153; n=5 reported as sensitivity).
-2. Gate-passing set identity (in-mode n=4 primary vs n=5 with the channel-labeled
-   API leg).
+1. Median convention for the arm-1 constant (recommended: interpolated, on the
+   panel ⇒ 1.153).
+2. Panel membership — **RESOLVED by user decision 2026-07-21**: {qwen, gemma31,
+   glm, maverick}; llama31 excluded (recorded in §1's panel provisions); r3
+   records the frozen panel.
 3. Pool membership for arm 3b (bases-only vs cfp1-augmented) and the anchor/λ
    question (re-derive vs raw-fit-with-concurrence).
 4. Concurrence criteria: arm-2 T* vs arm-1 constant; pool T_raw vs band; τ_DACA
@@ -208,15 +228,20 @@ amendment: amendments are appended records, not rewrites).
   as motivating the Gemma-31B collection, but its provenance record stays factual;
   the band-amendment history (`17ffd41`/`61da68a`) stays factual; Study B's
   pre-registered n=2 verdict stays distinguished from extension reads (GLM,
-  gemma-API legs, Study-A-failure retests are labeled extensions).
+  gemma chat-template re-collections, Study-A-failure retests are labeled
+  extensions).
 - **Study A artifacts are rescoped, not deleted**: the guide, the r2 protocol, the
   frozen umbrella specs and their amendment chain remain the audit trail; their
   status lines change (see the rewrite map), their content does not.
 - **Smoke discipline**: every closed-side number derived from
   `stage9-claude-gpt-medium` (15 items) is prototype-labeled and non-adoptable.
-- **Channel labels are load-bearing**: gemma31_api/gemma26_api results carry
-  cross-mode labels in every table; gemma26(-api) never enters a gate-passing set
-  (capability-excluded base).
+- **Serving transport is methods-level provenance, not a headline caveat** (user
+  decision 2026-07-21): gemma31's chat-template collection is the family's
+  measurement; leg meta sidecars and the results doc of record keep the full
+  serving facts. The llama31 exclusion is likewise recorded once in methods
+  (panel-membership decision, rationale, numerical inertness) — downstream
+  analyses cite the panel, not the caveat chain. gemma26 never enters an adoption
+  set (capability-excluded base).
 - **No adoption without the user**: no `pipeline.yaml` calibration block, no
   protocol adoption, no spend. The seam stays `mode: noop`.
 - Inherited mechanics: ε = 0.005 before every inverse-softmax op; `T_BOUNDS =
