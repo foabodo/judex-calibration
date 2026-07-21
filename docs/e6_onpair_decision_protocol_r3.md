@@ -1,14 +1,14 @@
 # E6 on-pair sweep — decision protocol r3 (verbalized-first)
 
-**DRAFT r3, 2026-07-21.** The user agreed on 2026-07-21 to proceed to a
-verbalized-first r3 (the reframe mandate + plan
-`docs/verbalized_calibration_plan.md`). **The frozen constants in §0 take effect as
-the protocol of record upon explicit user confirmation of this document; until
-then r2 (`docs/e6_onpair_decision_protocol.md`) remains the adopted protocol.**
-Upon adoption, r3 SUPERSEDES r2 in full; r2 is retained unedited as the logit-era
-record, and its frozen inputs (band [1.60, 4.88], anchor 2.794, λ 0.35, the A1–A4
-pool arm on token-slice bases) are retired with their channel — none of them is
-referenced by any r3 instrument.
+**ADOPTED 2026-07-21 (user confirmation of F1–F8, same day as the draft).** r3 is
+now the protocol of record and SUPERSEDES r2
+(`docs/e6_onpair_decision_protocol.md`) in full; r2 is retained unedited as the
+logit-era record, and its frozen inputs (band [1.60, 4.88], anchor 2.794, λ 0.35,
+the A1–A4 pool arm on token-slice bases) are retired with their channel — none of
+them is referenced by any r3 instrument. Provenance: drafted 2026-07-21 under the
+user's agreement to proceed to r3 (the reframe mandate + plan
+`docs/verbalized_calibration_plan.md`); the frozen constants below were confirmed
+explicitly and close before any on-pair datum exists.
 
 Scope: the decision logic for the held E6 on-pair sweep (Sonnet 4.6 medium + GPT
 5.4 medium, `configs_v2exemplars`, 24 docs × 5 Articles = 120 cells, ~$445,

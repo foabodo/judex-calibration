@@ -17,8 +17,9 @@ Companion documents:
   (§4 pre-registered gates, §6 B-Q4).
 - Paper rewrite map: umbrella
   `spec/plan_2026_07_21_verbalized_first_paper_rewrite_map.md`.
-- Logit-era protocol of record (r2, remains the adopted protocol until r3 is
-  adopted): `docs/e6_onpair_decision_protocol.md`.
+- Adopted protocol: **r3** (`docs/e6_onpair_decision_protocol_r3.md`, adopted
+  2026-07-21); r2 (`docs/e6_onpair_decision_protocol.md`) is the retained
+  logit-era record.
 
 ---
 
@@ -193,17 +194,15 @@ See `docs/verbalized_r0_analyses_2026_07_21.md` for the full record:
   median(τ_v), range-robustness re-run against [1.03, 1.38], and the closed-pair
   confidence fit (arm 4). Prerequisite: **protocol r3 adopted first** (else the
   sweep's degrees of freedom are open when data arrives).
-- **R2 (free)**: protocol r3 finalization for user adoption (**drafted
-  2026-07-21** — `docs/e6_onpair_decision_protocol_r3.md`, awaiting confirmation
-  of F1–F8) + paper rewrite execution per the rewrite map (likely its own
-  handoff).
+- **R2 (free)**: protocol r3 — **ADOPTED 2026-07-21**
+  (`docs/e6_onpair_decision_protocol_r3.md`, F1–F8 user-confirmed) — + paper
+  rewrite execution per the rewrite map.
 
 ## 5. Protocol r3 — decisions to freeze (draft checklist for the user)
 
-**STATUS 2026-07-21: r3 is DRAFTED** — `docs/e6_onpair_decision_protocol_r3.md`
-resolves every item below to a frozen value (F1–F8), following the user's
-agreement to proceed to r3. r2 remains the protocol of record until the user
-confirms r3's constants; the list below is retained as the decision record.
+**STATUS 2026-07-21: r3 is ADOPTED** (user confirmation of F1–F8) —
+`docs/e6_onpair_decision_protocol_r3.md` is the protocol of record, superseding
+r2; the list below is retained as the decision record.
 
 r3 replaces r2's instrument ladder with a verbalized-first one. Open decisions r3
 must close, each currently a free parameter:
@@ -224,9 +223,9 @@ must close, each currently a free parameter:
 7. Failure ladder + terminal position (r2's "band-only, never worse than doing
    nothing" translated to [1.03, 1.38]).
 
-r2 stays the protocol of record until the user adopts r3; r3 will be drafted as a
-separate document in R2, leaving r2's text intact (same discipline as the band
-amendment: amendments are appended records, not rewrites).
+r3 was drafted as a separate document and adopted 2026-07-21, leaving r2's text
+intact (same discipline as the band amendment: amendments and successions are
+appended records, not rewrites).
 
 ## 6. Integrity provisions (non-negotiable, from the mandate)
 
