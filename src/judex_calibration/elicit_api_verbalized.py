@@ -72,7 +72,16 @@ def _chat(key: str, model: str, content: str, max_tokens: int = 4096, timeout: i
             method="POST")
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
-                return json.loads(r.read())
+                out = json.loads(r.read())
+            # OpenRouter can return HTTP 200 with an error body (no 'choices') on
+            # provider hiccups — observed live 2026-07-21 (KeyError crash at cell 27
+            # of the gemma26 leg). Treat as retryable transport noise, same as 5xx.
+            if "choices" not in out:
+                if attempt < retries - 1:
+                    time.sleep(delay); delay = min(delay * 2, 120)
+                    continue
+                raise RuntimeError(f"no 'choices' after {retries} attempts: {str(out)[:300]}")
+            return out
         except urllib.error.HTTPError as e:
             if e.code in (429, 500, 502, 503, 504) and attempt < retries - 1:
                 time.sleep(delay); delay = min(delay * 2, 120)
