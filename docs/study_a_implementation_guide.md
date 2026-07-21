@@ -548,6 +548,16 @@ Record run-ids, fitted `τ_oc`, the Q1–Q4 verdicts, and any negative results i
 
 ## 9. Immediate next step
 
+> **SUPERSEDED (2026-07-21, r3 overhaul):** the step below is the retained
+> logit-era plan. The current next step is the same on-pair sweep (re-quoted
+> **~$445**, umbrella `spec/runbook_2026_07_20_e6_onpair_sweep.md`) but its
+> post-run instruments are protocol **r3**'s
+> (`docs/e6_onpair_decision_protocol_r3.md`, driver `scripts/e6_r3_arms.py` —
+> all four arms + band profile + the tie-aware invariance row).
+> `q4_range_robustness.py` and the supervised-T\*-plus-[1.60, 4.88]-band
+> mechanism named below are retired with the logit channel; do not run them
+> for sweep decisions.
+
 **(Updated 2026-07-19 — Phases 0–2 have RUN; Q3 is NEGATIVE; Phase 3 is skipped; Phase 4 reported negative.)**
 The one remaining paid leg is **Phase 4b: the E6 on-pair sweep** (~$290–330, user-gated): a fresh
 Claude+GPT 120-cell run under `--config-dir configs_v2exemplars`, then E6.1–E6.4 off its artifacts
