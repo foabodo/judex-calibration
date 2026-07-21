@@ -51,9 +51,28 @@ git submodules of the `judex` umbrella:
   (corpus-v2 exemplars, selected per run with `--config-dir configs_v2exemplars`). Study A's
   few-shot is corpus-**v2**, so a Q4/E6 closed-pair run must pass that flag or the closed leg is
   framed on v1 exemplars while the open legs are framed on v2.
-- `judex-calibration` — **Study A** (this repo): open pre/post-pair temperature calibration.
+- `judex-calibration` — **Studies A + B** (this repo): open pre/post-pair temperature
+  calibration, measured in two channels (Study A token-logit, Study B verbalized).
 
-## Study A (what this repo does)
+## Current state — verbalized-first (2026-07-21)
+The calibration contribution is rebuilt on **Study B** (the verbalized/production channel);
+Study A is retained as the **channel-selection negative result** that motivated it. Adoption
+panel **{qwen 1.281, gemma31 1.025, glm 1.025, maverick 1.380}** (gemma31 = chat-template
+collection; llama31 measured but excluded pre-hoc, numerically inert): clustering ratio
+**1.346 ≤ 2 PASSES** (vs 3.05 in the logit channel), transferred judge temperature
+**T_J = 1.153**, sensitivity band **[1.03, 1.38]**. Governing protocol =
+**`docs/e6_onpair_decision_protocol_r3.md` (r3, ADOPTED 2026-07-21)** — r2 retired with its
+channel, retained unedited as the logit-era record; never reuse its constants (band
+[1.60, 4.88], anchor 2.794, λ 0.35). Architecture + R0 evidence:
+`docs/verbalized_calibration_plan.md` + `docs/verbalized_r0_analyses_2026_07_21.md`
+(+ `scripts/verbalized_reframe_r0.py`). Post-run driver for the sweep:
+`scripts/e6_r3_arms.py` (arms 1/2/3a/3b; arm 4 = `study_b.analyze_confidence` on extracted
+per-seat confidence). Study B data: `runs/study_b_*` (gitignored, this Mac);
+results of record `docs/study_b_results_2026_07_20.md`. Both papers carry the contribution
+(synthesis-validation v6 `4fc1e94`; core v3 `4eca63d`). Next paid step = the on-pair E6
+sweep (~$445, user-gated; umbrella `spec/runbook_2026_07_20_e6_onpair_sweep.md`).
+
+## Study A (what this repo does — historical record; see "Current state" above)
 Measure the *clean post-training overconfidence temperature* by running the **base (pre)** and
 **instruct (post)** variants of open models on the 120 AIReg-Bench cells (independent human GT), to
 decide whether a **transferred constant temperature** can correct the **closed** JUDEX evaluators
@@ -68,28 +87,28 @@ the resolution-primary gate, so the value is a bad-reference artifact; umbrella
 `spec/amendment_2026_07_20_band_glm_excision.md`): max/min 3.05 > the
 adopted ≤2 rule ⇒ `median(τ_oc)` is NEVER adopted, the emitted calibration block is
 do-not-paste, and the giants phase is SKIPPED per the stopping rule.
-**E6 (guide §4.8; mechanism updated 2026-07-19, paper develop `f7b5706`):** Q4 extends into
-the rescoped judex-core paper's distributional-utility demonstration — pre/post
-overconfidence measurement, the argmax-invariance ("discrete metrics are blind") exhibit
-(**tie-aware**: exact top-two ties flip on fp tie-break, score the row on tie-free items),
-and downstream routing/decision-cost deltas. Correction mechanism = the **accuracy-gated
-held-out supervised T\*** on the closed pair, wrapped in the **pre-registered sensitivity
-band [1.60, 4.88]** (the gate-passing τ_oc range — AMENDED 2026-07-20, GLM's gate-failed
-τ_oc excised: `spec/amendment_2026_07_20_band_glm_excision.md`; off-pair evidence: benefit
-band (1.00, 22.8] ⊇ the panel range, bootstrap coverage 0.965 —
-`spec/analysis_2026_07_19_q4_range_robustness.md` + amendment block;
-sweep instrument `scripts/q4_range_robustness.py`, merged). τ_DACA failed validation and is
-retired (published negative); the §4.7 decorrelated-dispersion pool is E6's GT-free
-*triangulator* (basin-scale concurrence check), never the mechanism.
-On-pair sweep decision logic = `docs/e6_onpair_decision_protocol.md`, ADOPTED 2026-07-19 —
-one source of truth; do not restate the ladder elsewhere.
+**E6 (guide §4.8):** Q4 extends into the rescoped judex-core paper's
+distributional-utility demonstration — pre/post overconfidence measurement, the
+argmax-invariance ("discrete metrics are blind") exhibit (**tie-aware**: exact top-two
+ties flip on fp tie-break, score the row on tie-free items), and downstream
+routing/decision-cost deltas. **Mechanism SUPERSEDED 2026-07-21**: the logit-era
+supervised-T\*-plus-band mechanism (band [1.60, 4.88], amendment
+`spec/amendment_2026_07_20_band_glm_excision.md`; benefit band (1.00, 22.8], coverage
+0.965) is retired with its channel — the correction is now the transferred verbalized
+constant T_J = 1.153 under protocol r3 (see "Current state"). τ_DACA failed validation
+in the logit channel (published negative; retried in-channel report-only per r3); the
+decorrelated-dispersion pool survives re-based to verbalized bases (r3 F6).
+On-pair sweep decision logic = **`docs/e6_onpair_decision_protocol_r3.md` (ADOPTED
+2026-07-21)** — one source of truth; do not restate the ladder elsewhere. r2
+(`docs/e6_onpair_decision_protocol.md`) is the retained logit-era record.
 Current closed pair: **Sonnet 4.6 (medium effort) + GPT 5.4 (medium reasoning)**
 (evaluator families `anthropic_claude_medium` + `openai_gpt_standard`);
 Haiku 4.5 / GPT-5.4-mini ruled out (insufficiently capable on the task).
 **No existing 120-cell run realizes that pair** (verified 2026-07-18): `stage9-sweep-sonnet-gpt-v2`
 is `anthropic_claude` + `openai_gpt` — its GPT seat is **gpt-5.4-mini**, a ruled-out model, and it
 predates contract 0.2.0 and corpus-v2. `stage9-claude-gpt-medium` *is* the right pair but covers
-3 docs / 15 items. So **Q4 and E6 need a fresh on-pair sweep (~$290–300)** — not $0.
+3 docs / 15 items. So **Q4 and E6 need a fresh on-pair sweep (~$445, re-quoted
+2026-07-20 after the preflight cache measurement)** — not $0.
 
 Pipeline (this repo, `src/judex_calibration/`):
 - `aireg.load_cells()` → 120 cells with the **canonical, manifest-verified** GT, reproducible from the

@@ -1,6 +1,10 @@
 # Verbalized-first calibration plan — the four-arm architecture
 
-Status: **DRAFT for user adoption** (2026-07-21). This document rebuilds the Stage-2
+Status: **ADOPTED IN SUBSTANCE (2026-07-21)** — the operational encoding of this
+plan's four arms, protocol r3, was confirmed by the user the same day
+(`docs/e6_onpair_decision_protocol_r3.md`, commit `e958a4a`), and the paper
+rewrite has been executed on both carriers (synthesis-validation v6, core v3).
+This document remains the architecture-and-evidence record. It rebuilds the Stage-2
 three-arm calibration architecture verbalized-first/verbalized-only, per the user
 verdict of 2026-07-21: the logit-based approaches of Study A — supervised and
 unsupervised — are failures as the project's calibration contribution, and the
