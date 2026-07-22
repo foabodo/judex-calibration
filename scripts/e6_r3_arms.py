@@ -84,6 +84,14 @@ DACA_RANGE = (T_J / 2.0, 2.0 * T_J)           # F7
 KENDALL_BAR = -0.10                           # F8 — association bar for "carries signal"
 BAND_PROFILE_N = 9                            # log-spaced points across the band (ladder item 6)
 COVERAGE_QS = (0.5, 0.9)                      # credible-set masses for the (non-registered) coverage read
+# E6(iii) tie detection tolerance. NOT a frozen r3 constant — F1-F8 pin no tie rule; this is an
+# implementation tolerance on an exhibit. Added 2026-07-21 after the R1 sweep
+# (stage9-onpair-e6-20260721) reported invariance_pass_tie_free=False on two items whose top two
+# entries were [.., 0.35, 0.35000000000000003, ..] — one ULP (5.55e-17) apart. Those are genuine
+# ties on the 0.05 elicitation grid; exact `==` misclassified them as tie-free and then counted
+# their fp tie-break as an invariance violation. 1e-9 sits ~7 orders above fp noise and ~7 orders
+# below the smallest real grid gap (0.05), so it cannot merge two genuinely distinct levels.
+TIE_TOL = 1e-9
 
 LABELS = ("very_low", "low", "moderate", "high", "very_high")
 CONF_LABELS = ("low", "medium", "high")
@@ -181,16 +189,22 @@ def e6i_diagnostics(preds, cells) -> dict:
 
 
 def argmax_invariance(preds, cells) -> dict:
-    """E6(iii), tie-aware (registered up to exact top-two ties): temperature preserves
+    """E6(iii), tie-aware (registered up to top-two ties): temperature preserves
     the credence ordering, so on tie-free items any argmax shift is a floating-point
-    artifact; exact top-two ties may flip on fp tie-break through the logit round-trip
+    artifact; top-two ties may flip on fp tie-break through the logit round-trip
     and are reported separately. Successor of q4's retired ``shift_report``, evaluated
-    on the r3 band [1.025, 1.380] + T_J instead of the retired logit-era taus."""
+    on the r3 band [1.025, 1.380] + T_J instead of the retired logit-era taus.
+
+    Tie detection uses ``TIE_TOL`` (1e-9) rather than exact equality: the stored vectors
+    are 0.05-grid values that have been through arithmetic, so a grid tie can present as
+    e.g. 0.35 vs 0.35000000000000003 (one ULP). Exact ``==`` put such items in the
+    tie-free bucket and then scored their fp tie-break as an invariance violation — see
+    the TIE_TOL note above and umbrella ``spec/results_2026_07_21_r1_onpair_sweep.md`` §3."""
     pairs = _joined(preds, cells)
     tied, tie_free = [], []
     for lb, pred, gt in pairs:
         top2 = sorted(pred.probabilities, reverse=True)[:2]
-        (tied if top2[0] == top2[1] else tie_free).append((lb, pred, gt))
+        (tied if abs(top2[0] - top2[1]) <= TIE_TOL else tie_free).append((lb, pred, gt))
     out = {"n": len(pairs), "n_tied_exact_top2": len(tied),
            "tied_items": [{"label": lb, "probabilities": list(p.probabilities)} for lb, p, _ in tied]}
     all_clean = True
