@@ -1,6 +1,11 @@
 # Absolute-mechanism decision protocol — rA1
 
-**Date frozen:** 2026-07-24 · **Status:** FROZEN at commit time. Test against A1–A8; never edit.
+**Date frozen:** 2026-07-24 · **Status:** constants **A1–A8 (§0) FROZEN** at `1f8856d`, before any
+deployed-pair quantity was computed. Test against A1–A8; **never edit them.**
+**Post-freeze amendments (non-gating, marked in place):** §3's out-of-sample option table and §5's
+closing question were amended 2026-07-24 — §3 to remove two errors of fact (a second closed pair
+that does not exist; a cost estimate ~10× low), §5 to point at the answer since obtained. Neither
+touches a constant. Record: `spec/analysis_2026_07_24_absolute_mechanism_rA1_confirmation.md` §8.
 **Estimand:** the **absolute** correction `T_abs` — the RPS-optimal temperature that carries a
 judge's verbalized credence distribution onto the AIReg-Bench human ground truth.
 **Relation to r3:** r3 (`e6_onpair_decision_protocol_r3.md`) registers the **ratio** estimand
@@ -101,14 +106,29 @@ three-expert reference. What is out-of-sample is the *model population* (open pa
 what is in-sample is the *task, the documents, and the reference*. The deployment claim leans on
 both, and only the first is tested here.
 
-**What would make it genuinely out-of-sample** (none executed; costs are estimates, all require
-explicit user authorization to spend):
+**What would make it genuinely out-of-sample.**
 
-| option | what it buys | cost |
-|---|---|---|
-| Held-out document split of the 24 AIReg documents (fit T_A on 12, read on the other 12, doc-clustered) | removes item-level in-sampleness; cheap and immediate | **$0** — analysis-only on existing artifacts; weakest of the three (same reference, same rubric) |
-| A second deployed closed pair (a different vendor pairing) read at the same T_A | tests transfer across the closed population, the actual deployment claim | one E6-scale sweep; order **$20–60** in API spend, plus wall-clock |
-| A different benchmark with a dispersed human reference, run through this harness | tests whether the magnitude is a property of *this* task or of dispersed judging generally — the strongest test, and the one the invariance interpretation actually predicts | largest: requires a second GT construction, or an existing multi-annotator distributional benchmark; the MMLU control named in `analysis_2026_07_21_base_calibration_premise.md` is **not** a substitute (one-hot reference, opposite ECE optimum) |
+> **AMENDED 2026-07-24, after the freeze.** The table below replaces the one written at freeze time,
+> which contained two errors of fact — a second closed pair that does not exist, and a cost estimate
+> roughly 10× too low. **This section is §3 (honest-limits discussion) and is non-gating: the
+> constants A1–A8 in §0 are untouched and remain exactly as frozen at `1f8856d` before the closed
+> read.** Full record in `spec/analysis_2026_07_24_absolute_mechanism_rA1_confirmation.md` §8.
+>
+> *Withdrawn row — "a second deployed closed pair (a different vendor pairing), order $20–60".*
+> **No such pair exists.** The only valid Stage-9 live configuration is Sonnet 4.6 (medium effort) +
+> GPT 5.4 (medium reasoning) as the evaluator pair with Gemini 3.1 Pro Preview as the **router**
+> (user, 2026-07-24); it is unique, so there is no alternative pairing to read. A run with Gemini in
+> a `family_a`/`family_b` slot (e.g. `stage9-gemini-gpt-medium`) is an invalid configuration, not a
+> second pair. *And the cost was wrong regardless:* the executed E6 sweep totals **$436.89** over 24
+> documents (`provider_usage_summary.json`; ~$18.20/doc), matching `CLAUDE.md`'s ~$445 re-quote.
+
+| option | what it buys | cost | status |
+|---|---|---|---|
+| Held-out document split of the 24 AIReg documents (fit T_A on 12, read on the other 12, doc-clustered) | removes item-level in-sampleness; weakest of the options (same reference, same rubric) | **$0** — analysis-only | **EXECUTED** 2026-07-24 |
+| Doc-clustered paired bootstrap on the A7 deltas at T_A | puts a sampling distribution on the acceptance criteria; descriptive and non-registered, so it cannot flip the verdict | **$0** — reuses `e6_iv_and_decompositions.c3_bootstrap` | **EXECUTED** 2026-07-24 |
+| Readout-temperature sensitivity: rebuild the reference across τ and re-derive the panel | tests whether the correction is an artifact of the reference's own construction | **$0** — local rebuild from the cached trace | **EXECUTED** 2026-07-24 |
+| Replicate sweep at the *same* valid configuration | measures run-to-run noise, **not** in-sampleness; motivated only because the Resolution guard sits near its tolerance | **~$437** | **DECLINED** by user 2026-07-24 (the τ sweep weakened its case) |
+| A different benchmark with a dispersed human reference, run through this harness | tests whether the magnitude is a property of *this* task or of dispersed judging generally — the strongest test, and the one the invariance interpretation actually predicts | largest; unscoped. Requires a second GT construction or an existing multi-annotator distributional benchmark; the MMLU control named in `analysis_2026_07_21_base_calibration_premise.md` is **not** a substitute (one-hot reference, opposite ECE optimum) | open |
 
 ---
 
@@ -127,3 +147,18 @@ by entropy-matching and re-pinned by user decision. Any absolute temperature mea
 T_A included — is measured against *that* object and is not comparable to temperatures fit against
 the pre-2026-07-09 (τ = 1, snapped, pooled) labels. A reviewer may reasonably ask how much of T_A
 tracks the readout choice; rA1 does not answer that, and the question is not rhetorical.
+
+> **AMENDED 2026-07-24, after the freeze (non-gating — no constant is touched).** The question above
+> has since been answered and the caveat stands: the elasticity d ln T_A / d ln τ is **−0.434**,
+> sub-proportional. T_A moves 2.724 → 2.015 across τ ∈ [0.5, 1.0] and by **±1.7 %** across the
+> defensible interval around the pin — less than the panel's own spread at fixed τ. Every
+> qualitative conclusion survives, including at τ = 1.0 with the tempering removed entirely
+> (T_A = 2.015). So the *level* of T_A must be quoted with the readout it was measured under, while
+> the findings that judges need a large absolute correction and that its size is common across
+> families are not artifacts of the knob. See
+> `spec/analysis_2026_07_24_absolute_mechanism_rA1_confirmation.md` §5.
+>
+> An earlier revision of this session withdrew this entire caveat on the grounds that the reference
+> is not tempered. **That withdrawal was wrong and has been retracted** — the τ is applied upstream
+> of the manifest's `methodology` block, in `build_airegbench_canonical_sources.py:171`. §8.2 of the
+> analysis carries the evidence.
