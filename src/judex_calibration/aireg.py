@@ -24,45 +24,77 @@ vectors differ from the current cumulative-consistency GT (argmax is identical, 
 staleness is silent). A distribution-fitting calibration study must use the current
 canonical GT; hence we synthesize it from the tracked bundle every load.
 
-WHAT THE GT ACTUALLY IS (re-verified 2026-07-18 against judex-ground-truth ``b2e4fe3``).
+WHAT THE GT ACTUALLY IS (re-verified 2026-07-24 against judex-ground-truth ``5ee7786``;
+every figure below was recomputed from the artifacts for this pass, not carried over).
+The reference is the AIReg-Bench human panel reconciled by the cumulative-consistency
+MG-MFRM over **three human legal-expert annotators** (``rater_id`` 0/1/2; the fit's design
+is ``n_raters = 3``). It is **not** the 7-seat LLM exemplar panel in judex-corpus — that
+panel is few-shot material only and is firewall-disjoint from this reference.
+
 The bundle was **re-materialized on 2026-07-09** (``89f40b7`` + ``3c2ebdb``) — after this
 module's original 2026-07-03 verification — with three coupled formulation changes:
 
-  * thresholds **pooled -> freethresh** (``thresholds: "free"``);
+  * thresholds **pooled -> freethresh** (``thresholds: "free"``). Verifiable structurally from
+    the trace: the posterior carries ``thresholds_r_loc`` / ``thresholds_r_log_gap`` (the
+    freethresh-only latents) and none of the pooled-only ``threshold_location`` /
+    ``global_log_spacing`` / ``sigma_threshold_shape`` / ``z_threshold_spacing``;
   * a **readout temperature tau = 0.675** (1 -> 0.65 -> 0.675, re-pinned by user decision),
     tempering P(Y<=k) on the READOUT ONLY — the fit, severities, theta and lens geometry are
     unchanged, and every identified threshold functional is exactly tau-invariant;
   * the 0.05 grid snap **turned off globally** — the labels are now **continuous** (verified:
-    0/600 probabilities land on the 0.05 grid), because the object they are scored against
-    (the evaluator's Phase-4 reconciled barycenter) is continuous and never re-snapped.
+    0/600 barycenter and 0/1800 per-rater probabilities land on the 0.05 grid at tol 1e-6,
+    while the archived pre-07-09 barycenter is 600/600 on-grid), because the object they are
+    scored against (the evaluator's Phase-4 reconciled barycenter) is continuous and never
+    re-snapped.
 
-Movement vs the previously shipped object: **W1 mean 0.194** (median 0.184, max 0.417), mean
-entropy 1.065 -> 1.252 nats, and **0/120 mode flips** (a KL-anchor construction guarantee).
-So this is precisely the silent staleness the paragraph above warns about, a second time and
-~240x larger than the 2026-07-03 refresh (W1 ~0.0008): argmax-derived numbers are stable (the
-Phase-0 proxy ceiling 0.658 re-derives exactly), but **every distribution-fitting number moved**
-— any T*/tau_oc figure recorded before 2026-07-09 must be re-derived, not carried forward.
+Movement vs the previously shipped object — ``variants/airegbench_raw_pooled_snapped_2026_07_09/``,
+byte-identical to the blob at ``5716e36`` (the 2026-07-03 bundle), so it really is the prior
+canonical: **W1 mean 0.178** (median 0.176, max 0.414), mean entropy **1.065 -> 1.237 nats**
+(dH +0.172), and **0/120 mode flips** (a KL-anchor construction guarantee).  W1 here is the
+project's ``label_variants.w1_ordinal``: L1 distance between ordinal CDFs on the equally
+spaced 1..5 support (POT and the closed form agree to <1e-9).  So this is precisely the silent
+staleness the paragraph above warns about, a second time and **~210x** larger than the
+2026-07-03 refresh (``d4d2baa -> 5716e36``, W1 mean 0.00083, max 0.05 — one grid step on a
+single cell): argmax-derived numbers are stable — ``phase0_accuracy_precheck`` reads only the
+barycenter argmax and mode flips are 0, so its proxy ceiling 0.658 is invariant by construction
+— but **every distribution-fitting number moved**; any T*/tau_oc figure recorded before
+2026-07-09 must be re-derived, not carried forward.
+  CAUTION: the movement figures previously recorded here (W1 mean 0.194 / median 0.184 /
+  max 0.417, entropy -> 1.252 nats, ~240x) are the **tau = 0.65** intermediate ``89f40b7``,
+  reproduced exactly against that blob; they were never recomputed after the tau = 0.675
+  re-pin.  The archived comparand's own ``PROVENANCE.txt`` carries the same lag — its
+  "superseded-by" line still says ``tau=0.65``.  Distrust both.
+
+Reference properties of the shipped bundle, recomputed and matching the canonical manifest's
+own ``invariants``: mean max-prob 0.4607, mean normalized entropy 0.7686, 0/120 cells above
+0.9, argmax majority-class share 0.3333 (= the A2 argmax floor).
 
 Two consequences worth stating explicitly, because Study A's estimands are temperatures:
   1. The GT we fit against **is itself a tempered readout** (tau = 0.675). Study A's T* and
      tau_oc are measured against that object; they are not comparable to temperatures fit
      against the pre-2026-07-09 (tau = 1, snapped, pooled) labels.
-  2. Corpus few-shot exemplars ARE on the 0.05 grid (elicitation rule A7) while this GT is
-     continuous. Harmless for the base leg — ``fewshot.render_block`` emits only a letter A-E
-     — but the two sides of the instrument are on different supports; do not assume otherwise.
+  2. Corpus few-shot exemplars ARE on the 0.05 grid (elicitation rule A7; verified 1260/1260
+     leaf+dimension barycenter probabilities on-grid) while this GT is continuous. Harmless
+     for the base leg — ``fewshot.render_block`` emits only a letter A-E — but the two sides
+     of the instrument are on different supports; do not assume otherwise.
 
 Sampler, from the trace's own attrs (``airegbench_mgmfrm_cumulative_consistency_idata.nc``,
-authoritative): **draws 2000 / tune 4000**, 4 chains, target_accept 0.99, seed 42, nutpie
-0.16.8, 0 divergences — compliant with the 2026-07-14 convention (raise *tune* to remediate
-convergence; draws are a precision knob capped at 2000).  FOOTGUN: the sidecar
-``validation_diagnostics_v4.json`` records ``draws 1000 / tune 2000``; those are
+authoritative): **draws 2000 / tune 4000** (the ``posterior`` draw dimension, and the
+``tuning_steps`` entry of ``posterior.attrs``), 4 chains, nutpie 0.16.8, 0 divergences —
+compliant with the 2026-07-14 convention (raise *tune* to remediate convergence; draws are a
+precision knob capped at 2000).
+``target_accept`` and ``seed`` are **NOT recorded in the trace** (its attrs carry only
+created_at / arviz_version / inference_library{,_version} / sampling_time / tuning_steps); the
+0.99 and 42 that used to be asserted here come from the sidecar, which is exactly the file the
+next paragraph says not to trust for sampler settings — treat them as unverified.  FOOTGUN: the
+sidecar ``validation_diagnostics_v4.json`` records ``draws 1000 / tune 2000``; those are
 ``build_airegbench_canonical_sources.py`` argparse defaults stamped over the cached-trace
 path, not what was run. Trust the trace attrs.
 
 Validation status is ``unavailable`` with **two** hard-failure families, not one:
-``convergence_rhat`` (max R-hat 1.0123 > 1.01 threshold — a live, shipped property, not a
-resolved footnote) and ``prior_predictive`` (not computed). ESS passes (bulk min 558 >= 400).
-Safe to *use*; must never be described as a validated benchmark.
+``convergence_rhat`` (max R-hat 1.01229 > 1.01 threshold — a live, shipped property, not a
+resolved footnote) and ``prior_predictive`` (not computed). ESS passes (bulk min 557.9, tail
+min 579.3, both >= 400). Safe to *use*; must never be described as a validated benchmark.
 
 EVIDENCE SOURCE CHOICE: this uses the JUDEX TechOps document (what the JUDEX evaluators
 saw), assembled from the git-tracked corpus step5 markdown, not the raw isolated AIReg
