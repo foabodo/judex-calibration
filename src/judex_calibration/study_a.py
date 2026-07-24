@@ -49,6 +49,17 @@ T_BOUNDS = (0.25, 20.0)
 GRID = [math.exp(math.log(T_BOUNDS[0]) + (math.log(T_BOUNDS[1]) - math.log(T_BOUNDS[0])) * i / 59)
         for i in range(60)]
 
+# Single source of truth for the Murphy reliability bin count, shared by the T_rel fitter
+# (`_reliability`, the grid target inside `score_variant`) and the acceptance/reporting read
+# (`score_variant`'s Murphy block + `closed_side_check`'s F4 check). These historically split:
+# the fitter ran at bins=3 while the accept/report read ran at bins=10, so the reliability the
+# system *fit* T_rel on differed from the one it *reported/accepted* on. The objective-contamination
+# audit (2026-07-21, spec/analysis_2026_07_21_objective_contamination_audit.md §3e, remediation
+# item 4) established that no decision depends on T_rel — the capability gate is resolution-primary
+# and F4 reads Murphy reliability at bins=10 — so matching the fit to the acceptance read is pure
+# hygiene: it unifies the two on one constant and stops them silently diverging again.
+MURPHY_BINS = 10
+
 
 def saturated(T: float, tol: float = 1e-6) -> bool:
     """True when a fitted temperature sits on the search boundary — a peg, not a fit.
@@ -84,8 +95,14 @@ def _metric_item(label, pred, gt):
         entropy_review_flag=pred.normalized_entropy() > 0.75, signed_delta=signed_delta(pred, gt))
 
 
-def _reliability(items, T, bins=3) -> float:
-    """Murphy reliability of temperature-scaled predictions (grid target for T_rel)."""
+def _reliability(items, T, bins=MURPHY_BINS) -> float:
+    """Murphy reliability of temperature-scaled predictions (grid target for T_rel).
+
+    ``bins`` defaults to ``MURPHY_BINS`` so the T_rel fit is on the SAME reliability quantity
+    the acceptance/reporting read uses (was bins=3 vs bins=10 — audit 2026-07-21, item 4).
+    Callers that deliberately sweep bins (the reliability/contamination probes) pass ``bins``
+    explicitly and are unaffected.
+    """
     scaled = [_metric_item(it.item_label, apply_temperature(it.prediction, T), it.ground_truth) for it in items]
     return murphy_decomposition(scaled, bins=bins)["reliability"]
 
@@ -104,7 +121,7 @@ def score_variant(preds: Dict[str, List[float]], cells: List[Cell]) -> dict:
     pairs = [(it.prediction, it.ground_truth) for it in items]
     T_rps = fit_temperature(pairs, bounds=T_BOUNDS).temperature
     T_rel = min(GRID, key=lambda T: _reliability(items, T))
-    murphy = murphy_decomposition(items)
+    murphy = murphy_decomposition(items, bins=MURPHY_BINS)
     return {
         "n": len(items),
         "argmax_acc": sum(it.argmax_agreement for it in items) / len(items),
@@ -131,7 +148,7 @@ def fit_tau_oc(post: Dict[str, List[float]], pre: Dict[str, List[float]], cells:
     return min(GRID, key=lambda T: sum(wasserstein_1(apply_temperature(p, T), q) for p, q in pairs) / len(pairs))
 
 
-def closed_side_check(preds: Dict[str, List[float]], cells: List[Cell], T: float, bins: int = 10) -> dict:
+def closed_side_check(preds: Dict[str, List[float]], cells: List[Cell], T: float, bins: int = MURPHY_BINS) -> dict:
     """Q4: apply the open-derived constant ``T`` to closed-evaluator (Claude/GPT)
     predictions on AIReg. The transfer is legitimate iff Murphy **Reliability**
     improves **without** destroying Resolution or RPS (temperature preserves
@@ -148,7 +165,9 @@ def closed_side_check(preds: Dict[str, List[float]], cells: List[Cell], T: float
         cal.append(_metric_item(label, apply_temperature(pred, T), gt))
     if not base:
         return {"n": 0}
-    mb, mc = murphy_decomposition(base), murphy_decomposition(cal)
+    # F4/reporting read pinned to MURPHY_BINS — the same constant the T_rel fitter uses — so the
+    # fit and the acceptance read cannot silently diverge (audit 2026-07-21, item 4).
+    mb, mc = murphy_decomposition(base, bins=MURPHY_BINS), murphy_decomposition(cal, bins=MURPHY_BINS)
 
     def agg(items):
         return {"mean_rps": sum(i.rps for i in items) / len(items),
