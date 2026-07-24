@@ -103,7 +103,12 @@ On-pair sweep decision logic = **`docs/e6_onpair_decision_protocol_r3.md` (ADOPT
 2026-07-21)** — one source of truth; do not restate the ladder elsewhere. r2
 (`docs/e6_onpair_decision_protocol.md`) is the retained logit-era record.
 Current closed pair: **Sonnet 4.6 (medium effort) + GPT 5.4 (medium reasoning)**
-(evaluator families `anthropic_claude_medium` + `openai_gpt_standard`);
+(evaluator families `anthropic_claude_medium` + `openai_gpt_standard`), with
+**Gemini 3.1 Pro Preview as the ROUTER**. This is the **only valid Stage-9 live
+configuration** (user, 2026-07-24) — there is no alternative "second pair" to
+read, and a run with Gemini in a `family_a`/`family_b` slot (e.g.
+`stage9-gemini-gpt-medium`, Gemini seated as an *evaluator*) is an invalid
+configuration, not a second deployed pair. Do not treat it as one.
 Haiku 4.5 / GPT-5.4-mini ruled out (insufficiently capable on the task).
 **No existing 120-cell run realizes that pair** (verified 2026-07-18): `stage9-sweep-sonnet-gpt-v2`
 is `anthropic_claude` + `openai_gpt` — its GPT seat is **gpt-5.4-mini**, a ruled-out model, and it
