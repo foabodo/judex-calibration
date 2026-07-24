@@ -20,8 +20,12 @@ them apart:
        Yi-1.5-6B 6.85%} vs post {19.00, 20.84, 20.81, 24.15}%.
 
   DISTRIBUTIONAL sense (JUDEX's):
-      metric      := T_abs (RPS-optimal temperature vs the 7-rater GT
-                     distribution), Murphy reliability, mean W1 / RPS.
+      metric      := T_abs (RPS-optimal temperature vs the AIReg-Bench GT
+                     distribution -- a credence distribution reconciled by
+                     MG-MFRM over THREE human legal-expert annotators; NOT
+                     the 7-seat LLM exemplar panel in judex-corpus, which is
+                     few-shot material only and firewall-disjoint from GT),
+                     Murphy reliability, mean W1 / RPS.
 
 HYPOTHESIS UNDER TEST
   H1  Bases are reasonably calibrated in the CORRECTNESS sense while being
