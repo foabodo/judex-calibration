@@ -52,8 +52,9 @@ def analyze(out_dir: Path, cells, eps_sensitivity: bool = False) -> dict:
         gate["parse_gate_ok"] = gate["contract_complete_rate"] >= PARSE_RATE_GATE
         # Epsilon-floor BEFORE any temperature machinery: stored vectors keep the
         # contract's exact grid zeros, but judex.calibration's inverse-softmax would
-        # turn ln(1e-12 clip) into ~-27.6 logits — the pre-registered EPSILON (0.005,
-        # half the grid step) is the channel's floor (design doc §5).
+        # turn ln(1e-12 clip) into ~-27.6 logits — the registered EPSILON (0.005, one
+        # tenth of the 0.05 grid step; the older "half the grid step" gloss was
+        # arithmetically wrong — half is 0.025) is the channel's floor (design doc §5).
         comp = {k: ev.floor_and_renormalize(v) for k, v in ev.compliance_view(recs).items()}
         views[leg] = comp
         report["legs"][leg] = {"contract_compliance": gate,
