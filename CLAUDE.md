@@ -43,7 +43,8 @@ git submodules of the `judex` umbrella:
 - `judex-ground-truth` — Bayesian MG-MFRM labels; the canonical AIReg-Bench ground truth.
   **Re-materialized 2026-07-09** (after this repo's original verification): freethresh thresholds,
   **readout temperature τ = 0.675**, grid snap OFF (continuous). Moved the labels by **W1 mean
-  0.194** with **0/120 mode flips** — argmax-derived numbers are stable, every distribution-fitting
+  0.178** (median 0.176, max 0.414) with **0/120 mode flips** — argmax-derived numbers are stable,
+  every distribution-fitting
   number is not. Full provenance + the R-hat/validation caveats: `aireg.py` module docstring;
   pinned against drift by `tests/test_integration_seams.py::GtVintageGuardTests`.
 - `judex-evaluator` — the runtime + scoring + calibration tooling (Study A reuses it verbatim).
@@ -136,7 +137,10 @@ Pipeline (this repo, `src/judex_calibration/`):
   hard-errors; use a fresh `--out` for a different experiment.
 
 ## The 7-model panel (`configs/models.yaml`)
-deepseek-v4-pro · mistral-large-2512 · qwen3.5-35b-a3b · llama-4-maverick · glm-4.5 · kimi-k2-thinking
+deepseek-v4-pro · mistral-large-2512 · qwen3.5-35b-a3b · **llama-3.1-405B** (dense; swapped
+2026-07-19 from Llama-4-Maverick after the Maverick base failed the cheap-trial accuracy gate —
+the second within-lineage dense rescue; the GT *annotator* seat stays llama-4-maverick, see
+`configs/models.yaml` llama entry) · glm-4.5 · kimi-k2-thinking
 · **gemma-4-31B** (dense; swapped 2026-07-19 from the MoE 26B-A4B after it failed the cheap-trial
 accuracy gate — base argmax 0.167 < chance, τ_oc pegged at 20; the GT *annotator* seat stays
 gemma-4-26B-A4B-it) — each a base+post pair. **Google is now included** (added 2026-07-02): the
