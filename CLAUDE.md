@@ -137,10 +137,14 @@ Pipeline (this repo, `src/judex_calibration/`):
   hard-errors; use a fresh `--out` for a different experiment.
 
 ## The 7-model panel (`configs/models.yaml`)
-deepseek-v4-pro · mistral-large-2512 · qwen3.5-35b-a3b · **llama-3.1-405B** (dense; swapped
-2026-07-19 from Llama-4-Maverick after the Maverick base failed the cheap-trial accuracy gate —
-the second within-lineage dense rescue; the GT *annotator* seat stays llama-4-maverick, see
-`configs/models.yaml` llama entry) · glm-4.5 · kimi-k2-thinking
+deepseek-v4-pro · mistral-large-2512 · qwen3.5-35b-a3b · **llama-3.1-405B** (dense; the
+*logits-channel* seat only — swapped 2026-07-19 from Llama-4-Maverick after the Maverick base
+failed the Study-A cheap-trial accuracy gate, the second within-lineage dense rescue.
+**Channel caveat:** this roster is the local-hosting/logits config; under the verbalized-first
+reframe the calibration program's Llama seat is **Llama-4-Maverick again** — Study B measured
+both verbalized legs (`runs/study_b_maverick`, `runs/study_b_llama31`) and the adoption panel
+above includes maverick, with llama31 measured but excluded pre-hoc. The GT *annotator* seat
+also stays llama-4-maverick) · glm-4.5 · kimi-k2-thinking
 · **gemma-4-31B** (dense; swapped 2026-07-19 from the MoE 26B-A4B after it failed the cheap-trial
 accuracy gate — base argmax 0.167 < chance, τ_oc pegged at 20; the GT *annotator* seat stays
 gemma-4-26B-A4B-it) — each a base+post pair. **Google is now included** (added 2026-07-02): the
