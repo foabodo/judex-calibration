@@ -96,11 +96,20 @@ Both legs of a family run on the **same** vast vLLM `/v1/completions` endpoint c
 | Contract-compliance gate (B-Q1) | **contract_complete rate ≥ 0.90** per leg (FULL six-field tier; parse_rate reported alongside) | below this, the leg's emissions are not the production contract; τ_v still scores the parse_ok subset for data efficiency |
 | Capability gate | resolution-primary (Murphy resolution > 0 with margin) on the parsed compliance view, both legs | inherited verbatim |
 | τ_v stopping rule (B-Q3) | max/min ≤ 2 over gate-passing families | same form as Study A's adopted rule |
-| ε-floor | **0.005** (half the 0.05 grid step), applied at ANALYSIS time; stored vectors keep exact zeros | §5 |
+| ε-floor | **0.005** (~~half~~ **one tenth** of the 0.05 grid step — see correction note below), applied at ANALYSIS time; stored vectors keep exact zeros | §5 |
 | τ_v fit | `fit_tau_oc` machinery: W1 alignment post→pre, 60-pt log grid, T_BOUNDS (0.25, 20.0), saturation flagged | inherited verbatim |
 | Elicitation | temperature 0, budget 2048, k=5, workers 8, no resampling | inherited / §3 |
 | B-Q4 link + objective | §6 | — |
 | Scoring | RPS/W1/Murphy against `aireg.load_cells()` only | inherited |
+
+> **Correction [2026-07-25]:** the ε-floor row's original parenthetical read "(half the 0.05
+> grid step)". That gloss is arithmetically wrong — half of 0.05 is 0.025. **0.005 is one
+> tenth of the grid step** (equivalently, half of 0.01). The registered **value 0.005 is
+> unchanged** and is what every leg ran with (`elicit_verbalized.EPSILON`, pinned in each leg's
+> meta sidecar); only the description was wrong, so no result is affected. Note that 0.025 —
+> the true half-step — is one of the four ε-sensitivity points in §5, which is a separate
+> check and was never the registered floor. The row above has been corrected in place; this
+> note records what it originally said.
 
 Smoke discipline inherited: `--limit`/`--no-reason` or <120 elicited cells auto-marks the
 report `smoke` — numbers discarded, never integrated.

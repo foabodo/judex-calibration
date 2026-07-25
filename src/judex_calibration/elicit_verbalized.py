@@ -43,7 +43,12 @@ JSON_SCAFFOLD = "\nJSON:"
 
 # The verbalized channel's zero-mass trap: the 0.2.0 contract REQUIRES zero-mass levels
 # written as 0.0, and ln 0 = -inf, so every inverse-softmax operation on this channel
-# needs an epsilon floor. PRE-REGISTERED at half the 0.05 elicitation-grid step; applied
+# needs an epsilon floor. Registered value: 0.005 — that is ONE TENTH of the 0.05
+# elicitation-grid step (equivalently, half of 0.01), an order of magnitude below the
+# smallest nonzero mass the contract can express. [2026-07-25: the older gloss here and in
+# docs/study_b_design.md §4 called 0.005 "half the grid step"; that arithmetic was wrong —
+# half the 0.05 step is 0.025. The VALUE 0.005 is unchanged and remains the registered
+# constant; only the description is corrected.] Applied
 # at ANALYSIS time (floor_and_renormalize below), never at storage — stored vectors are
 # the raw parsed+renormalized emissions. Recorded in the leg meta sidecar so a resume
 # under a different epsilon convention hard-errors.
