@@ -4,8 +4,14 @@ Distilled project knowledge so a Claude Code instance — on the user's Mac **or
 GPU box — starts with the same understanding. Full detail lives in the repo docs (pointers below).
 
 ## Study A workflows — never cross the recipes
+**Channel caveat (verbalized-first reframe, 2026-07-21):** these are the **logits-channel**
+recipes. Study A is CLOSED and Q3-NEGATIVE — the seven-panel VAST LIVE was never reached (giants
+SKIPPED per the stopping rule) and never will be. The calibration program's numbers of record come
+from the **verbalized** channel: `scripts/run_study_b_leg.py` (same smoke/live split, per-family
+legs) and the executed on-pair sweep. Read "Current state" below first.
 The same driver (`scripts/run_qwen_phase1.py`) runs all of them; the flags/host/model decide which.
-Only the VAST LIVE recipe produces the study's numbers; the LOCAL PILOT (third recipe, added
+Within Study A, only the VAST LIVE recipe produced study-grade numbers; the LOCAL PILOT (third
+recipe, added
 2026-07-14) produces labeled pilot evidence about the phenomenon, never the panel constant:
 - **MAC SMOKE** — free plumbing test: one small **int4/Q4** stand-in (e.g. Qwen3-4B) on **llama.cpp /
   Metal**, `--limit N --no-reason`. Validates the machinery only — **τ_oc is MEANINGLESS; discard it,
@@ -14,7 +20,8 @@ Only the VAST LIVE recipe produces the study's numbers; the LOCAL PILOT (third r
   multi-lineage smoke (e.g. Qwen3-4B + Gemma-3-4B — genuinely different families, so `tau_oc_summary`
   has an actual spread, not one family repeated). (`docs/local_smoke_quickstart.md`)
 - **VAST LIVE** — the real, paid experiment: the **seven panel** base+post pairs on **vLLM**, **bf16**,
-  **all 120 cells**, **reasoning ON** (omit `--limit/--no-reason`). Its τ_oc **is** the study output.
+  **all 120 cells**, **reasoning ON** (omit `--limit/--no-reason`). Its τ_oc was Study A's output
+  (cheap + mid tiers only; the giants were never run).
   (`docs/vast_quickstart.md` · `docs/vast_claude_code_orchestration.md`)
 - **LOCAL fp16 SCIENCE PILOT** — free 4B-pair pilot of the *phenomenon* (not the panel constant):
   **fp16 ggufs** (never int4), all 120 cells, reasoning ON, native `llama-server`, family tags
@@ -48,18 +55,22 @@ git submodules of the `judex` umbrella:
   number is not. Full provenance + the R-hat/validation caveats: `aireg.py` module docstring;
   pinned against drift by `tests/test_integration_seams.py::GtVintageGuardTests`.
 - `judex-evaluator` — the runtime + scoring + calibration tooling (Study A reuses it verbatim).
-  Two config bundles exist: `configs/` (v1 exemplars, **the default**) and `configs_v2exemplars/`
-  (corpus-v2 exemplars, selected per run with `--config-dir configs_v2exemplars`). Study A's
-  few-shot is corpus-**v2**, so a Q4/E6 closed-pair run must pass that flag or the closed leg is
-  framed on v1 exemplars while the open legs are framed on v2.
-- `judex-calibration` — **Studies A + B** (this repo): open pre/post-pair temperature
-  calibration, measured in two channels (Study A token-logit, Study B verbalized).
+  Two config bundles exist: `configs_v2exemplars/` (corpus-v2 exemplars, **the CLI default since
+  evaluator `023ee96`, 2026-07-20** — `DEFAULT_CONFIG_DIR` in `src/judex/cli.py`) and `configs/`
+  (v1 exemplars, historical repro only, selected explicitly with `--config-dir configs`). Both
+  calibration channels frame few-shot on corpus-**v2**, so a closed-pair run must be on the v2
+  bundle — the executed sweep was (`config_dir: configs_v2exemplars` in its provenance).
+- `judex-calibration` — **Studies A + B, plus the rA1 absolute-mechanism registration** (this
+  repo): open pre/post-pair temperature
+  calibration, measured in two channels (Study A token-logit, Study B verbalized), and the
+  parallel absolute estimand (rA1, below).
 
 ## Current state — verbalized-first (2026-07-21)
 The calibration contribution is rebuilt on **Study B** (the verbalized/production channel);
 Study A is retained as the **channel-selection negative result** that motivated it. Adoption
 panel **{qwen 1.281, gemma31 1.025, glm 1.025, maverick 1.380}** (gemma31 = chat-template
-collection; llama31 measured but excluded pre-hoc, numerically inert): clustering ratio
+collection, **cross-mode vast-pre × API-post, confound-labeled** per study_b_results §B-Q2;
+llama31 measured but excluded pre-hoc, numerically inert): clustering ratio
 **1.346 ≤ 2 PASSES** (vs 3.05 in the logit channel), transferred judge temperature
 **T_J = 1.153**, sensitivity band **[1.03, 1.38]**. Governing protocol =
 **`docs/e6_onpair_decision_protocol_r3.md` (r3, ADOPTED 2026-07-21)** — r2 retired with its
@@ -70,9 +81,32 @@ channel, retained unedited as the logit-era record; never reuse its constants (b
 `scripts/e6_r3_arms.py` (**all four arms** + across-band profile + E6 exhibit blocks +
 concurrence table + `--selftest` regression gate — upgraded 2026-07-21 r3 overhaul;
 arm 4 is computed by the driver, no manual step). Study B data: `runs/study_b_*` (gitignored, this Mac);
-results of record `docs/study_b_results_2026_07_20.md`. Both papers carry the contribution
-(synthesis-validation v6 `4fc1e94`; core v3 `4eca63d`). Next paid step = the on-pair E6
-sweep (~$445, user-gated; umbrella `spec/runbook_2026_07_20_e6_onpair_sweep.md`).
+results of record `docs/study_b_results_2026_07_20.md`. The **judex-core paper is the sole
+carrier** of this contribution: synthesis-validation v7 (`6583349`, 2026-07-21) excised
+calibration entirely; the core paper of record is
+`judex-core/judex_paper_v7_absolute_calibration.tex` (umbrella pin `f9a4ad9`). Never edit a
+lower-numbered version. The on-pair E6 sweep **RAN 2026-07-21**
+(`stage9-onpair-e6-20260721`, 120 cells, $436.89; results
+`spec/results_2026_07_21_r1_onpair_sweep.md`, runbook
+`spec/runbook_2026_07_20_e6_onpair_sweep.md`): **arm 1 PASSES F4 at T_J = 1.153**, band lower
+edge 1.0252 FAILS F4, arm 2 T\* = 2.545 non-concurrent, arms 3a/3b concur, arm 4 wrong-signed.
+**Adoption is OPEN** — the evaluator seam is still `mode: noop`; pasting the block is the
+user's action. Emitted block:
+`runs/e6_r3_stage9-onpair-e6-20260721/pipeline_calibration_block.json` (gitignored, this Mac —
+as are the τ_oc trio's runs and all `runs/study_b_*` legs).
+
+**Second, parallel registration — rA1 absolute mechanism (frozen 2026-07-24).**
+`docs/absolute_mechanism_protocol_rA1.md` registers a *different estimand* on the same deployed
+pair: the **absolute** correction `T_abs` fitted against the AIReg GT (r3's τ_v is the GT-free
+**ratio** estimand). Constants **A1–A8 frozen at `1f8856d`** — panel carried over verbatim from
+r3 F1, **T_A = 2.3528**, band **[2.0351, 2.6365]**, clustering 1.2956, RPS throughout (A8).
+Confirmation read `spec/analysis_2026_07_24_absolute_mechanism_rA1_confirmation.md`:
+**CONFIRMED, report-only**, but carry both caveats — the Resolution guard fails in **48.5%** of
+2000 bootstrap replicates, and only T_J is pre-registered (rA1 is registered-form, in-sample
+w.r.t. task/documents/reference). **r3 and rA1 are both frozen and neither supersedes the
+other; never edit either constant set.** Driver `scripts/absolute_mechanism_rA1.py`; artifact
+`runs/absolute_mechanism_rA1/` (gitignored). The core paper carries this as
+`judex_paper_v7_absolute_calibration.tex`.
 
 ## Study A (what this repo does — historical record; see "Current state" above)
 Measure the *clean post-training overconfidence temperature* by running the **base (pre)** and
@@ -98,8 +132,10 @@ supervised-T\*-plus-band mechanism (band [1.60, 4.88], amendment
 `spec/amendment_2026_07_20_band_glm_excision.md`; benefit band (1.00, 22.8], coverage
 0.965) is retired with its channel — the correction is now the transferred verbalized
 constant T_J = 1.153 under protocol r3 (see "Current state"). τ_DACA failed validation
-in the logit channel (published negative; retried in-channel report-only per r3); the
-decorrelated-dispersion pool survives re-based to verbalized bases (r3 F6).
+**in the logit channel** (published negative), but its in-channel r3 retry **CORROBORATES**:
+4/4 valid fits, range [0.5997, 0.9033] ⊂ [T_J/2, 2T_J], F7 satisfied (report-only, never
+gates). The decorrelated-dispersion pool re-based to verbalized bases likewise concurs:
+T_raw = 1.3273, in band, vetting pass, all four LOBO fits in band (r3 F6).
 On-pair sweep decision logic = **`docs/e6_onpair_decision_protocol_r3.md` (ADOPTED
 2026-07-21)** — one source of truth; do not restate the ladder elsewhere. r2
 (`docs/e6_onpair_decision_protocol.md`) is the retained logit-era record.
@@ -114,20 +150,23 @@ Haiku 4.5 / GPT-5.4-mini ruled out (insufficiently capable on the task).
 **No existing 120-cell run realizes that pair** (verified 2026-07-18): `stage9-sweep-sonnet-gpt-v2`
 is `anthropic_claude` + `openai_gpt` — its GPT seat is **gpt-5.4-mini**, a ruled-out model, and it
 predates contract 0.2.0 and corpus-v2. `stage9-claude-gpt-medium` *is* the right pair but covers
-3 docs / 15 items. So **Q4 and E6 need a fresh on-pair sweep (~$445, re-quoted
-2026-07-20 after the preflight cache measurement)** — not $0.
+3 docs / 15 items. **That gap was closed by the 2026-07-21 sweep `stage9-onpair-e6-20260721`**
+(see "Current state") — Q4/E6 no longer need paid data.
 
 Pipeline (this repo, `src/judex_calibration/`):
 - `aireg.load_cells()` → 120 cells with the **canonical, manifest-verified** GT, reproducible from the
   git-tracked `judex-ground-truth` bundle. **Never read GT from a `runs/` metrics_report** — those are
   gitignored and can be stale.
-- `fewshot.build_fewshot_by_criterion()` → k=4 per-Article few-shot from the corpus store,
+- `fewshot.build_fewshot_by_criterion()` → **k=5** per-Article few-shot from the corpus store
+  (k read from `models.yaml` `elicitation.base.fewshot_k`; see the k=5 protocol note below),
   **firewall-disjoint** from AIReg.
 - `elicit_base` → `/v1/completions` token-slice over A–E; **server-agnostic** logprobs parsing
   (vLLM, llama.cpp, and chat shapes) so both hosts work — but **llama.cpp/Metal (Mac) is the SMOKE
   plumbing only (result discarded); vLLM on vast (bf16) is the real measurement.**
-- `study_a` → Q1–Q4 + `calibration_block()` (a drop-in `judex-evaluator/configs/pipeline.yaml →
-  calibration` block, `mode: temperature` — note the `configs/` segment). The evaluator drops
+- `study_a` → Q1–Q4 + `calibration_block()` (a drop-in `pipeline.yaml → calibration` block,
+  `mode: temperature`). **Paste into `judex-evaluator/configs_v2exemplars/pipeline.yaml` — the
+  CLI default bundle** (and `configs/pipeline.yaml` too only if reproducing a v1 run); note the
+  bundle segment — there is no top-level `judex-evaluator/pipeline.yaml`. The evaluator drops
   `provenance` under that mode, so keep `pipeline_calibration_block.json` as the audit trail.
 - Driver: `scripts/run_qwen_phase1.py` — same script, flags pick the workflow. **SMOKE:** `--limit N
   --no-reason` (fast, result discarded). **LIVE:** omit both (all 120 cells, reasoning ON). `--out`,
@@ -208,17 +247,27 @@ evaluator and the annotator↔evaluator firewall no longer bars Google. The fire
 - The canonical AIReg GT bundle currently validates as **`unavailable`** on **two** hard-failure
   families — `prior_predictive` (not computed) **and `convergence_rhat`** (max R-hat 1.0123 > 1.01;
   ESS passes at 558). Safe to *use*, but must not be described as a "validated benchmark".
-- **Temperatures are fit on Study A's own range** `T_BOUNDS = (0.25, 20.0)`, passed explicitly to
+- **Temperatures are fit on this repo's range** `T_BOUNDS = (0.25, 20.0)` **in every channel**
+  (Study A, Study B, rA1 — `study_b` imports it from `study_a`), passed explicitly to
   every evaluator fitter. Do not drop the argument: `judex.calibration`'s default is `(0.25, 4.0)`,
   which silently censored `T_rps` at 4.0 while `T_rel`/`τ_oc` ran to 20 (every fp16-pilot leg pegged
   there). Any temperature on a boundary is a peg, not a fit — `study_a.saturated()` flags it and the
   report/calibration block carry `*_saturated`; a saturated `τ_oc` must never be adopted.
 - Numbers fit against the pre-2026-07-09 GT are **not** carryable. Worked example: the recorded
-  sanity fit `T_rps 2.4434` on `stage9-gemini-gpt-medium` re-derives to **3.5585** on the current
+  sanity fit `T_rps 2.4434` on `stage9-gemini-gpt-medium` (an *invalid* Stage-9 configuration per
+  above — cited here only as arithmetic, never as a readable run) re-derives to **3.5585** on the
+  current
   bundle (+46%; verified bound-independent). Re-derive, never carry forward.
 - `develop` is the integration branch in every repo (never create `integration`).
 
 ## Docs
-`docs/study_a_implementation_guide.md` (the plan) · `docs/vast_quickstart.md` (provision a box) ·
-`docs/vast_claude_code_orchestration.md` (run Claude Code on the box) ·
-`docs/local_smoke_quickstart.md` (free Mac plumbing check with one small int4 model — machinery only; τ_oc meaningless).
+**Verbalized-first (current):** `docs/e6_onpair_decision_protocol_r3.md` (protocol of record,
+F1–F8 frozen) · `docs/absolute_mechanism_protocol_rA1.md` (parallel absolute registration,
+A1–A8 frozen) · `docs/study_b_design.md` (FROZEN pre-registration; r3 consumes its gates
+verbatim) · `docs/study_b_results_2026_07_20.md` (results of record) ·
+`docs/verbalized_calibration_plan.md` · `docs/verbalized_r0_analyses_2026_07_21.md`
+**Logits channel (Study A, closed):** `docs/study_a_implementation_guide.md` (the plan) ·
+`docs/e6_onpair_decision_protocol.md` (r2, retained record) · `docs/vast_quickstart.md`
+(provision a box) · `docs/vast_claude_code_orchestration.md` (run Claude Code on the box) ·
+`docs/local_smoke_quickstart.md` (free Mac plumbing check with one small int4 model — machinery
+only; τ_oc meaningless).

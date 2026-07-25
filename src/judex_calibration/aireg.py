@@ -27,8 +27,12 @@ canonical GT; hence we synthesize it from the tracked bundle every load.
 WHAT THE GT ACTUALLY IS (re-verified 2026-07-24 against judex-ground-truth ``5ee7786``;
 every figure below was recomputed from the artifacts for this pass, not carried over).
 The reference is the AIReg-Bench human panel reconciled by the cumulative-consistency
-MG-MFRM over **three human legal-expert annotators** (``rater_id`` 0/1/2; the fit's design
-is ``n_raters = 3``). It is **not** the 7-seat LLM exemplar panel in judex-corpus — that
+MG-MFRM over **three rating SLOTS per cell** (``rater_id`` 0/1/2; the fit's design is
+``n_raters = 3``). [Corrected 2026-07-25: the slots are filled from a pool of SIX human
+annotators under a use-case block design — one fixed triple per use case — per
+``judex-corpus/aireg-bench/human_annotations_disaggregated.xlsx``; the fitted rater facets
+describe slots, not people, and the reference is RECONSTRUCTED from categorical votes, not
+elicited.] It is **not** the 7-seat LLM exemplar panel in judex-corpus — that
 panel is few-shot material only and is firewall-disjoint from this reference.
 
 The bundle was **re-materialized on 2026-07-09** (``89f40b7`` + ``3c2ebdb``) — after this

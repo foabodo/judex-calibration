@@ -16,7 +16,10 @@ untouched; rA1 does not modify, reinterpret, or supersede any r3 constant.
 **Reference object (stated explicitly, because it was previously mislabelled).** Every fit in this
 protocol scores against `judex_calibration.aireg.load_cells()` → `Cell.gt_probs`: the AIReg-Bench
 ground truth, a **continuous credence distribution reconciled by the MG-MFRM cumulative-consistency
-model over three human legal-expert annotators** (`rater_id` 0/1/2), read out at τ = 0.675. It is
+model over three human legal-expert annotators** (`rater_id` 0/1/2), read out at τ = 0.675.
+*[Correction note, 2026-07-25 — text above retained as frozen: the three `rater_id`s are rating
+SLOTS filled from a pool of SIX annotators (use-case block design); the reference is
+reconstructed from categorical votes. No A-constant changes.]* It is
 **not** the seven-seat **LLM** exemplar panel in `judex-corpus`, which supplies few-shot material
 only and is firewall-disjoint from the ground truth. Reference properties, recomputed 2026-07-24:
 mean max-probability 0.4607, median 0.3798, 0/120 cells above 0.9, mean normalized entropy 0.7686,
