@@ -26,6 +26,11 @@ from judex_calibration import elicit_control as ec
 from judex_calibration import elicit_verbalized as ev
 from judex_calibration import mmlu
 
+# Row count of the pinned control exemplar store. Pinned as a constant so a store that
+# silently shrinks (a filter regression) fails here rather than in a live leg. v1 = 237;
+# v2 (E1 remediation) is the current pin, see cfs.STORE_SHA256.
+STORE_ROWS = 333  # v2 (E1 remediation); v1 was 237
+
 GOOD_JSON = ('{"answer_letter": "B", '
              '"answer_distribution": {"A": 0.10, "B": 0.65, "C": 0.20, "D": 0.05}, '
              '"answer_justification": "B follows from the modus tollens step.", '
@@ -131,7 +136,7 @@ class AdapterTests(unittest.TestCase):
             for r in rows:
                 self.assertEqual(mmlu.render_item_text(r["question"], r["choices"]), r["text"])
                 n += 1
-        self.assertEqual(n, 237)
+        self.assertEqual(n, STORE_ROWS)
 
     def test_render_options_rejects_wrong_arity(self):
         with self.assertRaises(ValueError):
@@ -178,18 +183,49 @@ class SelectorTests(unittest.TestCase):
             self.assertEqual({r["id"] for r in rev}, {r["id"] for r in base})
             self.assertEqual([r["id"] for r in rev], [r["id"] for r in base][::-1])
 
-    def test_alt_set_fails_loud_on_the_v1_store(self):
-        """The v1 store has ONE source item for at least one letter per subject, so a
-        source-exclusion re-walk cannot be coverage-preserving. The guard must raise —
-        silently dropping a letter would confound the sensitivity read with a coverage
-        hole, which is exactly the k=4 E-hole failure the AIReg scaffold was fixed for."""
+    def test_alt_set_is_feasible_on_the_v2_store(self):
+        """FLIPPED at the v2 re-pin (was ``test_alt_set_fails_loud_on_the_v1_store``).
+
+        The v1 candidate pool used min_candidates_per_letter=1, so at least one letter per
+        subject traced to a SINGLE source item and the source-exclusion re-walk could not
+        be coverage-preserving: the guard raised for all six subjects and the assertion
+        was that it did. The v2 pool is depth 2 by construction and survives the
+        correct-answer + backslash filters at depth 2 in every bucket, so the disjoint
+        draw must now GO THROUGH — on the real store, not a toy one.
+
+        The guard itself is unchanged, and the toy-store test below still pins its
+        raising behaviour."""
         for s in mmlu.SUBJECTS:
             with self.subTest(subject=s):
-                with self.assertRaises(RuntimeError):
-                    cfs.scaffold_rows(s, 4, "alt_set")
+                base = cfs.scaffold_rows(s, 4, "baseline")
+                alt = cfs.scaffold_rows(s, 4, "alt_set")
+                self.assertEqual(len(alt), 4)
+                self.assertEqual({r["answer_letter"] for r in alt}, set(mmlu.OPTION_LABELS))
+                self.assertFalse({r["id"] for r in base} & {r["id"] for r in alt})
+                self.assertFalse({r["source_item_label"] for r in base}
+                                 & {r["source_item_label"] for r in alt})
                 feas = cfs.alt_set_feasibility(s, 4)
-                self.assertFalse(feas["alt_set_feasible"])
-                self.assertTrue(feas["starved_letters"])
+                self.assertTrue(feas["alt_set_feasible"], feas["error"])
+                self.assertEqual(feas["starved_letters"], [])
+                self.assertIsNone(feas["error"])
+
+    def test_alt_set_guard_still_raises_on_a_shallow_store(self):
+        """The v2 store no longer trips the guard, so the guard's raising path needs its
+        own coverage: a one-source-per-letter store must still fail LOUD rather than
+        silently drop a letter."""
+        rows = [{"id": f"only:{L}", "answer_letter": L, "answer_1to4": i + 1,
+                 "source_item_label": f"only:{L}", "rater_model": f"r{i}"}
+                for i, L in enumerate(mmlu.OPTION_LABELS)]
+        orig = cfs._STORE_CACHE
+        try:
+            cfs._STORE_CACHE = {"shallow": rows}
+            with self.assertRaises(RuntimeError):
+                cfs.scaffold_rows("shallow", 4, "alt_set")
+            feas = cfs.alt_set_feasibility("shallow", 4)
+            self.assertFalse(feas["alt_set_feasible"])
+            self.assertTrue(feas["starved_letters"])
+        finally:
+            cfs._STORE_CACHE = orig
 
     def test_alt_set_succeeds_when_the_store_has_depth(self):
         """The guard is a coverage check, not a blanket refusal: give it a store with two
@@ -231,6 +267,111 @@ class FirewallTests(unittest.TestCase):
         splits = {r["source_item_label"].split(":")[2]
                   for rows in cfs.load_store().values() for r in rows}
         self.assertEqual(splits, {"dev", "validation"})
+
+
+class StoreV2ScaffoldContentTests(unittest.TestCase):
+    """The two properties store v2 exists to guarantee (E1 remediation).
+
+    Phase 2c's four base legs all failed the parse gate through two content-driven modes
+    traced to the v1 store, not to the harness: LaTeX backslashes inside JSON string
+    fields (`Invalid \\escape`), and a reasoning span roughly 3x shorter than the AIReg
+    scaffold's, which taught base checkpoints that reasoning is optional. Both are
+    properties of the exemplar CONTENT, so both are pinned here — the harness, the
+    contract and the organic credences are unchanged and are covered by the tests above.
+    """
+
+    def _rendered_strings(self, row):
+        return [row.get("reasoning") or "", row.get("answer_justification") or "",
+                row.get("confidence_justification") or ""]
+
+    def test_no_backslash_in_any_rendered_string_field(self):
+        offenders = [(r["id"], s) for rows in cfs.load_store().values() for r in rows
+                     for s in self._rendered_strings(r) if "\\" in s]
+        self.assertEqual(offenders, [], f"{len(offenders)} store strings carry a backslash")
+
+    def test_every_rendered_exemplar_json_is_valid_and_round_trips(self):
+        """The end-to-end property, stated precisely.
+
+        ``render_answer_json`` puts the panel's prose through ``json.dumps``, which emits
+        its own legal escapes: ``\\"`` for a quote, and ``\\uXXXX`` for any non-ASCII
+        character (the panel does use Unicode logic and math symbols such as the
+        disjunction sign in formal_logic and econometrics). Those are backslashes in the
+        rendered block, but they are JSON-VALID ones — a base checkpoint that imitates
+        them emits parseable JSON, which is not the failure mode.
+
+        What breaks stage 2 is a backslash the panel WROTE, i.e. a TeX command like
+        ``\\frac`` sitting raw inside a string, because that is an ILLEGAL escape
+        (``Invalid \\escape``). That property is pinned by
+        ``test_no_backslash_in_any_rendered_string_field`` above, on the source strings.
+
+        Here we pin the consequence that actually matters: every exemplar JSON the model
+        is shown parses, and parses back to exactly the prose the panel wrote.
+
+        The MMLU question and option text is benchmark quotation and may carry TeX; it is
+        deliberately out of scope — the scaffold teaches by the prose it shows, and the
+        prose is the panel's.
+        """
+        for s in mmlu.SUBJECTS:
+            with self.subTest(subject=s):
+                for r in cfs.scaffold_rows(s, 4):
+                    rendered = ec.render_answer_json(r)
+                    obj = json.loads(rendered)           # must not raise
+                    self.assertEqual(obj["answer_justification"],
+                                     r["answer_justification"].strip(), r["id"])
+                    self.assertEqual(obj["confidence_justification"],
+                                     r["confidence_justification"].strip(), r["id"])
+                    self.assertTrue(ec.parse_control_json(rendered)["parse_ok"], r["id"])
+
+    def test_rendered_json_lines_contain_no_illegal_escape(self):
+        """Mode A at the level the base checkpoint actually imitates it.
+
+        Scoped to the ``JSON:`` lines of the rendered block, deliberately. The
+        ``Evidence:``/``Criterion:`` sections carry the MMLU question and options
+        verbatim, and MMLU's own text contains TeX (``$x\\%$`` in
+        high_school_mathematics, for one) — that is benchmark quotation sitting in PROSE,
+        not inside a JSON string, and it is not ours to rewrite.
+
+        This is the honest boundary of the fix and it is worth stating plainly: the
+        scaffold cannot stop showing the model LaTeX, because the question text has
+        LaTeX in it. What v2 changes is what the model is shown to DO with it — every
+        exemplar answers a TeX-bearing question in plain ASCII prose. So the property
+        pinned here is that the JSON the model is taught to emit never contains an
+        illegal escape, which is what made stage 2 unparseable.
+        """
+        legal = set('"\\/bfnrtu')
+        for s in mmlu.SUBJECTS:
+            with self.subTest(subject=s):
+                json_lines = [ln for ln in ec.build_fewshot(s).splitlines()
+                              if ln.startswith("JSON: ")]
+                self.assertEqual(len(json_lines), 4)
+                for ln in json_lines:
+                    for i, ch in enumerate(ln):
+                        if ch == "\\":
+                            self.assertIn(ln[i + 1], legal,
+                                          f"{s}: illegal escape at {ln[max(0, i - 60):i + 20]!r}")
+
+    def test_justification_spans_are_in_the_aireg_band(self):
+        """AIReg dimension exemplars: min 246, median 610 characters. v1 control exemplars
+        were median 188 with 56% under 200. v2 must clear the floor everywhere and sit in
+        the target band on the median."""
+        lens = sorted(len(r["answer_justification"])
+                      for rows in cfs.load_store().values() for r in rows)
+        self.assertGreaterEqual(lens[0], 246, "a stored span is shorter than AIReg's minimum")
+        median = lens[len(lens) // 2]
+        self.assertGreaterEqual(median, 400)
+        self.assertLessEqual(median, 900)
+        self.assertEqual([x for x in lens if x < 200], [])
+
+    def test_every_subject_letter_bucket_has_two_source_items(self):
+        """The depth alt_set needs, asserted on the store rather than inferred from the
+        selector: this is the v1 limitation the v2 candidate top-up was built to remove."""
+        for s in mmlu.SUBJECTS:
+            with self.subTest(subject=s):
+                by_letter = {}
+                for r in cfs.load_store()[s]:
+                    by_letter.setdefault(r["answer_letter"], set()).add(r["source_item_label"])
+                for L in mmlu.OPTION_LABELS:
+                    self.assertGreaterEqual(len(by_letter.get(L, ())), 2, f"{s}/{L}")
 
 
 # ---------------------------------------------------------------------------
@@ -398,7 +539,7 @@ class RenderRoundTripTests(unittest.TestCase):
                 self.assertTrue(rec["compliance_on_grid"], r["id"])
                 self.assertTrue(rec["confidence_on_grid"], r["id"])
                 n += 1
-        self.assertEqual(n, 237)
+        self.assertEqual(n, STORE_ROWS)
 
     def test_rendered_blocks_carry_four_parsable_exemplars(self):
         for s in mmlu.SUBJECTS:

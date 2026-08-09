@@ -1,0 +1,937 @@
+{
+  "items": [
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "~Pd",
+        "(∀x)(Px ∨ ~Dx)",
+        "(∀x)(Px ⊃ ~Dx)",
+        "~Dp"
+      ],
+      "index": 0,
+      "item_id": "mmlu:formal_logic:dev:0000",
+      "question": " Select the best translation into predicate logic: No people drive on Mars.",
+      "split": "dev",
+      "subject": "formal_logic"
+    },
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "Blgh",
+        "Bhlg",
+        "Bglh",
+        "Bghl"
+      ],
+      "index": 1,
+      "item_id": "mmlu:formal_logic:dev:0001",
+      "question": "Select the best translation into predicate logic.George borrows Hector's lawnmower. (g: George; h: Hector; l: Hector's lawnmower; Bxyx: x borrows y from z)",
+      "split": "dev",
+      "subject": "formal_logic"
+    },
+    {
+      "answer_index": 3,
+      "answer_letter": "D",
+      "choices": [
+        "Marina is a dancer. Some weaklings are not dancers. Either everything is a weakling or Georgia plays volleyball. So something plays volleyball.",
+        "Marina is a dancer. No weakling is a dancer. Everything is either a weakling or plays volleyball. So something plays volleyball.",
+        "Marina is a dancer. Some weaklings are not dancers. Everything is either a weakling or plays volleyball. So something plays volleyball.",
+        "Marina is a dancer. No weakling is a dancer. Either everything is a weakling or Georgia plays volleyball. So something plays volleyball."
+      ],
+      "index": 2,
+      "item_id": "mmlu:formal_logic:dev:0002",
+      "question": " Select the best English interpretation of the given arguments in predicate logic.\nDm\n(∀x)(Wx ⊃ ~Dx)\n(∀x)Wx ∨ Ag\t/ (∃x)Ax",
+      "split": "dev",
+      "subject": "formal_logic"
+    },
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "Logically equivalent",
+        "Contradictory",
+        "Neither logically equivalent nor contradictory, but consistent",
+        "Inconsistent"
+      ],
+      "index": 3,
+      "item_id": "mmlu:formal_logic:dev:0003",
+      "question": " Construct a complete truth table for the following pairs of propositions. Then, using the truth tables, determine whether the statements are logically equivalent or contradictory. If neither, determine whether they are consistent or inconsistent. Justify your answers.\nE ⊃ (F · E) and ~E · F",
+      "split": "dev",
+      "subject": "formal_logic"
+    },
+    {
+      "answer_index": 1,
+      "answer_letter": "B",
+      "choices": [
+        "(L • H) ≡ I",
+        "(L • H) ∨ I",
+        "L • (H ∨ I)",
+        "L • (H ⊃ R)"
+      ],
+      "index": 4,
+      "item_id": "mmlu:formal_logic:dev:0004",
+      "question": " Which of the given formulas of PL is the best symbolization of the following sentence?\nTurtles live long lives and are happy creatures, unless they are injured.",
+      "split": "dev",
+      "subject": "formal_logic"
+    },
+    {
+      "answer_index": 1,
+      "answer_letter": "B",
+      "choices": [
+        "The Aardvarks do not win their first game.",
+        "The Bees win their first game.",
+        "The Chipmunks do not win their first game.",
+        "Neither the Aardvarks nor the Chipmunks win their first games."
+      ],
+      "index": 0,
+      "item_id": "mmlu:formal_logic:validation:0000",
+      "question": "Identify the antecedent of the following conditional proposition: If the Bees win their first game, then neither the Aardvarks nor the Chipmunks win their first games.",
+      "split": "validation",
+      "subject": "formal_logic"
+    },
+    {
+      "answer_index": 0,
+      "answer_letter": "A",
+      "choices": [
+        "S ∨ (W • P)",
+        "(S ∨ W) ∨ P",
+        "S • (W ∨ P)",
+        "(S • W) ∨ P"
+      ],
+      "index": 1,
+      "item_id": "mmlu:formal_logic:validation:0001",
+      "question": " Which of the given formulas of PL is the best symbolization of the following sentence?\nElliott likes to skateboard or he likes to write songs and to play them.",
+      "split": "validation",
+      "subject": "formal_logic"
+    },
+    {
+      "answer_index": 3,
+      "answer_letter": "D",
+      "choices": [
+        "(∃x){Bx • (∃y)[Ry • (∀z)(Mz ⊃ Syzx)]}",
+        "(∃x)(∃y)(∃z)[(Rx • By) • (Mz • Syxz)]",
+        "(∃x){Rx ⊃ (∃y)[My ⊃ (∃z)(Bz ⊃ Sxyz)]}",
+        "(∃x){Rx • (∃y)[My • (∃z)(Bz • Sxyz)]}"
+      ],
+      "index": 3,
+      "item_id": "mmlu:formal_logic:validation:0003",
+      "question": " Select the best translation into predicate logic.Some robbers steal money from a bank. (Bx: x is a bank; Mx: x is money; Rx: x is a robber; Sxyz: x steals y from z)",
+      "split": "validation",
+      "subject": "formal_logic"
+    },
+    {
+      "answer_index": 0,
+      "answer_letter": "A",
+      "choices": [
+        "Valid",
+        "Invalid. Counterexample when D and E are true and F is false",
+        "Invalid. Counterexample when D is true and E and F are false",
+        "Invalid. Counterexample when E is true and D and F are false"
+      ],
+      "index": 5,
+      "item_id": "mmlu:formal_logic:validation:0005",
+      "question": " Construct a complete truth table for the following argument. Then, using the truth table, determine whether the argument is valid or invalid. If the argument is invalid, choose an option which presents a counterexample. (There may be other counterexamples as well.)\nD ⊃ (~E ⊃ F)\n~D ⊃ E\n~E / F",
+      "split": "validation",
+      "subject": "formal_logic"
+    },
+    {
+      "answer_index": 1,
+      "answer_letter": "B",
+      "choices": [
+        "3",
+        "15",
+        "6",
+        "5"
+      ],
+      "index": 0,
+      "item_id": "mmlu:high_school_mathematics:dev:0000",
+      "question": "Joe was in charge of lights for a dance. The red light blinks every two seconds, the yellow light every three seconds, and the blue light every five seconds. If we include the very beginning and very end of the dance, how many times during a seven minute dance will all the lights come on at the same time? (Assume that all three lights blink simultaneously at the very beginning of the dance.)",
+      "split": "dev",
+      "subject": "high_school_mathematics"
+    },
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "12",
+        "1",
+        "30",
+        "5"
+      ],
+      "index": 1,
+      "item_id": "mmlu:high_school_mathematics:dev:0001",
+      "question": "Five thousand dollars compounded annually at an $x\\%$ interest rate takes six years to double. At the same interest rate, how many years will it take $\\$300$ to grow to $\\$9600$?",
+      "split": "dev",
+      "subject": "high_school_mathematics"
+    },
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "-1",
+        "16",
+        "-\\frac{1}{256}",
+        "\\frac{1}{16}"
+      ],
+      "index": 2,
+      "item_id": "mmlu:high_school_mathematics:dev:0002",
+      "question": "The variable $x$ varies directly as the square of $y$, and $y$ varies directly as the cube of $z$. If $x$ equals $-16$ when $z$ equals 2, what is the value of $x$ when $z$ equals $\\frac{1}{2}$?",
+      "split": "dev",
+      "subject": "high_school_mathematics"
+    },
+    {
+      "answer_index": 3,
+      "answer_letter": "D",
+      "choices": [
+        "\\frac{3\\sqrt{3}}{3}",
+        "\\frac{1}{3}",
+        "\\sqrt{3}",
+        "\\frac{\\sqrt{3}}{3}"
+      ],
+      "index": 3,
+      "item_id": "mmlu:high_school_mathematics:dev:0003",
+      "question": "Simplify and write the result with a rational denominator: $$\\sqrt{\\sqrt[3]{\\sqrt{\\frac{1}{729}}}}$$",
+      "split": "dev",
+      "subject": "high_school_mathematics"
+    },
+    {
+      "answer_index": 3,
+      "answer_letter": "D",
+      "choices": [
+        "55",
+        "60",
+        "62",
+        "65"
+      ],
+      "index": 4,
+      "item_id": "mmlu:high_school_mathematics:dev:0004",
+      "question": "Ten students take a biology test and receive the following scores: 45, 55, 50, 70, 65, 80, 40, 90, 70, 85. What is the mean of the students’ test scores?",
+      "split": "dev",
+      "subject": "high_school_mathematics"
+    },
+    {
+      "answer_index": 0,
+      "answer_letter": "A",
+      "choices": [
+        "52",
+        "51",
+        "50",
+        "49"
+      ],
+      "index": 0,
+      "item_id": "mmlu:high_school_mathematics:validation:0000",
+      "question": "Exits on a highway are numbered consecutively from 1 to 50. The distance from exit 41 to exit 50 is 100 km. If each exit is at least 6 km from the next exit, what is the longest possible distance, in kilometers, between exit 47 and exit 48?",
+      "split": "validation",
+      "subject": "high_school_mathematics"
+    },
+    {
+      "answer_index": 1,
+      "answer_letter": "B",
+      "choices": [
+        "30",
+        "12",
+        "20",
+        "6"
+      ],
+      "index": 1,
+      "item_id": "mmlu:high_school_mathematics:validation:0001",
+      "question": "In a group of 11 people, T of them always tell the truth, and L always lie. Each person names two other people and claims that of the two, exactly one of them is lying. Each person is named in this way by exactly two other people. Find the sum of all possible values of T.",
+      "split": "validation",
+      "subject": "high_school_mathematics"
+    },
+    {
+      "answer_index": 0,
+      "answer_letter": "A",
+      "choices": [
+        "6",
+        "5",
+        "1",
+        "32"
+      ],
+      "index": 2,
+      "item_id": "mmlu:high_school_mathematics:validation:0002",
+      "question": "How many integers 1-9 are divisors of the five-digit number 24,516?",
+      "split": "validation",
+      "subject": "high_school_mathematics"
+    },
+    {
+      "answer_index": 3,
+      "answer_letter": "D",
+      "choices": [
+        "the statute is void for vagueness under the Fourteenth Amendment's due process clause.",
+        "the statute is invalid because it violates the petitioner's freedom of speech under the First Amendment.",
+        "the statute is an abridgment of freedom of speech under the First Amendment because less restrictive means are available for achieving the same purpose.",
+        "the statute is overbroad and consequently invalid under the First and FourteenthAmendments."
+      ],
+      "index": 0,
+      "item_id": "mmlu:professional_law:dev:0000",
+      "question": "A state legislature has recently enacted a statute making it a misdemeanor to curse or revile or use obscene or opprobrious language toward or in reference to a police officer perfonning his duties. A student at a state university organized a demonstration on campus to protest the war. The rally was attended by a group of 50 students who shouted anti-war messages at cars passing by. To show his contempt for the United States, the student sewed the American flag to the rear of his jeans. When a police officer saw the flag sown on the student's jeans, he approached and told him to remove the flag or he would be placed under arrest. The student became angered and shouted at the police officer, \"Listen, you bastard, I'll wear this rag anywhere I please. \" The student was subsequently placed under arrest and charged with violating the state statute. The student subsequently brings suit in state court challenging the constitutionality of the statute. The strongest constitutional argument for the student is that",
+      "split": "dev",
+      "subject": "professional_law"
+    },
+    {
+      "answer_index": 0,
+      "answer_letter": "A",
+      "choices": [
+        "The commerce clause.",
+        "The equal protection clause of the Fourteenth Amendment.",
+        "The privileges and immunities clause of Article IV, Section 2. ",
+        "The contract clause."
+      ],
+      "index": 1,
+      "item_id": "mmlu:professional_law:dev:0001",
+      "question": "A state has recently enacted a statute prohibiting the disposal of any nuclear wastes within the state. This law does not contravene or conflict with any federal statutes. A man operates a company in the state that is engaged in the disposal of nuclear wastes. Subsequent to the passage of the state statute, the man, not yet aware of the new law, entered into contracts with many out-of-state firms to dispose of their nuclear wastes in the state. On account of this new law, however, the man will be unable to perform these contracts. Assume that the man has standing to challenge this state law. Which of the following presents his strongest constitutional grounds to challenge the state law prohibiting the disposal of nuclear wastes within the state?",
+      "split": "dev",
+      "subject": "professional_law"
+    },
+    {
+      "answer_index": 1,
+      "answer_letter": "B",
+      "choices": [
+        "Indisputable facts.",
+        "Facts that have been asserted by individual political organizations.",
+        "Facts recognized to be true by common knowledge.",
+        "Facts capable of scientific verification."
+      ],
+      "index": 2,
+      "item_id": "mmlu:professional_law:dev:0002",
+      "question": "Judge took judicial notice of some facts at the beginning of the trial. Which of the following is not an appropriate kind of fact for judicial notice?",
+      "split": "dev",
+      "subject": "professional_law"
+    },
+    {
+      "answer_index": 1,
+      "answer_letter": "B",
+      "choices": [
+        "grant relief, because the fence was in violation of the easement restriction. ",
+        "grant relief, because the encroachment of the fence violated the restriction in the original plan. ",
+        "deny relief, because the teacher failed to enforce the restriction against the retiree. ",
+        "deny relief, because the fence would not be construed as \"a structure\" within the terms of the restriction. "
+      ],
+      "index": 3,
+      "item_id": "mmlu:professional_law:dev:0003",
+      "question": "On October 1, 1980, a developer, owner of several hundred acres in a rural county, drafted a general development plan for the area. The duly recorded plan imposed elaborate limitations and restrictions upon the land in the plan, which was to be developed as a residential district. The restrictions were to extend to all persons acquiring any of the lots and to their heirs, assigns, and lessees. It was further provided that all subsequent owners would be charged with due notice of the restrictions. Among those restrictions in the general plan were the following:(22) A franchise right is created in a strip of land 10 feet in width along the rear of each lot for the use of public utility companies with right of ingress and egress. (23) No house or structure of any kind shall be built on the aforementioned strip of land running through the said blocks. In 2000, a retiree purchased one of the lots, built a house, and erected a fence in the rear of his property within the restricted area. In 2004, a teacher purchased a lot adjacent to the retiree's property and built a new house. Two years later, a librarian purchased the lot that adjoined the teacher's property. The three deeds to those properties each contained references to the deed book where the general plan was recorded. In 2008, the librarian began the construction of a seven-foot post-and-rail fence along the line dividing his lot with the teacher's, and along the center of the area subject to the franchise right. Although the teacher objected to its construction, the fence was completed. If the teacher seeks a mandatory injunction to compel removal of the librarian's fence, the court will most likely",
+      "split": "dev",
+      "subject": "professional_law"
+    },
+    {
+      "answer_index": 0,
+      "answer_letter": "A",
+      "choices": [
+        "The father's promise and the creditor's reliance thereon, if proved, gave rise to a valid claim by the creditor against the father based on the doctrine of promissory estoppel. ",
+        "Because it was foreseeable that the father's promise would induce the creditor to forbear taking any action against the son, such forbearance was, as a matter of law, a bargained-for consideration for the father's promise. ",
+        "The father's five payments to the creditor totaling $2,500 manifested a serious intent on the father's part to be contractually bound, and such manifestation is generally recognized as an effective substitute for consideration. ",
+        "By assuming the antecedent debt obligation that the son owed to the creditor, the father became a surety whose promise to the creditor was enforceable, since it was in writing and supported by adequate consideration. "
+      ],
+      "index": 4,
+      "item_id": "mmlu:professional_law:dev:0004",
+      "question": "A son owed a creditor $5,000. The son's father contacted the creditor and told him that he wanted to pay the son's debt. The father signed a document that stated the father would pay the son's debt at a rate of $500 a month for 10 months. The creditor made no written or oral commitment to forbear to sue the son to collect the $5,000 debt, and the father made no oral or written request for any such forbearance. For the next five months, the father made and the creditor accepted the $500 monthly payments as agreed. During that period, the creditor, in fact, did forbear to take any legal action against the son. However, the father then informed the creditor that he would make no further payments on the debt. Which of the following is the most persuasive argument that the father is liable to the creditor under the terms of their agreement?",
+      "split": "dev",
+      "subject": "professional_law"
+    },
+    {
+      "answer_index": 3,
+      "answer_letter": "D",
+      "choices": [
+        "The entire clause is unenforceable, because it violates a public policy favoring the prompt and early repayment of debt.",
+        "The entire clause is unenforceable, because the rise in interest rates will allow the bank to reloan the funds without loss.",
+        "The two-year prepayment prohibition and the prepayment fee provision are both valid and enforceable.",
+        "The two-year prepayment prohibition is unenforceable, but the prepayment fee provision is enforceable."
+      ],
+      "index": 2,
+      "item_id": "mmlu:professional_law:validation:0002",
+      "question": "A man borrowed $500,000 from a bank, securing the loan with a mortgage on a commercial building he owned. The mortgage provided as follows: \"No prepayment may be made on this loan during the first two years after the date of this mortgage. Thereafter, prepayment may be made in any amount at any time but only if accompanied by a prepayment fee of 5% of the amount prepaid.\" One year later, the man received an unexpected cash gift of $1 million and wished to pay off the $495,000 principal balance still owed on the loan. $495,000 principal balance still owed on the loan. Concerned that the bank might refuse prepayment, despite a rise in market interest rates in the year since the loan was made, or at least insist on the 5% prepayment fee, the man consulted an attorney concerning the enforceability of the above-quoted clause. There is no applicable statute. What is the attorney likely to say? ",
+      "split": "validation",
+      "subject": "professional_law"
+    },
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "sustain the objection, because it goes to an ultimate issue in the case. ",
+        "sustain the objection, because the nurse is not qualified to render an expert opinion. ",
+        "overrule the objection, because it is a shorthand rendition of what she observed. ",
+        "overrule the objection, because there are independent grounds to show a present sense impression. "
+      ],
+      "index": 4,
+      "item_id": "mmlu:professional_law:validation:0004",
+      "question": "A rescuer was driving on an isolated portion of a country road. His headlights caught a figure lying at the side of the road. The rescuer stopped to investigate and found a victim, who was bleeding from head wounds and appeared to have been severely beaten. The rescuer then lifted the victim into his car and drove her to the hospital, a half-hour trip. When they arrived at the hospital, the rescuer carried the victim into the emergency room. He left her with a nurse and then returned home. Although the victim recovered from her injuries, she sued the hospital for malpractice, claiming that she was not promptly given medical attention. At trial, the nurse proposes to testify that when the victim was first brought to the hospital, she was unconscious. The victim's attorney objects and moves to strike the nurse's testimony. The trial judge should",
+      "split": "validation",
+      "subject": "professional_law"
+    },
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "Conspiracy to commit burglary.",
+        "Accessory before the fact to burglary",
+        "Accessory after the fact to burglary.",
+        "No crime."
+      ],
+      "index": 6,
+      "item_id": "mmlu:professional_law:validation:0006",
+      "question": "A state has a statute defining burglary as \"the breaking and entering without privilege of any building or occupied structure with the intent to commit a felony therein. \" Late one night, a burglar broke into a jewelry store located in the state. She was immediately arrested by the night security guard. When the burglar was apprehended by the security guard, she offered him $500 to let her go. The security guard agreed. The burglar then handed him the money and took with her the jewelry she intended to steal. If the security guard is later arrested, he should be found guilty for which, if any, of the following crimes?",
+      "split": "validation",
+      "subject": "professional_law"
+    },
+    {
+      "answer_index": 3,
+      "answer_letter": "D",
+      "choices": [
+        "easement.",
+        "affirmative covenant.",
+        "covenant for quiet enjoyment.",
+        "negative covenant."
+      ],
+      "index": 8,
+      "item_id": "mmlu:professional_law:validation:0008",
+      "question": "In 1960, a widower, advancing into old age, realizes that he is no longer able to farm his 1,000 acres; therefore, he decides to sell some of the farmland in parcels of 250 acres. The president of a development company is interested in purchasing three of the parcels. The president buys the three parcels from the widower and begins formulating plans for constructing single-family dwelling units on the land, which is located in an upper-middle-class area of the county. The original deed between thewidower and the development company contains a provision expressly binding \"upon all subsequent grantees, their heirs, and assigns,\" stipulating that any further subdivisions by any such persons shall be restricted to minimum two-acre lots to be used for single-family dwelling units only. In the original deed between the widower and the development company, the stipulation that restricted the size and residential character of any subsequent subdivision of the parcels is an example of a (an)",
+      "split": "validation",
+      "subject": "professional_law"
+    },
+    {
+      "answer_index": 0,
+      "answer_letter": "A",
+      "choices": [
+        "ATP.",
+        "ADP.",
+        "phosphocreatine.",
+        "oxidative phosphorylation."
+      ],
+      "index": 0,
+      "item_id": "mmlu:clinical_knowledge:dev:0000",
+      "question": "The energy for all forms of muscle contraction is provided by:",
+      "split": "dev",
+      "subject": "clinical_knowledge"
+    },
+    {
+      "answer_index": 1,
+      "answer_letter": "B",
+      "choices": [
+        "Male and female catheters are different colours.",
+        "Male catheters are longer than female catheters.",
+        "Male catheters are bigger than female catheters.",
+        "Female catheters are longer than male catheters."
+      ],
+      "index": 1,
+      "item_id": "mmlu:clinical_knowledge:dev:0001",
+      "question": "What is the difference between a male and a female catheter?",
+      "split": "dev",
+      "subject": "clinical_knowledge"
+    },
+    {
+      "answer_index": 1,
+      "answer_letter": "B",
+      "choices": [
+        "Abduction of the thumb is supplied by spinal root T2",
+        "Opposition of the thumb by opponens policis is supplied by spinal root T1",
+        "Finger adduction is supplied by the median nerve",
+        "Finger abduction is mediated by the palmar interossei"
+      ],
+      "index": 2,
+      "item_id": "mmlu:clinical_knowledge:dev:0002",
+      "question": "In the assessment of the hand function which of the following is true?",
+      "split": "dev",
+      "subject": "clinical_knowledge"
+    },
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "4",
+        "3",
+        "2",
+        "1"
+      ],
+      "index": 3,
+      "item_id": "mmlu:clinical_knowledge:dev:0003",
+      "question": "How many attempts should you make to cannulate a patient before passing the job on to a senior colleague, according to the medical knowledge of 2020?",
+      "split": "dev",
+      "subject": "clinical_knowledge"
+    },
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "glycogen to glucose-1-phosphate.",
+        "glycogen or glucose to fructose.",
+        "glycogen or glucose to pyruvate or lactate.",
+        "glycogen or glucose to pyruvate or acetyl CoA."
+      ],
+      "index": 4,
+      "item_id": "mmlu:clinical_knowledge:dev:0004",
+      "question": "Glycolysis is the name given to the pathway involving the conversion of:",
+      "split": "dev",
+      "subject": "clinical_knowledge"
+    },
+    {
+      "answer_index": 3,
+      "answer_letter": "D",
+      "choices": [
+        "white, glycolytic, slow contracting.",
+        "white, oxidative, slow contracting.",
+        "red, oxidative, fast contracting.",
+        "red, oxidative, slow contracting."
+      ],
+      "index": 0,
+      "item_id": "mmlu:clinical_knowledge:validation:0000",
+      "question": "Type I muscle fibres have the following characteristics:",
+      "split": "validation",
+      "subject": "clinical_knowledge"
+    },
+    {
+      "answer_index": 3,
+      "answer_letter": "D",
+      "choices": [
+        "Low blood pressure, tachycardia.",
+        "High blood pressure, tachycardia.",
+        "Low blood pressure, bradycardia.",
+        "High blood pressure, bradycardia."
+      ],
+      "index": 2,
+      "item_id": "mmlu:clinical_knowledge:validation:0002",
+      "question": "Which of the following represents Cushing's response?",
+      "split": "validation",
+      "subject": "clinical_knowledge"
+    },
+    {
+      "answer_index": 0,
+      "answer_letter": "A",
+      "choices": [
+        "Confusion following a blackout is strongly suggestive of a fit",
+        "Pre-syncope is another term for a blackout",
+        "An epileptic fit always leads to the loss of consciousness",
+        "In the investigation of a blackout a blood sugar estimation is of no value"
+      ],
+      "index": 13,
+      "item_id": "mmlu:clinical_knowledge:validation:0013",
+      "question": "Which of the following is true of blackouts and dizziness?",
+      "split": "validation",
+      "subject": "clinical_knowledge"
+    },
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "an ethical theory about how we ought to behave.",
+        "a generalization concerning the way people tend to behave.",
+        "a claim about human nature and the ways people are capable of behaving.",
+        "none of the above."
+      ],
+      "index": 0,
+      "item_id": "mmlu:philosophy:dev:0000",
+      "question": "Psychological egoism is:",
+      "split": "dev",
+      "subject": "philosophy"
+    },
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "pleasure.",
+        "happiness.",
+        "good.",
+        "virtue."
+      ],
+      "index": 1,
+      "item_id": "mmlu:philosophy:dev:0001",
+      "question": "According to Moore’s “ideal utilitarianism,” the right action is the one that brings about the greatest amount of:",
+      "split": "dev",
+      "subject": "philosophy"
+    },
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "free choices",
+        "dictates of the soul",
+        "necessary natural laws",
+        "undetermined will"
+      ],
+      "index": 2,
+      "item_id": "mmlu:philosophy:dev:0002",
+      "question": "According to d'Holbach, people always act according to _____.",
+      "split": "dev",
+      "subject": "philosophy"
+    },
+    {
+      "answer_index": 3,
+      "answer_letter": "D",
+      "choices": [
+        "optimist",
+        "satisfied",
+        "nominally religious",
+        "pessimist"
+      ],
+      "index": 3,
+      "item_id": "mmlu:philosophy:dev:0003",
+      "question": "Before Tolstoy's Christian conversion, what was his perspective on the meaning of life?",
+      "split": "dev",
+      "subject": "philosophy"
+    },
+    {
+      "answer_index": 0,
+      "answer_letter": "A",
+      "choices": [
+        "metaphysics",
+        "epistemology",
+        "quantum physics",
+        "axiology"
+      ],
+      "index": 4,
+      "item_id": "mmlu:philosophy:dev:0004",
+      "question": "The study of reality in the broadest sense, an inquiry into the elemental nature of the universe and the things in it, is known as _____.",
+      "split": "dev",
+      "subject": "philosophy"
+    },
+    {
+      "answer_index": 3,
+      "answer_letter": "D",
+      "choices": [
+        "are part of a set of religious, moral, or political beliefs that an individual feels deeply about.",
+        "are considered good by at least one culture, sub-culture, or individual.",
+        "cannot be interpreted in different ways by different people or cultures.",
+        "take into account objections, are acceptable to impartial third parties, and avoid undesirable consequences."
+      ],
+      "index": 0,
+      "item_id": "mmlu:philosophy:validation:0000",
+      "question": "One of the aims of philosophy is to think critically about whether there are good reasons for adopting our beliefs.  Reasons are considered \"good reasons\" if they are consistent with everyday experience and:",
+      "split": "validation",
+      "subject": "philosophy"
+    },
+    {
+      "answer_index": 1,
+      "answer_letter": "B",
+      "choices": [
+        "the existence of the mind is a delusion",
+        "the mind is divisible",
+        "the mind is indivisible",
+        "mental illness is incurable"
+      ],
+      "index": 1,
+      "item_id": "mmlu:philosophy:validation:0001",
+      "question": "The existence of a form of mental illness known as multiple personality disorder seems to suggest that _____.",
+      "split": "validation",
+      "subject": "philosophy"
+    },
+    {
+      "answer_index": 0,
+      "answer_letter": "A",
+      "choices": [
+        "approval or desire.",
+        "benefit to oneself.",
+        "the consequences of one’s actions.",
+        "prima facie duties."
+      ],
+      "index": 3,
+      "item_id": "mmlu:philosophy:validation:0003",
+      "question": "Interest theories of the good define goodness in terms of:",
+      "split": "validation",
+      "subject": "philosophy"
+    },
+    {
+      "answer_index": 1,
+      "answer_letter": "B",
+      "choices": [
+        "every pleasure is good, and every pleasure is to be chosen.",
+        "every pleasure is good, but not every pleasure is to be chosen.",
+        "not every pleasure is good, but every pleasure is to be chosen.",
+        "not every pleasure is good, and not every pleasure is to be chosen."
+      ],
+      "index": 15,
+      "item_id": "mmlu:philosophy:validation:0015",
+      "question": "According to Epicurus:",
+      "split": "validation",
+      "subject": "philosophy"
+    },
+    {
+      "answer_index": 0,
+      "answer_letter": "A",
+      "choices": [
+        "Eventually die away",
+        "Persist indefinitely",
+        "Grow exponentially",
+        "Never occur"
+      ],
+      "index": 0,
+      "item_id": "mmlu:econometrics:dev:0000",
+      "question": "For a stationary autoregressive process, shocks will",
+      "split": "dev",
+      "subject": "econometrics"
+    },
+    {
+      "answer_index": 3,
+      "answer_letter": "D",
+      "choices": [
+        "0.2",
+        "0.4",
+        "0.5",
+        "0.33"
+      ],
+      "index": 1,
+      "item_id": "mmlu:econometrics:dev:0001",
+      "question": "Consider the following AR(1) model with the disturbances having zero mean and unit variance\n\nyt = 0.2 + 0.4 yt-1 + ut\n\nThe (unconditional) mean of y will be given by",
+      "split": "dev",
+      "subject": "econometrics"
+    },
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "(ii) and (iv) only",
+        "(i) and (iii) only",
+        "(i), (ii), and (iii) only",
+        "(i), (ii), (iii), and (iv)"
+      ],
+      "index": 2,
+      "item_id": "mmlu:econometrics:dev:0002",
+      "question": "Suppose that a test statistic has associated with it a p-value of 0.08. Which one of the following statements is true?\n\n(i) If the size of the test were exactly 8%, we would be indifferent between rejecting and not rejecting the null hypothesis\n\n(ii) The null would be rejected if a 10% size of test were used\n\n(iii) The null would not be rejected if a 1% size of test were used\n\n(iv) The null would be rejected if a 5% size of test were used.",
+      "split": "dev",
+      "subject": "econometrics"
+    },
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "It will be biased",
+        "It will be inconsistent",
+        "It will be inefficient",
+        "All of (a), (b) and (c) will be true."
+      ],
+      "index": 3,
+      "item_id": "mmlu:econometrics:dev:0003",
+      "question": "What would be then consequences for the OLS estimator if heteroscedasticity is present in a regression model but ignored?",
+      "split": "dev",
+      "subject": "econometrics"
+    },
+    {
+      "answer_index": 2,
+      "answer_letter": "C",
+      "choices": [
+        "1 lag",
+        "2 lags",
+        "3 lags",
+        "4 lags"
+      ],
+      "index": 4,
+      "item_id": "mmlu:econometrics:dev:0004",
+      "question": "Suppose now that a researcher wishes to use information criteria to determine the optimal lag length for a VAR. 500 observations are available for the bi-variate VAR, and the values of the determinant of the variance-covariance matrix of residuals are 0.0336, 0.0169, 0.0084, and 0.0062 for 1, 2, 3, and 4 lags respectively. What is the optimal model order according to Akaike's information criterion?",
+      "split": "dev",
+      "subject": "econometrics"
+    },
+    {
+      "answer_index": 1,
+      "answer_letter": "B",
+      "choices": [
+        "Drop the intercept and re-run the regression",
+        "Retain the intercept",
+        "Re-compute the test statistic",
+        "The regression line is running exactly through the origin"
+      ],
+      "index": 0,
+      "item_id": "mmlu:econometrics:validation:0000",
+      "question": "Suppose that a test that the true value of the intercept coefficient is zero results in non-rejection. What would be the appropriate conclusion?",
+      "split": "validation",
+      "subject": "econometrics"
+    },
+    {
+      "answer_index": 1,
+      "answer_letter": "B",
+      "choices": [
+        "For random effects models, the use of OLS would result in consistent but inefficient parameter estimation",
+        "If the Hausman test is not satisfied, the random effects model is more appropriate.",
+        "Random effects estimation involves the construction of \"quasi-demeaned\" data",
+        "Random effects estimation will not be appropriate if the composite error term is correlated with one or more of the explanatory variables in the model"
+      ],
+      "index": 1,
+      "item_id": "mmlu:econometrics:validation:0001",
+      "question": "In order to determine whether to use a fixed effects or random effects model, a researcher conducts a Hausman test. Which of the following statements is false?",
+      "split": "validation",
+      "subject": "econometrics"
+    },
+    {
+      "answer_index": 3,
+      "answer_letter": "D",
+      "choices": [
+        "Continuous",
+        "Cardinal",
+        "Ordinal",
+        "Nominal"
+      ],
+      "index": 4,
+      "item_id": "mmlu:econometrics:validation:0004",
+      "question": "If a researcher uses daily data to examine a particular problem and creates a variable that assigns a numerical value of 1 to Monday observations, what term would best describe this type of number?",
+      "split": "validation",
+      "subject": "econometrics"
+    },
+    {
+      "answer_index": 0,
+      "answer_letter": "A",
+      "choices": [
+        "(ii) and (iv) only",
+        "(i) and (iii) only",
+        "(i), (ii), and (iii) only",
+        "(i), (ii), (iii), and (iv)"
+      ],
+      "index": 5,
+      "item_id": "mmlu:econometrics:validation:0005",
+      "question": "Consider the following MA(3) process\n\nyt = μ + Εt + θ1Εt-1 + θ2Εt-2 + θ3Εt-3 , where σt is a zero mean white noise process with variance σ2.\n\nWhich of the following statements are true?\n\ni) The process yt has zero mean\n\nii) The autocorrelation function will have a zero value at lag 5\n\niii) The process yt has variance σ2\n\niv) The autocorrelation function will have a value of one at lag 0",
+      "split": "validation",
+      "subject": "econometrics"
+    }
+  ],
+  "meta": {
+    "artifact": "mmlu_control_exemplar_candidates_v2",
+    "builder": "judex-corpus/leaf_exemplars/mmlu_control_exemplars_v2/scripts/fetch_mmlu_control_candidates_v2.py",
+    "dataset": "cais/mmlu",
+    "design_anchor": "judex-calibration/docs/phase2_defined_answer_control_design.md (D1-D4)",
+    "extra_depth_by_subject_letter": {
+      "professional_law:D": 3
+    },
+    "firewall": "split-disjoint from mmlu_control_slice_v1 by construction (dev/validation vs test); zero item_id collisions and zero exact question-text collisions verified against the 120 scored items",
+    "license": "MMLU (cais/mmlu; Hendrycks et al., 'Measuring Massive Multitask Language Understanding', ICLR 2021) is distributed under the MIT License. Redistributed here as a small vendored evaluation slice for reproducibility.",
+    "min_candidates_per_letter": 2,
+    "n_items": 52,
+    "n_items_v1": 36,
+    "per_subject": {
+      "clinical_knowledge": {
+        "candidate_letter_counts": {
+          "A": 2,
+          "B": 2,
+          "C": 2,
+          "D": 2
+        },
+        "candidates_dev": 5,
+        "candidates_total": 8,
+        "candidates_validation": 3,
+        "new_since_v1": 2
+      },
+      "econometrics": {
+        "candidate_letter_counts": {
+          "A": 2,
+          "B": 2,
+          "C": 3,
+          "D": 2
+        },
+        "candidates_dev": 5,
+        "candidates_total": 9,
+        "candidates_validation": 4,
+        "new_since_v1": 3
+      },
+      "formal_logic": {
+        "candidate_letter_counts": {
+          "A": 2,
+          "B": 2,
+          "C": 3,
+          "D": 2
+        },
+        "candidates_dev": 5,
+        "candidates_total": 9,
+        "candidates_validation": 4,
+        "new_since_v1": 3
+      },
+      "high_school_mathematics": {
+        "candidate_letter_counts": {
+          "A": 2,
+          "B": 2,
+          "C": 2,
+          "D": 2
+        },
+        "candidates_dev": 5,
+        "candidates_total": 8,
+        "candidates_validation": 3,
+        "new_since_v1": 2
+      },
+      "philosophy": {
+        "candidate_letter_counts": {
+          "A": 2,
+          "B": 2,
+          "C": 3,
+          "D": 2
+        },
+        "candidates_dev": 5,
+        "candidates_total": 9,
+        "candidates_validation": 4,
+        "new_since_v1": 3
+      },
+      "professional_law": {
+        "candidate_letter_counts": {
+          "A": 2,
+          "B": 2,
+          "C": 2,
+          "D": 3
+        },
+        "candidates_dev": 5,
+        "candidates_total": 9,
+        "candidates_validation": 4,
+        "new_since_v1": 3
+      }
+    },
+    "retrieval_date": "2026-08-09",
+    "role": "exemplar candidate pool for the 7-seat corpus-panel annotation (v2, depth 2)",
+    "scored_slice_file": "/Users/fabodo/Downloads/Projects/judex/judex-calibration/data/mmlu_control_slice_v1.json",
+    "scored_slice_sha256": "31822879ab5e960557ecf2a1f4fb7ccc56a6110458d577a8d3cf788fedf88c7e",
+    "selection_rule": "all dev-split items (5/subject) plus, for each answer letter A-D held by fewer than 2 dev items, the first validation-split item(s) with that letter in canonical row_idx order",
+    "source_api": "https://datasets-server.huggingface.co/rows",
+    "source_urls": [
+      "https://datasets-server.huggingface.co/rows?dataset=cais%2Fmmlu&config=clinical_knowledge&split=dev&offset=0&length=100",
+      "https://datasets-server.huggingface.co/rows?dataset=cais%2Fmmlu&config=clinical_knowledge&split=validation&offset=0&length=100",
+      "https://datasets-server.huggingface.co/rows?dataset=cais%2Fmmlu&config=econometrics&split=dev&offset=0&length=100",
+      "https://datasets-server.huggingface.co/rows?dataset=cais%2Fmmlu&config=econometrics&split=validation&offset=0&length=100",
+      "https://datasets-server.huggingface.co/rows?dataset=cais%2Fmmlu&config=formal_logic&split=dev&offset=0&length=100",
+      "https://datasets-server.huggingface.co/rows?dataset=cais%2Fmmlu&config=formal_logic&split=validation&offset=0&length=100",
+      "https://datasets-server.huggingface.co/rows?dataset=cais%2Fmmlu&config=high_school_mathematics&split=dev&offset=0&length=100",
+      "https://datasets-server.huggingface.co/rows?dataset=cais%2Fmmlu&config=high_school_mathematics&split=validation&offset=0&length=100",
+      "https://datasets-server.huggingface.co/rows?dataset=cais%2Fmmlu&config=philosophy&split=dev&offset=0&length=100",
+      "https://datasets-server.huggingface.co/rows?dataset=cais%2Fmmlu&config=philosophy&split=validation&offset=0&length=100",
+      "https://datasets-server.huggingface.co/rows?dataset=cais%2Fmmlu&config=professional_law&split=dev&offset=0&length=100",
+      "https://datasets-server.huggingface.co/rows?dataset=cais%2Fmmlu&config=professional_law&split=validation&offset=0&length=100",
+      "https://datasets-server.huggingface.co/rows?dataset=cais%2Fmmlu&config=professional_law&split=validation&offset=100&length=100"
+    ],
+    "splits": [
+      "dev",
+      "validation"
+    ],
+    "subjects": [
+      "formal_logic",
+      "high_school_mathematics",
+      "professional_law",
+      "clinical_knowledge",
+      "philosophy",
+      "econometrics"
+    ],
+    "supersedes": "mmlu_control_exemplar_candidates_v1 (min_candidates_per_letter=1)",
+    "topup_items_by_subject": {
+      "clinical_knowledge": [
+        "mmlu:clinical_knowledge:validation:0002",
+        "mmlu:clinical_knowledge:validation:0013"
+      ],
+      "econometrics": [
+        "mmlu:econometrics:validation:0001",
+        "mmlu:econometrics:validation:0004",
+        "mmlu:econometrics:validation:0005"
+      ],
+      "formal_logic": [
+        "mmlu:formal_logic:validation:0000",
+        "mmlu:formal_logic:validation:0003",
+        "mmlu:formal_logic:validation:0005"
+      ],
+      "high_school_mathematics": [
+        "mmlu:high_school_mathematics:validation:0001",
+        "mmlu:high_school_mathematics:validation:0002"
+      ],
+      "philosophy": [
+        "mmlu:philosophy:validation:0000",
+        "mmlu:philosophy:validation:0003",
+        "mmlu:philosophy:validation:0015"
+      ],
+      "professional_law": [
+        "mmlu:professional_law:validation:0002",
+        "mmlu:professional_law:validation:0006",
+        "mmlu:professional_law:validation:0008"
+      ]
+    },
+    "topup_rationale": "v1 used min_candidates_per_letter=1, so at least one (subject, letter) bucket traced to a SINGLE source item in every subject and the alt_set scaffold variant (source-item-disjoint re-walk, judex-calibration control_fewshot.scaffold_rows) was infeasible for all six subjects. v2 raises the depth to 2 by the SAME rule and the SAME canonical row_idx order, so the v1 pool is a subset of the v2 pool. (professional_law, D) additionally carries depth 3: its second item drew a unanimous 7/7 panel dissent from the MMLU answer key and was removed by the correct-answer filter, leaving the bucket one deep."
+  }
+}

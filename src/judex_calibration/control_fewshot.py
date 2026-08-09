@@ -1,7 +1,7 @@
 """Few-shot selection for the defined-answer control scaffold (k=4, one per letter).
 
 The control's exemplar store is the corpus-side artifact
-``judex-corpus/leaf_exemplars/mmlu_control_exemplars_v1/`` (design D4, revised): MMLU
+``judex-corpus/leaf_exemplars/mmlu_control_exemplars_v2/`` (design D4, revised): MMLU
 dev/validation items for the six control subjects, annotated by the SAME 7-seat rater
 panel that produced the AIReg scaffold's exemplars, under an MCQ-adapted contract. The
 exemplar distributions are therefore the panel's organic credences — the same generating
@@ -39,13 +39,39 @@ _CAL_ROOT = Path(__file__).resolve().parents[2]          # .../judex-calibration
 _UMBRELLA = Path(os.environ.get("JUDEX_UMBRELLA") or _CAL_ROOT.parent)  # .../judex
 CORPUS = _UMBRELLA / "judex-corpus"
 CONTROL_STORE = (
-    CORPUS / "leaf_exemplars" / "mmlu_control_exemplars_v1"
+    CORPUS / "leaf_exemplars" / "mmlu_control_exemplars_v2"
     / "exemplar_store" / "mmlu_control_exemplar_store.json"
 )
-# Pin of the control exemplar store (237 rows, keyed by subject). Verified on load and
+# Pin of the control exemplar store (333 rows, keyed by subject). Verified on load and
 # recorded in every leg's meta sidecar, exactly like the slice pin: a scaffold that moved
 # between the pre and post leg of a pair would confound the paired ECE delta (E2).
-STORE_SHA256 = "c4174d4587618c2aa54a71620fbcb4d2514db611d586fa093ad0ee039c3fa3f2"
+STORE_SHA256 = "d34d855eac8c0e0a7a9430f2db711b6692d008404bd2a96b229fe64b04f5f9ba"
+
+# PROVENANCE OF THE PREVIOUS PIN (do not delete — the Phase-2c legs are scored against it):
+#   v1  mmlu_control_exemplars_v1/exemplar_store/mmlu_control_exemplar_store.json
+#       sha256 c4174d4587618c2aa54a71620fbcb4d2514db611d586fa093ad0ee039c3fa3f2, 237 rows.
+# Re-pinned to v2 on 2026-08-09 (E1 remediation). Phase 2c ran all eight legs against v1
+# and NONE of the four base (pre) legs cleared the parse_ok >= 0.90 gate, through two
+# content-driven modes that were traced to the exemplars rather than to the harness:
+#   Mode A  LaTeX backslashes inside JSON string fields -> `Invalid \escape` on stage 2;
+#   Mode B  exemplar reasoning spans ~3x shorter than the AIReg scaffold's (median 188 vs
+#           610 chars, 56% under 200 chars vs 0%), which taught base checkpoints that the
+#           reasoning span is optional — they emitted 0-1 chars and fell into stage-2 EOS.
+# v2 re-annotates a depth-2 candidate pool under prompt version mmlu-control-annotations-v2,
+# whose two instruction amendments target exactly those modes (a full distractor-elimination
+# paragraph of roughly 400-800 characters; plain text with no backslash anywhere). Measured
+# on the v2 store: justification spans min 370 / median 810, 0% under 200 chars, and zero
+# backslashes in any of the 364 annotated rows.
+#
+# ONLY THE SCAFFOLD CONTENT MOVED. The two-stage harness, the stop lists, the K=4 contract,
+# the 0.05 grid, the nominal (non-unimodal) answer support and the correct-answer filter are
+# unchanged, and the distributions are still the panel's ORGANIC credences — the v2 prompt
+# says nothing about sharpness or confidence. A v1-scored leg and a v2-scored leg are
+# therefore comparable in every respect except the exemplars, which is the intended contrast.
+#
+# Re-pinning is deliberate and load-bearing: legs elicited under the v1 pin hard-error on
+# resume against this one (see elicit_control._guard_resume), which is the desired behaviour.
+STORE_SHA256_V1 = "c4174d4587618c2aa54a71620fbcb4d2514db611d586fa093ad0ee039c3fa3f2"
 
 # k=4 is the CONTROL protocol constant (one exemplar per option letter). It is NOT read
 # from configs/models.yaml — that yaml pins the AIReg instrument's k=5, and a control leg
@@ -134,11 +160,12 @@ def scaffold_rows(subject: str, k: int, variant: str = "baseline",
     letter is not a scaffold perturbation, it is a broken scaffold, and would confound
     the sensitivity read with a coverage hole.
 
-    NOTE (measured 2026-08-09, ``scripts/control_scaffold_probe.py``): the control store
-    holds only ONE source item for at least one letter in every subject (it was built
-    from 6 candidate items per subject), so ``alt_set`` currently raises for all six
-    subjects. That is the guard working, not a bug: the optional robustness check needs a
-    deeper store (more annotated dev/validation candidates) before it can run.
+    STATUS (2026-08-09, v2 re-pin): ``alt_set`` is now FEASIBLE for all six subjects. On
+    the v1 store it raised everywhere, because that store was built from a candidate pool
+    with one item per (subject, letter) and a source-exclusion re-walk could not be
+    coverage-preserving. The v2 pool is depth 2 by construction and survives the
+    correct-answer filter at depth 2 in every bucket, so the disjoint draw goes through.
+    The guard is unchanged and still raises on a shallower store.
     """
     if variant not in SCAFFOLD_VARIANTS:
         raise ValueError(f"unknown scaffold variant {variant!r}; expected one of {SCAFFOLD_VARIANTS}")
