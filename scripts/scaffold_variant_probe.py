@@ -32,11 +32,18 @@ from judex_calibration.aireg import load_cells
 from judex_calibration import fewshot as fs
 from judex_calibration import elicit_verbalized as ev
 
-# The two families Phase 1a elicits, base and post (tokenizers can differ within a pair).
+# Every family the scaffold study elicits, base and post (tokenizers can differ within a
+# pair). Phase 1a = qwen + gemma31; Phase 1b adds the remaining adoption-panel families,
+# glm and maverick, whose legs are raw /v1/completions on BOTH sides — so the raw-prompt
+# budget below is the binding pre-provisioning check for them (no chat-template path).
 TOKENIZE_REPOS = {
     "qwen/pre": "Qwen/Qwen3.5-35B-A3B-Base",
     "qwen/post": "Qwen/Qwen3.5-35B-A3B",
     "gemma31/pre": "google/gemma-4-31B",
+    "glm/pre": "zai-org/GLM-4.5-Base",
+    "glm/post": "zai-org/GLM-4.5",
+    "maverick/pre": "meta-llama/Llama-4-Maverick-17B-128E",
+    "maverick/post": "meta-llama/Llama-4-Maverick-17B-128E-Instruct",
 }
 CTX_PIN = 32768
 
