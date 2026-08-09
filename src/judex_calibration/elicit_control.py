@@ -181,11 +181,25 @@ def parse_control_json(text: str) -> dict:
 
 
 def parse_last_control(text: str) -> dict:
-    """Last balanced JSON object carrying an ``answer_distribution`` (chat-API replies).
+    """Last balanced JSON object carrying an ``answer_distribution``.
 
-    Mirrors ``elicit_api_verbalized.parse_last_contract``: a chat reply legitimately
-    contains reasoning prose that may include braces, so the FIRST object is not
-    necessarily the answer.
+    Mirrors ``elicit_api_verbalized.parse_last_contract``. Used on BOTH transports since
+    the E1 remediation (2026-08-09): a stage-2 completion, like a chat reply, legitimately
+    contains braces that are not the answer object. Phase 2c's Mode A had two distinct
+    sub-causes, and only one of them was the store's:
+
+      * illegal escapes the panel's own prose taught (``\\frac`` inside a JSON string) —
+        fixed on the CONTENT side by store v2, which carries no backslash at all;
+      * brace-hijack of the first-``{`` scan — MMLU's question text is full of TeX, so a
+        model that restates ``\\frac{x}{12}`` before its JSON hands the first-object
+        scanner ``{x}``, which is balanced, is not the answer, and fails ``json.loads``
+        as ``Expecting property name enclosed in double quotes``. No store content can
+        fix that; the parser has to skip non-answer objects, which is what this does.
+
+    INERT on a well-formed single-object emission: the scan finds the same first object,
+    it carries ``answer_distribution``, and it is what gets parsed — byte-identical to
+    ``parse_control_json``. It is also inert on a no-object emission, which still falls
+    through to ``no_json_object``.
     """
     best, pos = None, 0
     while True:
@@ -208,11 +222,16 @@ def parse_last_control(text: str) -> dict:
 
 def elicit_cell(base_url: str, model: str, evidence_text: str, criterion_text: str,
                 fewshot: str = "", reason: bool = True, budget: int = 2048) -> dict:
-    """One control item through the verbalized channel (imported two-stage flow)."""
+    """One control item through the verbalized channel (imported two-stage flow).
+
+    Stage 2 is parsed with ``parse_last_control``, not the first-object scan — see that
+    function's docstring for why (TeX braces in restated MMLU stems hijack the first-``{``
+    scan). The RECORD SHAPE is unchanged: both paths return ``parse_control_json``'s dict.
+    """
     prompt = build_prompt(evidence_text, criterion_text, fewshot)
     reasoning = generate_reasoning(base_url, model, prompt, budget) if reason else ""
     raw = generate_json(base_url, model, prompt + reasoning + JSON_SCAFFOLD)
-    rec = parse_control_json(raw)
+    rec = parse_last_control(raw)
     rec.update({"channel": CHANNEL, "reasoning_chars": len(reasoning)})
     return rec
 
@@ -221,7 +240,11 @@ def _control_leg_meta(*, model: str, scaffold_variant: str, fewshot_k: int,
                       slice_sha: str, store_sha: str, **extra) -> dict:
     meta = {"model": model, "channel": CHANNEL, "epsilon": EPSILON,
             "contract": CONTRACT, "slice_sha256": slice_sha, "store_sha256": store_sha,
-            "scaffold_variant": scaffold_variant, "fewshot_k": int(fewshot_k)}
+            "scaffold_variant": scaffold_variant, "fewshot_k": int(fewshot_k),
+            # WHICH rows the scaffold drew, on top of WHICH store they came from. Two legs
+            # can share a store_sha256 and still be different legs: the length-blind draw
+            # and the band draw off store v2 differ by 31 parse-rate points on smoke.
+            "exemplar_selection": cfs.EXEMPLAR_SELECTION}
     meta.update(extra)
     return meta
 
@@ -232,8 +255,11 @@ def _guard_resume(out: Path, meta_path: Path, leg_meta: dict, *, unguarded=()) -
     The inherited guard iterates the PRIOR sidecar's keys, so an identity field the prior
     sidecar happens to lack is silently unguarded. Every control identity field therefore
     gets an EXPLICIT clause below (mirroring the ``scaffold_variant`` clause upstream) —
-    a prior sidecar with no ``contract``/``slice_sha256``/``store_sha256`` is a
-    pre-control artifact and must hard-error, not default to "compatible".
+    a prior sidecar with no ``contract``/``slice_sha256``/``store_sha256``/
+    ``exemplar_selection`` is a pre-control or pre-band artifact and must hard-error, not
+    default to "compatible". ``exemplar_selection`` is the newest such field and its
+    omission is exactly the Phase-2c case: those sidecars predate band selection, so
+    resuming a Phase-2c leg under this harness hard-errors, which is the intent.
     """
     recs: Dict[str, dict] = {}
     if not out.exists():
@@ -248,6 +274,7 @@ def _guard_resume(out: Path, meta_path: Path, leg_meta: dict, *, unguarded=()) -
         or prior.get("store_sha256") != leg_meta["store_sha256"]
         or prior.get("scaffold_variant") != leg_meta["scaffold_variant"]
         or prior.get("fewshot_k") != leg_meta["fewshot_k"]
+        or prior.get("exemplar_selection") != leg_meta["exemplar_selection"]
         or prior.get("channel") != leg_meta["channel"])
     if recs and (prior is None or mismatched):
         raise RuntimeError(
@@ -286,9 +313,10 @@ def run_variant(base_url: str, model: str, items, out_path: str, *,
                 slice_sha: Optional[str] = None, store_sha: Optional[str] = None) -> dict:
     """Elicit every control item; checkpoint + sidecar, same discipline as Study B.
 
-    The sidecar pins the control's FIVE identity fields on top of the inherited ones:
-    ``contract``, ``slice_sha256``, ``store_sha256``, ``scaffold_variant``, ``fewshot_k``
-    — each with an explicit resume-guard clause (see ``_guard_resume``).
+    The sidecar pins the control's SIX identity fields on top of the inherited ones:
+    ``contract``, ``slice_sha256``, ``store_sha256``, ``scaffold_variant``, ``fewshot_k``,
+    ``exemplar_selection`` — each with an explicit resume-guard clause (see
+    ``_guard_resume``).
     """
     if scaffold_variant not in cfs.SCAFFOLD_VARIANTS:
         raise ValueError(f"unknown scaffold variant {scaffold_variant!r}; "

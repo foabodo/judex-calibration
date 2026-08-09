@@ -183,6 +183,105 @@ class SelectorTests(unittest.TestCase):
             self.assertEqual({r["id"] for r in rev}, {r["id"] for r in base})
             self.assertEqual([r["id"] for r in rev], [r["id"] for r in base][::-1])
 
+    def test_every_selected_exemplar_is_in_the_span_band(self):
+        """CHANGE 1's headline property, on the real store, for every variant.
+
+        The band is a preference with a documented nearest-the-band fallback, so the
+        assertion is scoped to what the store can actually deliver: every (subject,
+        letter) bucket on store v2 holds at least one in-band row (asserted separately
+        below), so the BASELINE and rev_order draws must be fully in band. ``alt_set``
+        re-walks under source exclusion and may legitimately fall back — it is checked
+        under the fallback test instead.
+        """
+        lo, hi = cfs.EXEMPLAR_SPAN_BAND
+        self.assertEqual((lo, hi), (400, 800))
+        self.assertEqual(cfs.EXEMPLAR_SELECTION, "band_400_800")
+        for s in mmlu.SUBJECTS:
+            for variant in ("baseline", "rev_order"):
+                with self.subTest(subject=s, variant=variant):
+                    for r in cfs.scaffold_rows(s, 4, variant):
+                        n = cfs.span_len(r)
+                        self.assertTrue(lo <= n <= hi, f"{s}/{variant} {r['id']}: {n} chars")
+
+    def test_every_bucket_has_an_in_band_row(self):
+        """Why the baseline draw can be asserted fully in band: the store supports it.
+
+        Pinned on the store rather than inferred from the selector, so a future store
+        that loses in-band depth in some bucket fails HERE, naming the bucket, instead of
+        silently exercising the fallback inside a live leg.
+        """
+        lo, hi = cfs.EXEMPLAR_SPAN_BAND
+        for s in mmlu.SUBJECTS:
+            with self.subTest(subject=s):
+                for L in mmlu.OPTION_LABELS:
+                    n = sum(1 for r in cfs.load_store()[s]
+                            if r["answer_letter"] == L and lo <= cfs.span_len(r) <= hi)
+                    self.assertGreaterEqual(n, 1, f"{s}/{L} has no in-band exemplar")
+
+    def test_band_selection_actually_moved_the_draw(self):
+        """The change is not a no-op: a length-blind walk over the same store draws spans
+        outside the band, which is the configuration the Mac smoke ladder measured at
+        0.538 parse vs 0.846 for the band draw."""
+        lo, hi = cfs.EXEMPLAR_SPAN_BAND
+        blind = []
+        for s in mmlu.SUBJECTS:
+            by_letter = {}
+            for r in cfs.load_store()[s]:
+                by_letter.setdefault(r["answer_letter"], []).append(r)
+            blind += [by_letter[L][0] for L in mmlu.OPTION_LABELS]   # stored order, no band
+        self.assertTrue([r for r in blind if not (lo <= cfs.span_len(r) <= hi)],
+                        "the length-blind draw is already all in band — test is vacuous")
+
+    def test_band_restrict_falls_back_to_nearest_and_never_empties(self):
+        """The fallback contract: no in-band row => nearest-the-band row(s), never [] —
+        and an empty pool is a coverage failure that must be LOUD, not a band miss."""
+        rows = [{"id": "far", "answer_justification": "x" * 2000},
+                {"id": "near", "answer_justification": "x" * 900},
+                {"id": "near2", "answer_justification": "y" * 900}]
+        got = cfs.band_restrict(rows)
+        self.assertEqual([r["id"] for r in got], ["near", "near2"])   # ties both kept
+        below = [{"id": "short", "answer_justification": "x" * 100},
+                 {"id": "shorter", "answer_justification": "x" * 10}]
+        self.assertEqual([r["id"] for r in cfs.band_restrict(below)], ["short"])
+        mixed = [{"id": "out", "answer_justification": "x" * 2000},
+                 {"id": "in", "answer_justification": "x" * 500}]
+        self.assertEqual([r["id"] for r in cfs.band_restrict(mixed)], ["in"])
+        with self.assertRaises(ValueError):
+            cfs.band_restrict([])
+
+    def test_band_selection_is_deterministic_and_still_coverage_complete(self):
+        """Determinism and coverage are the two properties the band must not cost."""
+        for s in mmlu.SUBJECTS:
+            with self.subTest(subject=s):
+                a = [r["id"] for r in cfs.scaffold_rows(s, 4)]
+                b = [r["id"] for r in cfs.scaffold_rows(s, 4)]
+                self.assertEqual(a, b)
+                self.assertEqual(len(a), 4)
+                self.assertEqual({r["answer_letter"] for r in cfs.scaffold_rows(s, 4)},
+                                 set(mmlu.OPTION_LABELS))
+
+    def test_band_survives_a_bucket_with_no_in_band_row(self):
+        """A toy store whose C bucket is entirely out of band: the letter is still
+        covered (fallback), and the other letters still draw in band."""
+        lo, hi = cfs.EXEMPLAR_SPAN_BAND
+        rows = []
+        for i, L in enumerate(mmlu.OPTION_LABELS):
+            for j, n in enumerate((2000, 550) if L != "C" else (2000, 1500)):
+                rows.append({"id": f"{L}{j}", "answer_letter": L, "answer_1to4": i + 1,
+                             "source_item_label": f"src:{L}{j}", "rater_model": f"r{j}",
+                             "answer_justification": "x" * n})
+        orig = cfs._STORE_CACHE
+        try:
+            cfs._STORE_CACHE = {"toy": rows}
+            picked = cfs.scaffold_rows("toy", 4, "baseline")
+            self.assertEqual({r["answer_letter"] for r in picked}, set(mmlu.OPTION_LABELS))
+            by_letter = {r["answer_letter"]: r for r in picked}
+            for L in ("A", "B", "D"):
+                self.assertTrue(lo <= cfs.span_len(by_letter[L]) <= hi, L)
+            self.assertEqual(cfs.span_len(by_letter["C"]), 1500)   # nearest the band
+        finally:
+            cfs._STORE_CACHE = orig
+
     def test_alt_set_is_feasible_on_the_v2_store(self):
         """FLIPPED at the v2 re-pin (was ``test_alt_set_fails_loud_on_the_v1_store``).
 
@@ -244,6 +343,42 @@ class SelectorTests(unittest.TestCase):
             self.assertFalse({r["id"] for r in base} & {r["id"] for r in alt})
         finally:
             cfs._STORE_CACHE = orig
+
+    def test_alt_set_band_selects_among_the_remainder(self):
+        """Variant interplay: alt_set excludes the BAND-selected primary's source items,
+        then band-selects among what is left.
+
+        alt_set is where the fallback earns its keep — four (subject, letter) buckets on
+        store v2 hold a source item with no in-band row, so a hard in-band requirement
+        would make the disjoint draw infeasible. The assertion is therefore the honest
+        one: alt_set stays feasible and coverage-preserving everywhere, its draw is
+        source-disjoint from the primary, and it is in band wherever the remainder
+        allowed it — with any fallback row reported rather than hidden.
+        """
+        lo, hi = cfs.EXEMPLAR_SPAN_BAND
+        fallbacks = 0
+        for s in mmlu.SUBJECTS:
+            with self.subTest(subject=s):
+                base = cfs.scaffold_rows(s, 4, "baseline")
+                alt = cfs.scaffold_rows(s, 4, "alt_set")
+                self.assertEqual({r["answer_letter"] for r in alt}, set(mmlu.OPTION_LABELS))
+                self.assertFalse({r["source_item_label"] for r in base}
+                                 & {r["source_item_label"] for r in alt})
+                feas = cfs.alt_set_feasibility(s, 4)
+                self.assertEqual(feas["exemplar_selection"], cfs.EXEMPLAR_SELECTION)
+                self.assertEqual(feas["baseline_out_of_band"], [])
+                self.assertEqual(feas["baseline_span_lens"], [cfs.span_len(r) for r in base])
+                for r in alt:
+                    if not (lo <= cfs.span_len(r) <= hi):
+                        fallbacks += 1
+                        # a fallback is only legitimate if the remainder had no in-band row
+                        rest = [x for x in cfs.load_store()[s]
+                                if x["answer_letter"] == r["answer_letter"]
+                                and x["source_item_label"] not in
+                                {b["source_item_label"] for b in base}]
+                        self.assertFalse([x for x in rest if lo <= cfs.span_len(x) <= hi],
+                                         f"{s}: alt_set fell back with in-band rows left")
+        self.assertLessEqual(fallbacks, 24)
 
     def test_unknown_variant_raises(self):
         with self.assertRaises(ValueError):
@@ -503,6 +638,37 @@ class ParseTests(unittest.TestCase):
         self.assertTrue(rec["parse_ok"])
         self.assertEqual(rec["answer_letter"], "B")
 
+    def test_latex_braces_before_the_json_parse_under_last_object(self):
+        """CHANGE 2's regression case, taken from Phase 2c's Mode A.
+
+        MMLU stems carry TeX, and a model that restates one before answering emits
+        ``\\frac{x}{12}``. The first-``{`` scan grabs ``{x}`` — balanced, not the answer,
+        and a ``json.loads`` failure. The last-object scan skips it.
+        """
+        text = ("The rate is given by \\frac{x}{12} so the share is \\frac{1}{4}.\n"
+                "JSON: " + GOOD_JSON)
+        first = ec.parse_control_json(text)
+        self.assertFalse(first["parse_ok"])           # the mode, reproduced
+        self.assertIn("json_decode", first["parse_error"])
+        rec = ec.parse_last_control(text)             # the fix
+        self.assertTrue(rec["parse_ok"], rec.get("parse_error"))
+        self.assertEqual(rec["answer_letter"], "B")
+        self.assertTrue(rec["contract_complete"])
+
+    def test_last_object_is_inert_on_a_plain_single_object(self):
+        """Inertness: on emissions with no decoy brace the two parsers agree exactly,
+        including on the failure paths, so switching the raw path changes nothing but
+        the brace-hijack case."""
+        for text in (GOOD_JSON,
+                     "Here you go:\n" + GOOD_JSON + "\nDone.",
+                     " " + GOOD_JSON,
+                     "I cannot answer.",
+                     '{"answer_letter": "B",}',
+                     GOOD_JSON.replace("answer_distribution", "answers"),
+                     GOOD_JSON.replace('"B": 0.65', '"B": 0.63')):
+            with self.subTest(text=text[:40]):
+                self.assertEqual(ec.parse_control_json(text), ec.parse_last_control(text))
+
 
 class FloorTests(unittest.TestCase):
     def test_zeros_floored_and_renormalized_on_4_vectors(self):
@@ -610,6 +776,8 @@ class RunVariantTests(unittest.TestCase):
             self.assertEqual(meta["store_sha256"], "STORE")
             self.assertEqual(meta["scaffold_variant"], "baseline")
             self.assertEqual(meta["fewshot_k"], 4)
+            self.assertEqual(meta["exemplar_selection"], "band_400_800")
+            self.assertEqual(meta["exemplar_selection"], cfs.EXEMPLAR_SELECTION)
             self.assertEqual(meta["epsilon"], ev.EPSILON)
             av, cv = ec.answer_view(recs), ec.confidence_view(recs)
             self.assertEqual(set(av), {i.item_label for i in self.items})
@@ -664,7 +832,7 @@ class RunVariantTests(unittest.TestCase):
         """The inherited guard only iterates the PRIOR sidecar's keys, so a sidecar that
         predates a field would be silently unguarded. The explicit clauses must fire."""
         for dropped in ("contract", "slice_sha256", "store_sha256", "scaffold_variant",
-                        "fewshot_k", "channel"):
+                        "fewshot_k", "exemplar_selection", "channel"):
             with self.subTest(dropped=dropped), tempfile.TemporaryDirectory() as d:
                 out = Path(d) / "pre_control.json"
                 self._run(out)
@@ -688,6 +856,32 @@ class RunVariantTests(unittest.TestCase):
                 mp.write_text(json.dumps(meta))
                 with self.assertRaises(RuntimeError):
                     self._run(out)
+
+    def test_wrong_exemplar_selection_in_prior_sidecar_hard_errors(self):
+        """Band selection is leg identity, not metadata: a Phase-2c leg (length-blind, no
+        such key) and a legacy leg claiming a different policy must both refuse to
+        continue under the band draw — same store_sha256 notwithstanding."""
+        for wrong in ("length_blind", "band_300_900"):
+            with self.subTest(selection=wrong), tempfile.TemporaryDirectory() as d:
+                out = Path(d) / "pre_control.json"
+                self._run(out)
+                mp = out.with_suffix(".meta.json")
+                meta = json.loads(mp.read_text())
+                meta["exemplar_selection"] = wrong
+                mp.write_text(json.dumps(meta))
+                with self.assertRaises(RuntimeError):
+                    self._run(out)
+
+    def test_elicit_cell_uses_last_object_parsing(self):
+        """CHANGE 2 at the seam, not just at the parser: a stage-2 completion whose TeX
+        precedes the JSON must produce a parse_ok record through ``elicit_cell``."""
+        ev.__dict__["_completions"] = _fake_completions(
+            "recall \\frac{x}{12} and \\frac{1}{4}, so: " + GOOD_JSON)
+        rec = ec.elicit_cell("http://x", "m", "ev", "crit")
+        self.assertTrue(rec["parse_ok"], rec.get("parse_error"))
+        self.assertEqual(rec["answer_letter"], "B")
+        self.assertEqual(rec["contract"], "mmlu_control_v1")
+        self.assertEqual(rec["channel"], "verbalized")
 
     def test_missing_sidecar_hard_errors(self):
         with tempfile.TemporaryDirectory() as d:

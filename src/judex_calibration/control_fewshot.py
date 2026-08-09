@@ -7,13 +7,41 @@ panel that produced the AIReg scaffold's exemplars, under an MCQ-adapted contrac
 exemplar distributions are therefore the panel's organic credences — the same generating
 process as the AIReg scaffold, nothing invented or sharpness-tuned.
 
-Selection mirrors ``fewshot.select_rows`` semantics exactly, with ONE substitution: the
-stratification axis is the answer LETTER (A-D) instead of the compliance LEVEL. That is
-the same coverage rule (k >= #categories, one exemplar per category) that made k=5
-mandatory on the 5-level ordinal task; here #categories = 4, so k=4 is coverage-complete
-— this is NOT a return to the deprecated AIReg k=4, which was defective only because
-4 < 5. Round-robin over letters in A->D order, least-used ``rater_model`` at each step,
-ties keeping stored order. Deterministic.
+Selection mirrors ``fewshot.select_rows`` semantics exactly, with TWO substitutions:
+
+  1. the stratification axis is the answer LETTER (A-D) instead of the compliance LEVEL.
+     That is the same coverage rule (k >= #categories, one exemplar per category) that
+     made k=5 mandatory on the 5-level ordinal task; here #categories = 4, so k=4 is
+     coverage-complete — this is NOT a return to the deprecated AIReg k=4, which was
+     defective only because 4 < 5.
+  2. within each (subject, letter) bucket the candidate pool is first restricted to rows
+     whose ``answer_justification`` length falls in ``EXEMPLAR_SPAN_BAND`` (see
+     "Band-targeted selection" below).
+
+Round-robin over letters in A->D order, least-used ``rater_model`` at each step, ties
+keeping stored order. Deterministic.
+
+BAND-TARGETED SELECTION (``exemplar_selection = "band_400_800"``, E1 remediation
+2026-08-09). Store v2 fixed the *floor* problem (no exemplar is short enough to teach a
+base checkpoint that the reasoning span is optional) but introduced a *ceiling* problem:
+its spans run to 1509 characters, and a length-blind draw hands base checkpoints an
+elaborate model to imitate. The offline+Mac smoke ladder measured exactly that on
+qwen3-4b-base, 13 items, greedy, v2 store throughout:
+
+    default (length-blind) draw   spans 648-1509   parse 0.538   <- WORST
+    band-targeted draw            spans  507-781   parse 0.846   <- BEST
+
+The failure the length-blind draw adds is not empty reasoning (0 empty cells in every v2
+iteration) — it is JSON-breaking output: models imitate the elaborateness, write longer
+and more ornate justifications, and emit illegal escapes and raw control characters
+inside the strings. Restricting to 400-800 characters keeps the span comfortably above
+the AIReg dimension exemplars' floor (min 246, median 610) while removing the long tail
+that elicits the imitation.
+
+The band is a *preference*, never a coverage cost: if a (subject, letter) bucket holds no
+in-band row, the selector falls back to the row(s) nearest the band and the letter is
+still covered. Only a genuinely EMPTY bucket is an error, and that is the pre-existing
+coverage guard's business, not the band filter's.
 
 FIREWALL: the store draws exclusively from MMLU **dev/validation**; the scored slice is
 **test**. Split-disjointness is structural, and the test suite additionally asserts zero
@@ -80,6 +108,14 @@ CONTROL_FEWSHOT_K = 4
 
 SCAFFOLD_VARIANTS = ("baseline", "alt_set", "rev_order")
 
+# Band-targeted exemplar selection (E1 remediation) — see the module docstring for the
+# smoke evidence. Inclusive bounds on len(answer_justification), in characters.
+EXEMPLAR_SPAN_BAND = (400, 800)
+# Recorded verbatim in every leg's meta sidecar and guarded on resume: a leg elicited
+# under a length-blind draw and one elicited under the band draw are DIFFERENT legs, and
+# the smoke ladder measured a 31-point parse-rate gap between them.
+EXEMPLAR_SELECTION = f"band_{EXEMPLAR_SPAN_BAND[0]}_{EXEMPLAR_SPAN_BAND[1]}"
+
 _STORE_CACHE: Optional[Dict[str, list]] = None
 
 
@@ -118,8 +154,48 @@ def default_k() -> int:
 # Selection
 # ---------------------------------------------------------------------------
 
+def span_len(row: dict) -> int:
+    """Length in characters of the exemplar's ``answer_justification`` — the band axis."""
+    return len(row.get("answer_justification") or "")
+
+
+def _band_distance(row: dict, band=EXEMPLAR_SPAN_BAND) -> int:
+    """0 inside the band, else the characters by which the row misses it."""
+    n = span_len(row)
+    lo, hi = band
+    return 0 if lo <= n <= hi else (lo - n if n < lo else n - hi)
+
+
+def band_restrict(cands: Sequence[dict], band=EXEMPLAR_SPAN_BAND) -> List[dict]:
+    """The band PREFERENCE applied to one (subject, letter) candidate pool.
+
+    In-band rows if there are any; otherwise the rows tied at the smallest distance to
+    the band (documented fallback — the letter is still covered, and the least-used-rater
+    walk still gets to balance among ties rather than being handed a single row).
+
+    Order is preserved, so the caller's stable sort still resolves rater ties by stored
+    order. FAIL-LOUD on an empty pool: the band filter must never be the thing that
+    silently drops a letter — an empty bucket is the caller's coverage problem and is
+    surfaced as such.
+    """
+    if not cands:
+        raise ValueError("band_restrict got an empty candidate pool — an empty "
+                         "(subject, letter) bucket is a coverage failure, not a band miss")
+    in_band = [r for r in cands if _band_distance(r, band) == 0]
+    if in_band:
+        return in_band
+    best = min(_band_distance(r, band) for r in cands)
+    return [r for r in cands if _band_distance(r, band) == best]
+
+
 def select_rows(subject: str, k: int, exclude: Optional[Sequence[str]] = None) -> List[dict]:
-    """Stratified fixed_set over letters x raters — ``fewshot.select_rows`` semantics."""
+    """Stratified fixed_set over letters x raters, band-targeted within each bucket.
+
+    ``fewshot.select_rows`` semantics with the letter axis and ONE added step: the
+    per-bucket candidate pool passes through :func:`band_restrict` before the least-used
+    rater walk. The band is re-applied on every round-robin pass, so a k > 4 draw that
+    exhausts a bucket's in-band rows falls back per pass rather than once.
+    """
     excluded = set(exclude or ())
     rows = [r for r in load_store().get(subject, [])
             if r.get("source_item_label") not in excluded]
@@ -137,6 +213,7 @@ def select_rows(subject: str, k: int, exclude: Optional[Sequence[str]] = None) -
             cands = [r for r in by_letter.get(L, []) if r.get("id") not in used_ids]
             if not cands:
                 continue
+            cands = band_restrict(cands)
             # least-used rater; ties keep stored order (stable sort)
             cands.sort(key=lambda r: rater_use.get(r.get("rater_model"), 0))
             choice = cands[0]
@@ -166,6 +243,14 @@ def scaffold_rows(subject: str, k: int, variant: str = "baseline",
     coverage-preserving. The v2 pool is depth 2 by construction and survives the
     correct-answer filter at depth 2 in every bucket, so the disjoint draw goes through.
     The guard is unchanged and still raises on a shallower store.
+
+    BAND INTERPLAY (E1 remediation): both draws are band-targeted. The primary is drawn
+    band-first, its SOURCE ITEMS are excluded, and the alternate is then band-drawn among
+    what is left. Four (subject, letter) buckets hold a source item with no in-band row
+    at all, so the alternate legitimately falls back to nearest-the-band there — which is
+    precisely why the fallback exists rather than a hard in-band requirement: an in-band
+    *requirement* would make ``alt_set`` infeasible on a store that is deep enough to
+    support it, trading a real coverage property for a soft length preference.
     """
     if variant not in SCAFFOLD_VARIANTS:
         raise ValueError(f"unknown scaffold variant {variant!r}; expected one of {SCAFFOLD_VARIANTS}")
@@ -213,4 +298,9 @@ def alt_set_feasibility(subject: str, k: int = CONTROL_FEWSHOT_K) -> dict:
     return {"subject": subject, "baseline_ids": [r["id"] for r in base],
             "baseline_source_items": sorted(base_src),
             "rows_after_source_exclusion": len(left), "starved_letters": starved,
-            "alt_set_feasible": ok, "alt_set_ids": [r["id"] for r in alt], "error": err}
+            "alt_set_feasible": ok, "alt_set_ids": [r["id"] for r in alt], "error": err,
+            "exemplar_selection": EXEMPLAR_SELECTION,
+            "baseline_span_lens": [span_len(r) for r in base],
+            "alt_set_span_lens": [span_len(r) for r in alt],
+            "baseline_out_of_band": [r["id"] for r in base if _band_distance(r)],
+            "alt_set_out_of_band": [r["id"] for r in alt if _band_distance(r)]}

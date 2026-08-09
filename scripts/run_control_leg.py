@@ -50,6 +50,8 @@ def analyze(out_dir: Path, items, *, bootstrap: bool = True) -> dict:
     report = score_control.analyze(recs_by_leg, bootstrap=bootstrap)
     report["parse_rate_gate"] = PARSE_RATE_GATE
     report["store_sha256"] = cfs.store_sha256()
+    report["exemplar_selection"] = cfs.EXEMPLAR_SELECTION
+    report["exemplar_span_band"] = list(cfs.EXEMPLAR_SPAN_BAND)
     for leg, recs in recs_by_leg.items():
         gate = ec.contract_compliance_summary(recs, n_cells=len(items))
         gate["parse_gate_ok"] = gate["parse_rate"] >= PARSE_RATE_GATE
@@ -120,9 +122,10 @@ def main():
                     default="baseline",
                     help="k=4 coverage-preserving scaffold perturbation: baseline = the "
                          "shipped scaffold; alt_set = fully disjoint one-per-letter draw "
-                         "(needs a deeper store than v1 ships — currently raises); "
-                         "rev_order = same exemplars rendered D -> A. Pinned in the leg "
-                         "meta sidecar; a resume under a different variant hard-errors")
+                         "(feasible on store v2, which is depth 2 per bucket); "
+                         "rev_order = same exemplars rendered D -> A. All three sit on "
+                         "top of band-targeted selection. Pinned in the leg meta sidecar; "
+                         "a resume under a different variant hard-errors")
     ap.add_argument("--budget", type=int, default=2048)
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--limit", type=int, help="SMOKE: first N items only (numbers discarded)")
@@ -148,9 +151,15 @@ def main():
     run_items = items[: args.limit] if args.limit else items
     blocks = ec.build_fewshot_by_subject(items, k=args.fewshot_k,
                                          variant=args.scaffold_variant)
+    spans = {s: [cfs.span_len(r) for r in cfs.order_rows(
+        cfs.scaffold_rows(s, args.fewshot_k, args.scaffold_variant), args.scaffold_variant)]
+        for s in blocks}
     print(f"[scaffold] contract={ec.CONTRACT} k={args.fewshot_k} "
-          f"variant={args.scaffold_variant} subjects={len(blocks)} "
+          f"variant={args.scaffold_variant} selection={cfs.EXEMPLAR_SELECTION} "
+          f"subjects={len(blocks)} "
           f"slice={mmlu.slice_sha256()[:12]} store={cfs.store_sha256()[:12]}")
+    for s, v in spans.items():
+        print(f"[scaffold]   {s:<24} spans {v}")
     ec.run_variant(args.base_url, args.model, run_items, str(leg_path(out_dir, args.leg)),
                    fewshot=lambda c: blocks[c.criterion_id], reason=not args.no_reason,
                    budget=args.budget, fewshot_k=args.fewshot_k, workers=args.workers,

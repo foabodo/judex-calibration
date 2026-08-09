@@ -49,11 +49,18 @@ CTX_PIN = 32768
 AIREG_WORST_CASE_REQUIRED = 27000
 
 
+def in_band(row: dict) -> bool:
+    lo, hi = cfs.EXEMPLAR_SPAN_BAND
+    return lo <= cfs.span_len(row) <= hi
+
+
 def probe(k: int = cfs.CONTROL_FEWSHOT_K) -> dict:
     items = mmlu.load_control_items()
     store = cfs.load_store()
     rep = {"k": k, "contract": ec.CONTRACT, "n_items": len(items),
            "slice_sha256": mmlu.slice_sha256(), "store_sha256": cfs.store_sha256(),
+           "exemplar_selection": cfs.EXEMPLAR_SELECTION,
+           "exemplar_span_band": list(cfs.EXEMPLAR_SPAN_BAND),
            "subjects": sorted({i.subject for i in items}), "rows": {}}
     for subj in rep["subjects"]:
         rows = store.get(subj, [])
@@ -79,11 +86,25 @@ def probe(k: int = cfs.CONTROL_FEWSHOT_K) -> dict:
             "alt_set_starved_letters": feas["starved_letters"],
             "alt_set_error": feas["error"],
             "fewshot_chars": len(ec.build_fewshot(subj, k=k)),
+            # band-targeted selection (E1 remediation): the spans the model is shown
+            "baseline_span_lens": [cfs.span_len(r) for r in base],
+            "baseline_out_of_band": [r["id"] for r in base if not in_band(r)],
+            "alt_set_span_lens": feas["alt_set_span_lens"],
+            "alt_set_out_of_band": feas["alt_set_out_of_band"],
+            "store_in_band_by_letter": {
+                L: sum(1 for r in rows if r["answer_letter"] == L and in_band(r))
+                for L in mmlu.OPTION_LABELS},
         }
     rep["baseline_all_coverage_complete"] = all(
         r["baseline_coverage_complete"] and r["rev_order_same_set"] and r["rev_order_is_reversed"]
         for r in rep["rows"].values())
     rep["alt_set_available"] = all(r["alt_set_feasible"] for r in rep["rows"].values())
+    all_spans = sorted(x for r in rep["rows"].values() for x in r["baseline_span_lens"])
+    rep["baseline_spans"] = {
+        "min": all_spans[0], "median": all_spans[len(all_spans) // 2], "max": all_spans[-1],
+        "n_out_of_band": sum(len(r["baseline_out_of_band"]) for r in rep["rows"].values()),
+        "n": len(all_spans)}
+    rep["baseline_all_in_band"] = rep["baseline_spans"]["n_out_of_band"] == 0
     # longest live item (professional_law stems are the long tail)
     blocks = ec.build_fewshot_by_subject(items, k=k)
     longest = max(items, key=lambda i: len(ec.build_prompt(i.evidence_text, i.criterion_text,
@@ -161,11 +182,19 @@ def main():
     print(f"\nlongest live prompt: {rep['longest_item']['item_label']} "
           f"({rep['longest_item']['prompt_chars']:,} chars)")
 
+    b = rep["baseline_spans"]
+    print(f"\nexemplar selection: {rep['exemplar_selection']} "
+          f"(band {rep['exemplar_span_band']}) — {b['n']} spans, "
+          f"min {b['min']} / median {b['median']} / max {b['max']}, "
+          f"out of band {b['n_out_of_band']}")
+
     print("\n=== baseline draw (letter ramp A->D, least-used-rater balancing) ===")
     for s, r in rep["rows"].items():
-        print(f"{s}:")
-        for lid, letter, rater in zip(r["baseline_ids"], r["baseline_letters"], r["baseline_raters"]):
-            print(f"    {letter}  {rater:<48} {lid}")
+        print(f"{s}:  spans {r['baseline_span_lens']}")
+        for lid, letter, rater, n in zip(r["baseline_ids"], r["baseline_letters"],
+                                         r["baseline_raters"], r["baseline_span_lens"]):
+            flag = "" if lid not in r["baseline_out_of_band"] else "  <- OUT OF BAND"
+            print(f"    {letter}  {n:>5}  {rater:<48} {lid}{flag}")
 
     if args.tokenize:
         rep["tokens"] = tokenize_report(rep, budget=args.budget)
