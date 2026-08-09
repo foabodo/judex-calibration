@@ -57,9 +57,15 @@ def analyze(out_dir: Path, cells, eps_sensitivity: bool = False) -> dict:
         # arithmetically wrong — half is 0.025) is the channel's floor (design doc §5).
         comp = {k: ev.floor_and_renormalize(v) for k, v in ev.compliance_view(recs).items()}
         views[leg] = comp
+        meta_p = p.with_suffix(".meta.json")
+        leg_meta = json.loads(meta_p.read_text()) if meta_p.exists() else None
         report["legs"][leg] = {"contract_compliance": gate,
                                "score": study_a.score_variant(comp, cells) if comp else {"n": 0},
-                               "confidence_bq4": study_b.analyze_confidence(recs, cells)}
+                               "confidence_bq4": study_b.analyze_confidence(recs, cells),
+                               # provenance echo: which scaffold/serving config produced
+                               # this leg (baseline vs a Phase-1a coverage-preserving variant)
+                               "leg_meta": leg_meta,
+                               "scaffold_variant": (leg_meta or {}).get("scaffold_variant", "baseline")}
     if "pre" in views and "post" in views:
         tau_v = study_a.fit_tau_oc(views["post"], views["pre"], cells)
         report["tau_v"] = tau_v
@@ -132,6 +138,13 @@ def main():
     ap.add_argument("--base-url", help="OpenAI-compatible /v1 server root")
     ap.add_argument("--model", help="model id as served")
     ap.add_argument("--fewshot-k", type=int, default=None, help="default: models.yaml fewshot_k")
+    ap.add_argument("--scaffold-variant", choices=list(ev.fewshot_mod.SCAFFOLD_VARIANTS),
+                    default="baseline",
+                    help="k=5 coverage-preserving scaffold perturbation (Phase 1a): "
+                         "baseline = the shipped scaffold; alt_set = fully disjoint "
+                         "one-per-level exemplar draw; rev_order = same exemplars rendered "
+                         "very_high -> very_low. Pinned in the leg meta sidecar; a resume "
+                         "under a different variant hard-errors, so use a fresh --out")
     ap.add_argument("--budget", type=int, default=2048)
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--limit", type=int, help="SMOKE: first N cells only (numbers discarded)")
@@ -189,10 +202,13 @@ def main():
     k = args.fewshot_k
     from judex_calibration import fewshot as fs
     k_eff = k if k is not None else fs.default_k()
-    blocks = ev.build_fewshot_by_criterion(cells, k=k_eff)
+    blocks = ev.build_fewshot_by_criterion(cells, k=k_eff, variant=args.scaffold_variant)
+    if args.scaffold_variant != "baseline":
+        print(f"[scaffold] variant={args.scaffold_variant} (k={k_eff}, coverage-preserving)")
     ev.run_variant(args.base_url, args.model, run_cells, str(leg_path(out_dir, args.leg)),
                    fewshot=lambda c: blocks[c.criterion_id], reason=not args.no_reason,
-                   budget=args.budget, fewshot_k=k_eff, workers=args.workers)
+                   budget=args.budget, fewshot_k=k_eff, workers=args.workers,
+                   scaffold_variant=args.scaffold_variant)
     analyze(out_dir, cells)
 
 

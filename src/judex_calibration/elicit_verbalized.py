@@ -100,25 +100,32 @@ def render_block(row: dict, criterion_text: str) -> str:
 
 
 def build_fewshot(criterion_id: str, criterion_text: str, k: Optional[int] = None,
-                  exclude: Optional[Sequence[str]] = None) -> str:
+                  exclude: Optional[Sequence[str]] = None,
+                  variant: str = "baseline") -> str:
     """k-example contract-shaped few-shot prefix, same selection as the token-slice leg.
 
-    Reuses ``fewshot.select_rows`` (stratified fixed_set over levels x raters) so Study B
+    Reuses ``fewshot.scaffold_rows`` (stratified fixed_set over levels x raters) so Study B
     picks the SAME exemplar rows Study A did — only the rendering differs.
+
+    ``variant`` selects a coverage-preserving scaffold perturbation
+    (``fewshot.SCAFFOLD_VARIANTS``): ``baseline`` is the shipped scaffold, ``alt_set``
+    swaps in a fully disjoint one-per-level draw, ``rev_order`` renders the SAME rows
+    from very_high down to very_low. All three are k=5 coverage-complete.
     """
     if k is None:
         k = fewshot_mod.default_k()
-    rows = fewshot_mod.select_rows(criterion_id, k, exclude=exclude)
-    rows.sort(key=lambda r: int(r["compliance_1to5"]))
+    rows = fewshot_mod.order_rows(
+        fewshot_mod.scaffold_rows(criterion_id, k, variant, exclude), variant)
     return "".join(render_block(r, criterion_text) for r in rows)
 
 
-def build_fewshot_by_criterion(cells, k: Optional[int] = None) -> Dict[str, str]:
+def build_fewshot_by_criterion(cells, k: Optional[int] = None,
+                               variant: str = "baseline") -> Dict[str, str]:
     """{criterion_id: contract-shaped few-shot string} for every criterion in ``cells``."""
     text_by_crit: Dict[str, str] = {}
     for c in cells:
         text_by_crit.setdefault(c.criterion_id, c.criterion_text)
-    return {cid: build_fewshot(cid, txt, k=k) for cid, txt in text_by_crit.items()}
+    return {cid: build_fewshot(cid, txt, k=k, variant=variant) for cid, txt in text_by_crit.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +269,8 @@ def elicit_cell(base_url: str, model: str, evidence_text: str, criterion_text: s
 
 def run_variant(base_url: str, model: str, cells, out_path: str, *,
                 fewshot="", reason: bool = True, budget: int = 2048,
-                fewshot_k: "int | None" = None, workers: int = 1) -> dict:
+                fewshot_k: "int | None" = None, workers: int = 1,
+                scaffold_variant: str = "baseline") -> dict:
     """Elicit every cell; write the full per-cell record map; checkpoint + sidecar.
 
     Output layout (one file, two derivable views):
@@ -273,20 +281,30 @@ def run_variant(base_url: str, model: str, cells, out_path: str, *,
 
     Same checkpoint/resume/meta-sidecar discipline as elicit_base.run_variant, with the
     channel + epsilon convention pinned: resume is CRASH RECOVERY ONLY, and a resume
-    against a different (model, reason, budget, fewshot_k, channel, epsilon) hard-errors.
+    against a different (model, reason, budget, fewshot_k, scaffold_variant, channel,
+    epsilon) hard-errors.
     """
+    if scaffold_variant not in fewshot_mod.SCAFFOLD_VARIANTS:
+        raise ValueError(f"unknown scaffold variant {scaffold_variant!r}; "
+                         f"expected one of {fewshot_mod.SCAFFOLD_VARIANTS}")
     out = Path(out_path)
     meta_path = out.with_suffix(".meta.json")
     leg_meta = {"model": model, "reason": bool(reason), "budget": int(budget),
                 "channel": "verbalized", "epsilon": EPSILON}
     if fewshot_k is not None:
         leg_meta["fewshot_k"] = int(fewshot_k)
+    leg_meta["scaffold_variant"] = scaffold_variant
     recs: Dict[str, dict] = {}
     if out.exists():
         recs = json.loads(out.read_text())
         prior = json.loads(meta_path.read_text()) if meta_path.exists() else None
+        # Sidecars written before the scaffold-variant field existed describe baseline
+        # legs, so a missing key reads as "baseline" — that keeps pre-2026-08-08 legs
+        # resumable while still hard-erroring on a genuine variant mismatch (the guard
+        # otherwise only sees keys the PRIOR sidecar carries).
         mismatched = (prior is not None
-                      and any(prior[k] != leg_meta.get(k) for k in prior))
+                      and (any(prior[k] != leg_meta.get(k) for k in prior)
+                           or prior.get("scaffold_variant", "baseline") != scaffold_variant))
         if recs and (prior is None or mismatched):
             raise RuntimeError(
                 f"{out} holds {len(recs)} cells from a different leg config "

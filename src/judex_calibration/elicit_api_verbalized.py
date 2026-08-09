@@ -32,6 +32,7 @@ from typing import Dict, Optional
 
 from .elicit_verbalized import (EPSILON, parse_contract_json, extract_balanced_object,
                                 build_fewshot_by_criterion)
+from .fewshot import SCAFFOLD_VARIANTS
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 QUANTIZATIONS = ["bf16", "fp16"]  # 16-bit only; allow_fallbacks false enforces it
@@ -136,19 +137,32 @@ def elicit_cell_api(key: str, model: str, evidence_text: str, criterion_text: st
 
 
 def run_variant_api(model: str, cells, out_path: str, *, fewshot_by_crit: Dict[str, str],
-                    fewshot_k: int, workers: int = 4, key: Optional[str] = None) -> dict:
-    """Same checkpoint/resume/meta-sidecar discipline as the vast legs, api-channel-pinned."""
+                    fewshot_k: int, workers: int = 4, key: Optional[str] = None,
+                    scaffold_variant: str = "baseline") -> dict:
+    """Same checkpoint/resume/meta-sidecar discipline as the vast legs, api-channel-pinned.
+
+    ``scaffold_variant`` is provenance only here — the caller renders ``fewshot_by_crit``
+    — but it is PINNED in the sidecar and guarded on resume exactly like ``fewshot_k``,
+    so a variant leg can never silently continue into a baseline run dir.
+    """
+    if scaffold_variant not in SCAFFOLD_VARIANTS:
+        raise ValueError(f"unknown scaffold variant {scaffold_variant!r}; "
+                         f"expected one of {SCAFFOLD_VARIANTS}")
     key = key or keychain("openrouter-api-key")
     out = Path(out_path)
     meta_path = out.with_suffix(".meta.json")
     leg_meta = {"model": model, "channel": "verbalized_api_chat", "epsilon": EPSILON,
                 "fewshot_k": int(fewshot_k), "quantizations": QUANTIZATIONS,
-                "api": "openrouter"}
+                "api": "openrouter", "scaffold_variant": scaffold_variant}
     recs: Dict[str, dict] = {}
     if out.exists():
         recs = json.loads(out.read_text())
         prior = json.loads(meta_path.read_text()) if meta_path.exists() else None
-        if recs and (prior is None or any(prior[k] != leg_meta.get(k) for k in prior)):
+        # A sidecar predating the scaffold-variant field describes a baseline leg.
+        mismatched = prior is not None and (
+            any(prior[k] != leg_meta.get(k) for k in prior)
+            or prior.get("scaffold_variant", "baseline") != scaffold_variant)
+        if recs and (prior is None or mismatched):
             raise RuntimeError(f"{out} holds cells from a different leg config "
                                f"({prior} != {leg_meta}); use a fresh --out")
         if recs:
