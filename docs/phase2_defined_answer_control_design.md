@@ -33,7 +33,9 @@ What it does NOT do:
 ## 1. The two estimands
 
 - **E1 (LEVEL):** base-leg top-1 ECE on MMLU under the identical harness, against the
-  AIReg values (verbalized bases 0.175–0.445; gate-passing 0.175–0.398, median 0.282).
+  AIReg values as printed in v14 (six bases 0.175–0.443; the five floor-clearing legs
+  0.175–0.398, median 0.260 — NOT the pre-v13 0.175–0.445/median-0.282 figures from the
+  2026-07-21 analysis doc).
 - **E2 (DIRECTION):** paired post−pre ECE delta on MMLU per family
   (`boot_paired_ece_delta`, B=2000, seed 20260721), against the AIReg direction (post
   improves in 6/6, CI-significant in 4) and DACA's MMLU direction (post degrades 3–7×,
@@ -86,22 +88,30 @@ its W1-risk companion is swapped for 0/1-error risk (two call sites).
 - Source: MMLU dev/validation split for the six subjects, never the scored slice
   (firewall by construction). Dev has 5 items/subject; where the four answer letters
   aren't all covered, fill from validation.
-- **Exemplar distributions — the tension with no neutral choice:** one-hot exemplars
-  teach maximal sharpness (the scaffold then manufactures the very overconfidence being
-  measured); invented-dispersion exemplars teach a humility the benchmark's ground truth
-  doesn't license. **Recommendation: match the AIReg exemplar store's realized sharpness
-  profile** — author each exemplar distribution on the 0.05 grid with max-probability
-  drawn from the AIReg store's exemplar max-prob distribution (measure it at build time;
-  the store's exemplars are confident-but-not-degenerate), remainder allocated to the
-  most plausible distractors. This holds the scaffold's sharpness signal fixed across
-  the two tasks, which is the "identical harness" spirit; the paper states the policy in
-  one sentence. The alt_set/rev_order variant machinery remains available on the control
-  scaffold for a $0-code robustness check (elicitation cost only; OPTIONAL, default off).
-- Authoring of reasoning/justification text: mirror the corpus convention — drafted by a
-  non-elicited model or by hand, recorded per-exemplar; NEVER by one of the four elicited
-  families (no self-teaching). **D4b: user picks the authoring route** (hand-authored ×24
-  is ~an hour; convention-matching generation is also fine — the author identity gets
-  recorded in the store provenance either way).
+- **Exemplar distributions + authoring — REVISED 2026-08-09 (user question resolved
+  this):** the earlier draft proposed hand-authoring 24 rationales with distributions
+  tuned to match the AIReg store's sharpness profile. SUPERSEDED. **Recommended route:
+  adapt the corpus-v2 annotation pipeline** (`judex-corpus/leaf_exemplars/`: cli.py
+  annotate → synthesize; validation + provenance layers reused). MMLU dev/validation
+  items enter as the excerpts (no authoring stage — the questions exist); the SAME
+  7-seat rater panel (deepseek-v4-pro, mistral-large-2512, qwen3.5-35b-a3b, maverick,
+  glm-4.5, kimi-k2-thinking, gemma-4-26b) annotates them under an MCQ-adapted contract;
+  synthesis emits store rows with full panel provenance. This DISSOLVES the
+  one-hot-vs-invented-dispersion tension: exemplar distributions are the panel's organic
+  credences — the same generating process that produced the AIReg scaffold's
+  distributions, nothing invented or tuned. Rater overlap with elicited families
+  (qwen/maverick/glm/gemma seats) matches the AIReg scaffold's existing, sanctioned
+  provenance property (corpus-side authorship, firewall-irrelevant) — so it makes the
+  harness MORE identical, not less. Format-coupled build items: a new MCQ task template
+  (the current one has no options slot), an MCQ system frame, K=4 key tuples in a
+  control synthesis path (`_DISTRIBUTION_KEYS` is a module constant), and the store-row
+  level-key becomes the answer letter. `_validate_findings` is already lenient (absent
+  findings → []), matching D3. Est. annotation cost ~$2–4 (7 raters × ~24–40 candidate
+  rows). Selection then reuses the stratified fixed_set walk with `rater_model`
+  balancing intact. Fallback route (if the pipeline adaptation stalls): the superseded
+  sharpness-matched hand-authoring. The alt_set/rev_order variant machinery remains
+  available on the control scaffold for a $0-code robustness check (OPTIONAL, default
+  off).
 
 **D5 — Legs: pairs on the four panel families (recommended) = 8 legs.** E2 (the
 direction claim) is a paired claim; bases-only (~half the cost) would test E1 alone and
@@ -183,10 +193,13 @@ From the 2026-08-09 engineering recon (sizes S/M; file-precise anchors in the re
    (`item_label`, `evidence_text`=stem, `criterion_text`=rendered options,
    `criterion_id`=subject; `gt_labels`=(A..D), `gt_argmax`, one-hot `gt_probs`,
    `document_id` per D7). Slice JSON committed with sha256.
-2. **Control exemplar store** (M, mostly authoring per D4): 24 rows carrying the
-   rendering-mandatory fields (text, answer letter, option distribution, 1..K order key,
-   confidence distribution, both justifications) + selection fields (id,
-   source_item_label, author).
+2. **Control exemplar store via the corpus pipeline** (M, per revised D4): adapt
+   `judex-corpus/leaf_exemplars/` — new MCQ task template + system frame + K=4 control
+   synthesis constants; run `annotate` (7-seat panel, ~$2–4) + `synthesize` on MMLU
+   dev/validation items for the six subjects; rows carry the rendering-mandatory fields
+   (text, answer letter, option distribution, 1..K order key, confidence distribution,
+   both justifications) + selection fields (id, source_item_label, rater_model) + panel
+   provenance. Fallback: hand-authored rows per the superseded D4 draft.
 3. **`src/judex_calibration/elicit_control.py`** (M): fork-with-shared-primitives —
    OPTION_LABELS, control prompt preamble (replacing the one EU-AI-Act sentence),
    render/parse for the D3 contract; imports the transport, two-stage flow, JSON
@@ -228,7 +241,7 @@ From the 2026-08-09 engineering recon (sizes S/M; file-precise anchors in the re
 | D1 | benchmark | MMLU |
 | D2 | slice | 120 = 6 subjects × 20; subject list open to swaps |
 | D3 | contract | 4-option + confidence kept + findings dropped; gate scoped to parse_ok |
-| D4 | exemplar distributions | match AIReg store sharpness profile; **D4b authoring route = user's call** |
+| D4 | exemplar store | corpus-pipeline panel annotation of MMLU dev items (organic panel credences; REVISED per user Q2, 2026-08-09); fallback = hand-authoring |
 | D5 | legs | pairs, 4 families, 8 legs, transports per serving parity |
 | D6 | MMLU τ_v | compute descriptive-only under TVD; never touches frozen constants |
 | D7 | uncertainty | item-level bootstrap primary, subject-clustered sensitivity |
