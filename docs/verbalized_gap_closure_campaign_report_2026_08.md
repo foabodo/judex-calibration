@@ -112,6 +112,36 @@ annotations, store sha `c4174d45…`). judex-calibration `data/`:
 `mmlu_control_slice_v1.json` (sha `31822879…`), `mmlu_control_exemplar_candidates_v1.json`
 (sha `1a477bb8…`).
 
+## 7a. E1 remediation arc (2026-08-09, post-dating §2's R6; supersedes R6's open status)
+
+Full record: `docs/e1_recollection_results_20260809.md`, `docs/e1_gate_qwen_v2_20260809.md`,
+`docs/e1_k8_iteration_20260809.md`, `docs/e1_final_panel_results_20260809.md` (the arc doc).
+
+- Diagnosis: Phase-2c base collapse = Mode B empty-reasoning 86% (short exemplar spans;
+  left-edge skip on short symbolic items) + Mode A LaTeX 8% (escapes + brace-hijack of
+  the first-{ JSON scan).
+- Fixes (all scaffold-content or parsing; two-stage harness untouched): store v2
+  (span-matched median 810, math-safe, $2.59; organic credences preserved), band_400_800
+  selection, last-object parsing. k=8 density iteration CONCEDED (82.50%; redistributes
+  failure mass, formal_logic −5).
+- **Final panel: E1 = 1 of 4 gate-passing.** qwen base 95.00% PASS (ECE10 0.0802,
+  DACA-like row — not promotable as a panel); gemma31 80.00% / glm 31.67% / maverick
+  77.50% FAIL via the same left-edge mechanism = a CHECKPOINT PROPERTY across 3/4
+  families, robust to span length, density, and parsing.
+- **R10 (new negative result): measured base ECE on defined answers is
+  scaffold-entangled** — the v2 scaffold moves both-scaffold-item accuracy
+  glm −13.3 / maverick −13.8 pts at unchanged confidence (~2× ECE) while gaining
+  qwen +3.0 / gemma31 +7.0. Sign-level family dependence: the defined-answer control
+  independently reproduces the Phase-1 lesson that base-model measurements are
+  scaffold-conditional.
+- qwen E2 (only fully-v2 pair): +0.0017 [−0.0461, +0.0752] — null. Other families' E2
+  is unrescuable within this design (their PRE legs fail gates regardless of post
+  re-collection).
+- E1-arc spend: $2.59 + $0.888 + $0.853 + $0.821 + $30.013 = **$35.17**; campaign
+  total **$318.89**. Ops: invoice under-report reproduced 8–17% (poll to stability);
+  the $50-float rule is arithmetically unsatisfiable below ~$65 credit — a documented
+  runway-check substitution (§7.1 of the arc doc) is the working alternative.
+
 ## 8. Commit chain (branch `claude-verbalized-gap-closure`, PUSHED)
 
 `19f6f11` P0 instrument+results → `82cd122` scaffold variants → `3e1c4ae` P1a executed →
