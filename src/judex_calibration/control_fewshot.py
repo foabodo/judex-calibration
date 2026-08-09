@@ -1,4 +1,4 @@
-"""Few-shot selection for the defined-answer control scaffold (k=4, one per letter).
+"""Few-shot selection for the defined-answer control scaffold (k/4 exemplars per letter).
 
 The control's exemplar store is the corpus-side artifact
 ``judex-corpus/leaf_exemplars/mmlu_control_exemplars_v2/`` (design D4, revised): MMLU
@@ -14,6 +14,14 @@ Selection mirrors ``fewshot.select_rows`` semantics exactly, with TWO substituti
      made k=5 mandatory on the 5-level ordinal task; here #categories = 4, so k=4 is
      coverage-complete — this is NOT a return to the deprecated AIReg k=4, which was
      defective only because 4 < 5.
+
+     DENSITY IS A MULTIPLE OF THE COVERAGE RULE, not an exception to it. The round-robin
+     walks the letter ramp repeatedly, so any k that is a multiple of 4 draws exactly
+     ``k/4`` exemplars per letter and stays coverage-complete and letter-balanced; k=8
+     (two per letter, E1 iteration (b), 2026-08-09) is the doubled-density draw. A k=8
+     draw is a strict SUPERSET of the k=4 draw with the same store and band, because the
+     walk is deterministic and the first pass is unchanged — so the density iteration
+     adds exemplars, it never substitutes them.
   2. within each (subject, letter) bucket the candidate pool is first restricted to rows
      whose ``answer_justification`` length falls in ``EXEMPLAR_SPAN_BAND`` (see
      "Band-targeted selection" below).
@@ -104,6 +112,10 @@ STORE_SHA256_V1 = "c4174d4587618c2aa54a71620fbcb4d2514db611d586fa093ad0ee039c3fa
 # k=4 is the CONTROL protocol constant (one exemplar per option letter). It is NOT read
 # from configs/models.yaml — that yaml pins the AIReg instrument's k=5, and a control leg
 # must never inherit it (5 exemplars over 4 letters breaks one-per-category balance).
+# A leg may raise the DENSITY with --fewshot-k, but only to a multiple of 4 (see
+# ``assert_letter_balanced``): k=8 is two exemplars per letter, k=5 would be four letters
+# covered once and one covered twice, which is exactly the imbalance k=5 fixed on the
+# AIReg side and would re-introduce here.
 CONTROL_FEWSHOT_K = 4
 
 SCAFFOLD_VARIANTS = ("baseline", "alt_set", "rev_order")
@@ -226,6 +238,38 @@ def select_rows(subject: str, k: int, exclude: Optional[Sequence[str]] = None) -
     return picked
 
 
+def assert_letter_balanced(subject: str, rows: Sequence[dict], k: int, what: str) -> None:
+    """FAIL-LOUD coverage/balance guard, stated at any density k (a multiple of 4).
+
+    The control's coverage rule is ``k >= #categories`` with an EQUAL number of exemplars
+    per category, so the general statement of "one per letter" is "``k/4`` per letter,
+    every letter covered". This is asserted rather than assumed because a store that
+    starves a bucket at density k/4 would otherwise silently render an imbalanced
+    scaffold — a scaffold that teaches the model a letter prior, which is precisely the
+    confound the stratified draw exists to prevent.
+
+    ``k`` not a multiple of 4 is a caller error and raises: a k=5 control draw would cover
+    one letter twice and the rest once, re-introducing on the control the exact imbalance
+    that made k=4 defective on the 5-level AIReg instrument.
+    """
+    n_cat = len(OPTION_LABELS)
+    if k <= 0 or k % n_cat:
+        raise ValueError(
+            f"control fewshot k={k} is not a positive multiple of {n_cat}; the letter-"
+            f"stratified draw is only balanced at k in (4, 8, 12, ...) — see "
+            f"control_fewshot.assert_letter_balanced")
+    per = k // n_cat
+    counts: Dict[str, int] = {}
+    for r in rows:
+        counts[r.get("answer_letter")] = counts.get(r.get("answer_letter"), 0) + 1
+    bad = {L: counts.get(L, 0) for L in OPTION_LABELS if counts.get(L, 0) != per}
+    if len(rows) != k or bad:
+        raise RuntimeError(
+            f"{what} draw for {subject!r} at k={k} is not letter-balanced: drew "
+            f"{len(rows)} of {k} rows, expected {per} per letter, off-target buckets "
+            f"{bad or '{}'} — a (subject, letter) bucket starved at this density")
+
+
 def scaffold_rows(subject: str, k: int, variant: str = "baseline",
                   exclude: Optional[Sequence[str]] = None) -> List[dict]:
     """The SELECTION stage of a control scaffold variant (render order applied separately).
@@ -237,7 +281,16 @@ def scaffold_rows(subject: str, k: int, variant: str = "baseline",
     letter is not a scaffold perturbation, it is a broken scaffold, and would confound
     the sensitivity read with a coverage hole.
 
-    STATUS (2026-08-09, v2 re-pin): ``alt_set`` is now FEASIBLE for all six subjects. On
+    DENSITY (2026-08-09, k=8 iteration): ``alt_set`` is feasible for all six subjects at
+    k=4 and for THREE of six at k=8 (clinical_knowledge, high_school_mathematics,
+    professional_law). The v2 pool is depth 2 in SOURCE ITEMS per bucket, so a k=8 primary
+    that spends both source items of a letter leaves that letter with nothing under
+    source-label exclusion, and the guard raises — correctly. ``alt_set`` is default-OFF
+    (D4) and no leg in this programme has used it, so this is a reported property of the
+    store's depth, not a blocker: raising the density trades the disjoint-twin variant for
+    demonstration mass, and the guard makes that trade visible instead of silent.
+
+    STATUS (2026-08-09, v2 re-pin): ``alt_set`` is FEASIBLE for all six subjects at k=4. On
     the v1 store it raised everywhere, because that store was built from a candidate pool
     with one item per (subject, letter) and a source-exclusion re-walk could not be
     coverage-preserving. The v2 pool is depth 2 by construction and survives the
@@ -255,6 +308,7 @@ def scaffold_rows(subject: str, k: int, variant: str = "baseline",
     if variant not in SCAFFOLD_VARIANTS:
         raise ValueError(f"unknown scaffold variant {variant!r}; expected one of {SCAFFOLD_VARIANTS}")
     rows = select_rows(subject, k, exclude=exclude)
+    assert_letter_balanced(subject, rows, k, what=variant)
     if variant != "alt_set":
         return rows
     base_ids = {r.get("id") for r in rows}
@@ -269,6 +323,10 @@ def scaffold_rows(subject: str, k: int, variant: str = "baseline",
         raise RuntimeError(
             f"alt_set for {subject!r} does not cover the same option letters as the "
             f"baseline draw — not coverage-preserving")
+    # per-letter COUNTS, not just the letter set: at k > 4 an alt draw can match the set
+    # while re-weighting the letters (e.g. 3 A's and 1 B at k=8), which is a different
+    # scaffold, not a source-disjoint twin of the same one.
+    assert_letter_balanced(subject, alt, k, what="alt_set")
     overlap = base_ids & {r.get("id") for r in alt}
     if overlap:
         raise RuntimeError(f"alt_set for {subject!r} overlaps the baseline draw: {sorted(overlap)}")
@@ -276,7 +334,13 @@ def scaffold_rows(subject: str, k: int, variant: str = "baseline",
 
 
 def order_rows(rows: Sequence[dict], variant: str = "baseline") -> List[dict]:
-    """Render order: the letter ramp A -> D, reversed for ``rev_order``."""
+    """Render order: the letter ramp A -> D, reversed for ``rev_order``.
+
+    The sort is STABLE, so at density k/4 > 1 the ramp repeats each letter contiguously in
+    selection order — k=8 renders A,A,B,B,C,C,D,D, i.e. round-robin pass 1's exemplar for
+    a letter precedes pass 2's. The ramp is still one monotone sweep over the letters, so
+    the k=8 block carries no ordering signal the k=4 block did not.
+    """
     ordered = sorted(rows, key=lambda r: int(r["answer_1to4"]))
     if variant == "rev_order":
         ordered.reverse()
@@ -284,12 +348,21 @@ def order_rows(rows: Sequence[dict], variant: str = "baseline") -> List[dict]:
 
 
 def alt_set_feasibility(subject: str, k: int = CONTROL_FEWSHOT_K) -> dict:
-    """Non-raising report of whether ``alt_set`` can be drawn for one subject."""
+    """Non-raising report of whether ``alt_set`` can be drawn for one subject.
+
+    ``starved_letters`` is stated at the requested DENSITY: a letter is starved when the
+    source-excluded remainder holds fewer than ``k/4`` rows for it, not merely zero. At
+    k=4 the two statements coincide; at k=8 they do not, and the density statement is the
+    one that predicts the guard.
+    """
+    per = max(1, k // len(OPTION_LABELS))
     base = select_rows(subject, k)
     base_src = {r["source_item_label"] for r in base}
     left = [r for r in load_store().get(subject, []) if r["source_item_label"] not in base_src]
-    left_letters = {r["answer_letter"] for r in left}
-    starved = [L for L in OPTION_LABELS if L not in left_letters]
+    left_depth: Dict[str, int] = {}
+    for r in left:
+        left_depth[r["answer_letter"]] = left_depth.get(r["answer_letter"], 0) + 1
+    starved = [L for L in OPTION_LABELS if left_depth.get(L, 0) < per]
     try:
         alt = scaffold_rows(subject, k, "alt_set")
         ok, err = True, None

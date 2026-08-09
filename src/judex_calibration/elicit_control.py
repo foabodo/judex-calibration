@@ -89,7 +89,7 @@ def render_block(row: dict) -> str:
 def build_fewshot(subject: str, k: Optional[int] = None,
                   exclude: Optional[Sequence[str]] = None,
                   variant: str = "baseline") -> str:
-    """k-example control few-shot prefix for one subject (k=4, one per letter)."""
+    """k-example control few-shot prefix for one subject (k/4 exemplars per letter)."""
     if k is None:
         k = cfs.default_k()
     rows = cfs.order_rows(cfs.scaffold_rows(subject, k, variant, exclude), variant)

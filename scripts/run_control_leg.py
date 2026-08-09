@@ -117,12 +117,14 @@ def main():
     ap.add_argument("--base-url", help="OpenAI-compatible /v1 server root")
     ap.add_argument("--model", help="model id as served")
     ap.add_argument("--fewshot-k", type=int, default=cfs.CONTROL_FEWSHOT_K,
-                    help="control protocol default: 4 (one exemplar per option letter)")
+                    help="control protocol default: 4 (one exemplar per option letter). "
+                         "Must be a multiple of 4 — k/4 exemplars per letter; k=8 is the "
+                         "doubled-density draw (E1 iteration (b))")
     ap.add_argument("--scaffold-variant", choices=list(cfs.SCAFFOLD_VARIANTS),
                     default="baseline",
-                    help="k=4 coverage-preserving scaffold perturbation: baseline = the "
-                         "shipped scaffold; alt_set = fully disjoint one-per-letter draw "
-                         "(feasible on store v2, which is depth 2 per bucket); "
+                    help="coverage-preserving scaffold perturbation: baseline = the "
+                         "shipped scaffold; alt_set = fully disjoint k/4-per-letter draw "
+                         "(feasible on store v2 at k=4; only 3 of 6 subjects at k=8); "
                          "rev_order = same exemplars rendered D -> A. All three sit on "
                          "top of band-targeted selection. Pinned in the leg meta sidecar; "
                          "a resume under a different variant hard-errors")

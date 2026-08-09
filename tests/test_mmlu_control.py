@@ -15,7 +15,7 @@ Guards the properties the control leg's validity rests on:
   * ``run_variant``'s seam: two-stage call, checkpointing, and an explicit resume guard
     on EVERY control identity field — including the fields a prior sidecar might omit.
 """
-import json, tempfile, unittest
+import collections, json, tempfile, unittest
 from pathlib import Path
 
 import sys, pathlib
@@ -383,6 +383,185 @@ class SelectorTests(unittest.TestCase):
     def test_unknown_variant_raises(self):
         with self.assertRaises(ValueError):
             cfs.scaffold_rows("philosophy", 4, "shuffle")
+
+
+class DensityTests(unittest.TestCase):
+    """k=8 — the doubled-density draw (E1 iteration (b), 2026-08-09).
+
+    The coverage rule generalizes from "one exemplar per letter" to "k/4 exemplars per
+    letter, every letter covered". These tests state it at BOTH densities so the property
+    is the rule and not a k=4 coincidence, and they pin the two things a density change
+    could quietly break: letter balance and the rendered ramp.
+    """
+    KS = (4, 8)
+
+    def test_default_k_is_unchanged_by_the_density_iteration(self):
+        """k=8 is a per-leg --fewshot-k, not a new protocol constant. The default moves
+        only if the orchestrator adopts it."""
+        self.assertEqual(cfs.default_k(), 4)
+        self.assertEqual(cfs.CONTROL_FEWSHOT_K, 4)
+
+    def test_every_letter_covered_k_over_four_times(self):
+        for k in self.KS:
+            per = k // len(mmlu.OPTION_LABELS)
+            for s in mmlu.SUBJECTS:
+                with self.subTest(k=k, subject=s):
+                    rows = cfs.scaffold_rows(s, k)
+                    self.assertEqual(len(rows), k)
+                    self.assertEqual(len({r["id"] for r in rows}), k)     # no repeats
+                    counts = collections.Counter(r["answer_letter"] for r in rows)
+                    self.assertEqual(dict(counts), {L: per for L in mmlu.OPTION_LABELS})
+
+    def test_k8_draw_is_a_superset_of_the_k4_draw(self):
+        """The walk is deterministic and pass 1 is unchanged, so raising the density ADDS
+        exemplars rather than substituting them — which is what makes the k=4 leg and the
+        k=8 leg a clean density contrast."""
+        for s in mmlu.SUBJECTS:
+            with self.subTest(subject=s):
+                four = [r["id"] for r in cfs.select_rows(s, 4)]
+                eight = [r["id"] for r in cfs.select_rows(s, 8)]
+                self.assertEqual(eight[:4], four)
+
+    def test_render_order_is_the_repeated_letter_ramp(self):
+        for k in self.KS:
+            per = k // len(mmlu.OPTION_LABELS)
+            expect = [L for L in mmlu.OPTION_LABELS for _ in range(per)]
+            for s in mmlu.SUBJECTS:
+                with self.subTest(k=k, subject=s):
+                    rows = cfs.scaffold_rows(s, k)
+                    self.assertEqual([r["answer_letter"] for r in cfs.order_rows(rows)], expect)
+                    self.assertEqual(
+                        [r["answer_letter"] for r in cfs.order_rows(rows, "rev_order")],
+                        list(reversed(expect)))
+
+    def test_determinism_and_rater_spread_at_both_densities(self):
+        for k in self.KS:
+            for s in mmlu.SUBJECTS:
+                with self.subTest(k=k, subject=s):
+                    a = [r["id"] for r in cfs.scaffold_rows(s, k)]
+                    self.assertEqual(a, [r["id"] for r in cfs.scaffold_rows(s, k)])
+                    c = collections.Counter(r["rater_model"] for r in cfs.scaffold_rows(s, k))
+                    # the least-used walk must never collapse onto one seat: all four
+                    # letters draw distinct raters, and no seat exceeds k/4 + 1 picks
+                    self.assertGreaterEqual(len(c), len(mmlu.OPTION_LABELS))
+                    self.assertLessEqual(max(c.values()), k // len(mmlu.OPTION_LABELS) + 1)
+
+    def test_band_holds_at_k8_and_every_miss_is_a_documented_fallback(self):
+        """At k=8 the draw needs TWO in-band rows per bucket, and one bucket on store v2
+        has only one (econometrics/B). The assertion is therefore the honest one: any
+        out-of-band pick must be a bucket whose in-band depth was genuinely exhausted."""
+        lo, hi = cfs.EXEMPLAR_SPAN_BAND
+        per = 2
+        fallbacks = 0
+        for s in mmlu.SUBJECTS:
+            with self.subTest(subject=s):
+                for r in cfs.scaffold_rows(s, 8):
+                    if lo <= cfs.span_len(r) <= hi:
+                        continue
+                    fallbacks += 1
+                    depth = sum(1 for x in cfs.load_store()[s]
+                                if x["answer_letter"] == r["answer_letter"]
+                                and lo <= cfs.span_len(x) <= hi)
+                    self.assertLess(depth, per,
+                                    f"{s}/{r['answer_letter']} fell back with in-band rows left")
+        self.assertEqual(fallbacks, 1)   # pinned: econometrics/B, the only depth-1 bucket
+
+    def test_every_bucket_has_two_in_band_rows_except_the_pinned_one(self):
+        """Pinned on the STORE, so a future store that loses in-band depth fails here,
+        naming the bucket, rather than silently exercising the fallback in a live leg."""
+        lo, hi = cfs.EXEMPLAR_SPAN_BAND
+        thin = []
+        for s in mmlu.SUBJECTS:
+            for L in mmlu.OPTION_LABELS:
+                n = sum(1 for r in cfs.load_store()[s]
+                        if r["answer_letter"] == L and lo <= cfs.span_len(r) <= hi)
+                self.assertGreaterEqual(n, 1, f"{s}/{L} has no in-band exemplar")
+                if n < 2:
+                    thin.append(f"{s}/{L}")
+        self.assertEqual(thin, ["econometrics/B"])
+
+    def test_non_multiple_of_four_k_is_a_loud_caller_error(self):
+        """k=5 on the control would cover one letter twice and three once — the exact
+        imbalance that made k=4 defective on the 5-level AIReg instrument."""
+        for bad_k in (1, 2, 3, 5, 6, 7, 0):
+            with self.subTest(k=bad_k), self.assertRaises(ValueError):
+                cfs.scaffold_rows("philosophy", bad_k)
+
+    def test_balance_guard_fires_when_a_bucket_starves_at_density(self):
+        """A store with depth 2 everywhere except one letter: fine at k=4, LOUD at k=8 —
+        the guard must be stated at the density, not at coverage-of-the-letter-set."""
+        rows = []
+        for i, L in enumerate(mmlu.OPTION_LABELS):
+            for j in range(1 if L == "C" else 2):
+                rows.append({"id": f"{L}{j}", "answer_letter": L, "answer_1to4": i + 1,
+                             "source_item_label": f"src:{L}{j}", "rater_model": f"r{j}",
+                             "answer_justification": "x" * 600})
+        orig = cfs._STORE_CACHE
+        try:
+            cfs._STORE_CACHE = {"thin": rows}
+            self.assertEqual(len(cfs.scaffold_rows("thin", 4)), 4)
+            with self.assertRaises(RuntimeError):
+                cfs.scaffold_rows("thin", 8)
+        finally:
+            cfs._STORE_CACHE = orig
+
+    def test_alt_set_feasibility_at_k8_is_reported_not_required(self):
+        """alt_set is default-OFF (D4). At k=8 the primary can spend both source items of
+        a letter, leaving the disjoint re-walk starved — the guard must raise there and
+        the draw must still be clean where the depth allows it. Pinned as measured."""
+        feasible, infeasible = [], []
+        for s in mmlu.SUBJECTS:
+            f = cfs.alt_set_feasibility(s, 8)
+            (feasible if f["alt_set_feasible"] else infeasible).append(s)
+            if f["alt_set_feasible"]:
+                self.assertEqual(f["starved_letters"], [])
+                base = cfs.scaffold_rows(s, 8, "baseline")
+                alt = cfs.scaffold_rows(s, 8, "alt_set")
+                self.assertEqual(len(alt), 8)
+                self.assertFalse({r["id"] for r in base} & {r["id"] for r in alt})
+                self.assertFalse({r["source_item_label"] for r in base}
+                                 & {r["source_item_label"] for r in alt})
+            else:
+                self.assertTrue(f["starved_letters"])
+                with self.assertRaises(RuntimeError):
+                    cfs.scaffold_rows(s, 8, "alt_set")
+        self.assertEqual(sorted(feasible), ["clinical_knowledge",
+                                            "high_school_mathematics", "professional_law"])
+        self.assertEqual(sorted(infeasible), ["econometrics", "formal_logic", "philosophy"])
+
+    def test_rendered_k8_block_carries_eight_parsable_exemplars(self):
+        for s in mmlu.SUBJECTS:
+            with self.subTest(subject=s):
+                block = ec.build_fewshot(s, k=8)
+                objs = [ln.split("JSON: ", 1)[1] for ln in block.splitlines()
+                        if ln.startswith("JSON: ")]
+                self.assertEqual(len(objs), 8)
+                self.assertEqual([ec.parse_control_json(o)["answer_letter"] for o in objs],
+                                 [L for L in mmlu.OPTION_LABELS for _ in range(2)])
+                self.assertTrue(all(ec.parse_control_json(o)["contract_complete"] for o in objs))
+                self.assertEqual(block.count("Example.\nEvidence:\n"), 8)
+                self.assertTrue(block.endswith("\n\n"))
+                # the k=4 block is a strict PREFIX of the k=8 block only in exemplar SET,
+                # not in text (the ramp interleaves pass 2), so assert the set relation
+                self.assertTrue(set(ln for ln in ec.build_fewshot(s, k=4).splitlines()
+                                    if ln.startswith("JSON: ")) <= set(
+                    ln for ln in block.splitlines() if ln.startswith("JSON: ")))
+
+    def test_k8_exemplar_prose_carries_no_backslash_or_control_char(self):
+        """Store v2's content invariant (Mode A), restated at the doubled density: the
+        four ADDED exemplars per subject must be as backslash-free as the first four.
+
+        Asserted on the store PROSE, not the rendered block — ``json.dumps`` legitimately
+        emits ``\\uXXXX`` for the non-ASCII logic/maths glyphs the panel wrote, and that
+        escaping is valid JSON, not the illegal-escape material Mode A is about."""
+        for s in mmlu.SUBJECTS:
+            with self.subTest(subject=s):
+                for r in cfs.scaffold_rows(s, 8):
+                    for field in ("answer_justification", "confidence_justification"):
+                        text = r.get(field) or ""
+                        self.assertNotIn("\\", text, f"{r['id']}.{field}")
+                        self.assertFalse([c for c in text if ord(c) < 32],
+                                         f"{r['id']}.{field}")
 
 
 class FirewallTests(unittest.TestCase):
@@ -817,7 +996,7 @@ class RunVariantTests(unittest.TestCase):
             "slice_sha256": {"slice_sha": "MOVED"},
             "store_sha256": {"store_sha": "MOVED"},
             "scaffold_variant": {"scaffold_variant": "rev_order"},
-            "fewshot_k": {"fewshot_k": 5},
+            "fewshot_k": {"fewshot_k": 8},
             "reason": {"reason": False},
             "budget": {"budget": 1024},
         }
