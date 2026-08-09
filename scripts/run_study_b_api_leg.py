@@ -41,7 +41,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True, help="run dir, e.g. runs/study_b_gemma31_api_k5v1")
     ap.add_argument("--leg", choices=["pre", "post"], help="which twin this API run is")
-    ap.add_argument("--model", help="OpenRouter model id, e.g. google/gemma-4-31b-it")
+    ap.add_argument("--model", help="OpenRouter model id, e.g. google/gemma-4-31b-it "
+                                    "(with --base-url: the id as served by vLLM)")
+    ap.add_argument("--base-url", default=None,
+                    help="self-hosted OpenAI-compatible endpoint root (e.g. "
+                         "http://IP:PORT). Set => vLLM chat path: no OpenRouter key, no "
+                         "provider pinning, channel verbalized_vllm_chat, dtype bf16 "
+                         "pinned by the serving flags. Absent => OpenRouter, unchanged")
     ap.add_argument("--fewshot-k", type=int, default=None, help="default: models.yaml fewshot_k")
     ap.add_argument("--scaffold-variant", choices=list(fs.SCAFFOLD_VARIANTS), default="baseline",
                     help="k=5 coverage-preserving scaffold perturbation (Phase 1a): "
@@ -83,9 +89,12 @@ def main():
     blocks = ev.build_fewshot_by_criterion(cells, k=k_eff, variant=args.scaffold_variant)
     if args.scaffold_variant != "baseline":
         print(f"[scaffold] variant={args.scaffold_variant} (k={k_eff}, coverage-preserving)")
+    if args.base_url:
+        print(f"[transport] self-hosted vLLM chat ({eva.SELF_HOSTED_CHANNEL}, "
+              f"{eva.SELF_HOSTED_DTYPE}) — no OpenRouter key, no provider pinning")
     eva.run_variant_api(args.model, run_cells, str(leg_path(out_dir, args.leg)),
                         fewshot_by_crit=blocks, fewshot_k=k_eff, workers=args.workers,
-                        scaffold_variant=args.scaffold_variant)
+                        scaffold_variant=args.scaffold_variant, base_url=args.base_url)
     analyze(out_dir, cells)
 
 

@@ -22,11 +22,20 @@ parse failure is recorded, mirroring the vast discipline. Parsing scans ALL bala
 JSON objects in the reply and keeps the last one carrying a compliance_distribution
 (the reply legitimately contains reasoning prose that may include braces).
 
+SELF-HOSTED CHAT (USER DIRECTIVE 2026-08-09): the same chat instrument can be pointed at
+an OpenAI-compatible endpoint we serve ourselves (vLLM on vast, bf16) by passing
+``base_url``. That path takes NO OpenRouter key, sends NO provider-preference block, and
+labels its channel ``verbalized_vllm_chat``. Its reason for existing is
+quantization-matching: the base leg is bf16 raw-completions on our own box, so the post
+leg must be bf16 too, and the chat *template* (not a different provider stack) is what
+prevents the known greedy-repetition collapse of gemma-4 post on raw continuation. When
+``base_url`` is absent every byte of the OpenRouter path is unchanged.
+
 stdlib only (urllib); the API key comes from the macOS Keychain and is never logged.
 """
 from __future__ import annotations
 
-import json, os, subprocess, urllib.request
+import json, os, subprocess, urllib.parse, urllib.request
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -36,6 +45,16 @@ from .fewshot import SCAFFOLD_VARIANTS
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 QUANTIZATIONS = ["bf16", "fp16"]  # 16-bit only; allow_fallbacks false enforces it
+# Self-hosted vLLM chat: a DIFFERENT channel again from both the raw-completions legs
+# (``verbalized``) and the OpenRouter legs (``verbalized_api_chat``) — same chat template
+# idea, our own bf16 weights, no third-party provider stack.
+SELF_HOSTED_CHANNEL = "verbalized_vllm_chat"
+SELF_HOSTED_DTYPE = "bfloat16"
+# Sidecar keys that are PROVENANCE, not leg identity: recorded, printed, and never used
+# by the resume guard. A rented box's IP is ephemeral — a crash-recovery resume against a
+# re-provisioned endpoint serving the same model at the same dtype is still the same leg,
+# and hard-erroring on the IP would defeat the checkpoint machinery it exists to protect.
+UNGUARDED_META = ("endpoint_host",)
 
 INSTRUCTION = (
     "\n\nReason step by step about the evidence against the criterion, then finish your "
@@ -52,25 +71,39 @@ def keychain(name: str) -> str:
                           capture_output=True, text=True, check=True).stdout.strip()
 
 
-def _chat(key: str, model: str, content: str, max_tokens: int = 4096, timeout: int = 600,
-          retries: int = 6) -> dict:
+def chat_endpoint(base_url: str) -> str:
+    """``http://host:port`` (with or without a trailing ``/v1``) -> the chat URL."""
+    u = base_url.rstrip("/")
+    return u + "/chat/completions" if u.endswith("/v1") else u + "/v1/chat/completions"
+
+
+def _chat(key: Optional[str], model: str, content: str, max_tokens: int = 4096,
+          timeout: int = 600, retries: int = 6, base_url: Optional[str] = None) -> dict:
     """One chat call with bounded backoff on transport errors (429/5xx/URLError).
 
     Transport retry is NOT resampling: no model output was produced. A response that
     arrives is parsed exactly once, per the no-resampling rule.
+
+    ``base_url`` set => self-hosted OpenAI-compatible endpoint: no Authorization header,
+    no OpenRouter provider-preference block (there is one provider — our own server, and
+    its dtype is pinned by the serving flags). Absent => the OpenRouter path, unchanged.
     """
     import time
     body = {
         "model": model, "temperature": 0, "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": content}],
-        "provider": {"quantizations": QUANTIZATIONS, "allow_fallbacks": False},
     }
+    if base_url:
+        url = chat_endpoint(base_url)
+        headers = {"Content-Type": "application/json"}
+    else:
+        url = OPENROUTER_URL
+        body["provider"] = {"quantizations": QUANTIZATIONS, "allow_fallbacks": False}
+        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
     delay = 10.0
     for attempt in range(retries):
         req = urllib.request.Request(
-            OPENROUTER_URL, data=json.dumps(body).encode(),
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-            method="POST")
+            url, data=json.dumps(body).encode(), headers=headers, method="POST")
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 out = json.loads(r.read())
@@ -115,17 +148,17 @@ def parse_last_contract(text: str) -> dict:
     return parse_contract_json(best if best is not None else text)
 
 
-def elicit_cell_api(key: str, model: str, evidence_text: str, criterion_text: str,
-                    fewshot: str) -> dict:
+def elicit_cell_api(key: Optional[str], model: str, evidence_text: str, criterion_text: str,
+                    fewshot: str, base_url: Optional[str] = None) -> dict:
     content = (f"{fewshot}You are assessing EU AI Act compliance.\n\n"
                f"Evidence:\n{evidence_text}\n\nCriterion:\n{criterion_text}"
                f"{INSTRUCTION}")
-    out = _chat(key, model, content)
+    out = _chat(key, model, content, base_url=base_url)
     choice = out["choices"][0]
     text = choice["message"].get("content") or ""
     rec = parse_last_contract(text)
     rec.update({
-        "channel": "verbalized_api_chat",
+        "channel": SELF_HOSTED_CHANNEL if base_url else "verbalized_api_chat",
         "api_provider": out.get("provider"),
         "api_model": out.get("model"),
         "finish_reason": choice.get("finish_reason"),
@@ -138,29 +171,44 @@ def elicit_cell_api(key: str, model: str, evidence_text: str, criterion_text: st
 
 def run_variant_api(model: str, cells, out_path: str, *, fewshot_by_crit: Dict[str, str],
                     fewshot_k: int, workers: int = 4, key: Optional[str] = None,
-                    scaffold_variant: str = "baseline") -> dict:
+                    scaffold_variant: str = "baseline",
+                    base_url: Optional[str] = None) -> dict:
     """Same checkpoint/resume/meta-sidecar discipline as the vast legs, api-channel-pinned.
 
     ``scaffold_variant`` is provenance only here — the caller renders ``fewshot_by_crit``
     — but it is PINNED in the sidecar and guarded on resume exactly like ``fewshot_k``,
     so a variant leg can never silently continue into a baseline run dir.
+
+    ``base_url`` set => self-hosted vLLM chat (bf16, our own box): no Keychain read, no
+    provider pinning, channel ``verbalized_vllm_chat``, and the sidecar records the
+    served dtype + the endpoint host instead of the OpenRouter quantization list. The
+    host is recorded, not the full URL: a vast box's port is ephemeral provenance, and
+    the resume guard must not hard-error just because the box was re-provisioned.
     """
     if scaffold_variant not in SCAFFOLD_VARIANTS:
         raise ValueError(f"unknown scaffold variant {scaffold_variant!r}; "
                          f"expected one of {SCAFFOLD_VARIANTS}")
-    key = key or keychain("openrouter-api-key")
     out = Path(out_path)
     meta_path = out.with_suffix(".meta.json")
-    leg_meta = {"model": model, "channel": "verbalized_api_chat", "epsilon": EPSILON,
-                "fewshot_k": int(fewshot_k), "quantizations": QUANTIZATIONS,
-                "api": "openrouter", "scaffold_variant": scaffold_variant}
+    if base_url:
+        key = None
+        leg_meta = {"model": model, "channel": SELF_HOSTED_CHANNEL, "epsilon": EPSILON,
+                    "fewshot_k": int(fewshot_k), "dtype": SELF_HOSTED_DTYPE,
+                    "api": "vllm_chat", "scaffold_variant": scaffold_variant,
+                    "endpoint_host": urllib.parse.urlparse(
+                        base_url if "//" in base_url else "//" + base_url).hostname or ""}
+    else:
+        key = key or keychain("openrouter-api-key")
+        leg_meta = {"model": model, "channel": "verbalized_api_chat", "epsilon": EPSILON,
+                    "fewshot_k": int(fewshot_k), "quantizations": QUANTIZATIONS,
+                    "api": "openrouter", "scaffold_variant": scaffold_variant}
     recs: Dict[str, dict] = {}
     if out.exists():
         recs = json.loads(out.read_text())
         prior = json.loads(meta_path.read_text()) if meta_path.exists() else None
         # A sidecar predating the scaffold-variant field describes a baseline leg.
         mismatched = prior is not None and (
-            any(prior[k] != leg_meta.get(k) for k in prior)
+            any(prior[k] != leg_meta.get(k) for k in prior if k not in UNGUARDED_META)
             or prior.get("scaffold_variant", "baseline") != scaffold_variant)
         if recs and (prior is None or mismatched):
             raise RuntimeError(f"{out} holds cells from a different leg config "
@@ -172,7 +220,7 @@ def run_variant_api(model: str, cells, out_path: str, *, fewshot_by_crit: Dict[s
 
     def _one(c):
         return c, elicit_cell_api(key, model, c.evidence_text, c.criterion_text,
-                                  fewshot_by_crit[c.criterion_id])
+                                  fewshot_by_crit[c.criterion_id], base_url=base_url)
 
     def _record(c, d):
         recs[c.item_label] = d

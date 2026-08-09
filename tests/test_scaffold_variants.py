@@ -288,7 +288,8 @@ class ApiSidecarTests(unittest.TestCase):
 
     def setUp(self):
         self._orig = eva.elicit_cell_api
-        eva.__dict__["elicit_cell_api"] = lambda key, model, ev_txt, cr_txt, fewshot: {
+        eva.__dict__["elicit_cell_api"] = lambda key, model, ev_txt, cr_txt, fewshot, \
+            base_url=None: {
             "parse_ok": True, "compliance": [0.2, 0.45, 0.25, 0.1, 0.0],
             "confidence": [0.15, 0.6, 0.25], "channel": "verbalized_api_chat",
             "api_provider": "fake"}
@@ -333,6 +334,139 @@ class ApiSidecarTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
                 self._run(Path(d) / "post_verbalized.json", "nope")
+
+
+class SelfHostedChatTests(unittest.TestCase):
+    """--base-url: the chat instrument pointed at our own bf16 vLLM box.
+
+    Two things must hold together: the self-hosted path must carry NO OpenRouter
+    credential and NO provider-preference block, and the OpenRouter path must be
+    byte-identical to what it was before the option existed.
+    """
+
+    REPLY = {"choices": [{"message": {"content":
+        '{"findings": [{"requirement": "r", "status": "met", "evidence": "e"}], '
+        '"compliance_level": "low", '
+        '"compliance_distribution": {"very_low": 0.20, "low": 0.45, "moderate": 0.25, '
+        '"high": 0.10, "very_high": 0.00}, '
+        '"compliance_justification": "j", '
+        '"confidence_distribution": {"low": 0.15, "medium": 0.60, "high": 0.25}, '
+        '"confidence_justification": "cj"}'}, "finish_reason": "stop"}],
+        "provider": "self", "model": "google/gemma-4-31b-it"}
+
+    def setUp(self):
+        self.sent = []
+        orig = eva.urllib.request.urlopen
+
+        class _Resp:
+            def __init__(self, payload):
+                self._p = json.dumps(payload).encode()
+            def read(self):
+                return self._p
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+
+        def fake_urlopen(req, timeout=None):
+            self.sent.append({"url": req.full_url,
+                              "headers": dict(req.headers),
+                              "body": json.loads(req.data.decode())})
+            return _Resp(SelfHostedChatTests.REPLY)
+
+        eva.urllib.request.urlopen = fake_urlopen
+        self.addCleanup(lambda: setattr(eva.urllib.request, "urlopen", orig))
+
+    # ---- transport shape
+
+    def test_chat_endpoint_joining(self):
+        for given, want in (
+            ("http://1.2.3.4:8000", "http://1.2.3.4:8000/v1/chat/completions"),
+            ("http://1.2.3.4:8000/", "http://1.2.3.4:8000/v1/chat/completions"),
+            ("http://1.2.3.4:8000/v1", "http://1.2.3.4:8000/v1/chat/completions"),
+            ("http://1.2.3.4:8000/v1/", "http://1.2.3.4:8000/v1/chat/completions"),
+        ):
+            self.assertEqual(eva.chat_endpoint(given), want, given)
+
+    def test_self_hosted_sends_no_key_and_no_provider_block(self):
+        rec = eva.elicit_cell_api(None, "google/gemma-4-31b-it", "ev", "cr", "fs",
+                                  base_url="http://1.2.3.4:8000")
+        self.assertTrue(rec["parse_ok"])
+        self.assertEqual(rec["channel"], eva.SELF_HOSTED_CHANNEL)
+        sent = self.sent[-1]
+        self.assertEqual(sent["url"], "http://1.2.3.4:8000/v1/chat/completions")
+        self.assertNotIn("provider", sent["body"])
+        self.assertFalse([h for h in sent["headers"] if h.lower() == "authorization"])
+
+    def test_openrouter_path_unchanged(self):
+        rec = eva.elicit_cell_api("KEY", "google/gemma-4-31b-it", "ev", "cr", "fs")
+        self.assertEqual(rec["channel"], "verbalized_api_chat")
+        sent = self.sent[-1]
+        self.assertEqual(sent["url"], eva.OPENROUTER_URL)
+        self.assertEqual(sent["body"]["provider"],
+                         {"quantizations": ["bf16", "fp16"], "allow_fallbacks": False})
+        self.assertEqual(sent["headers"].get("Authorization"), "Bearer KEY")
+        # field order is the wire contract this leg was collected under
+        self.assertEqual(list(sent["body"]),
+                         ["model", "temperature", "max_tokens", "messages", "provider"])
+
+    # ---- sidecar + resume guard
+
+    def _run(self, out, variant, base_url="http://1.2.3.4:8000", cells=(Cell("c1"),)):
+        return eva.run_variant_api("google/gemma-4-31b-it", list(cells), str(out),
+                                   fewshot_by_crit={"article_10": "fs"}, fewshot_k=5,
+                                   workers=1, scaffold_variant=variant, base_url=base_url)
+
+    def test_sidecar_records_model_dtype_host_and_variant(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "post_verbalized.json"
+            self._run(out, "alt_set")
+            meta = json.loads(out.with_suffix(".meta.json").read_text())
+            self.assertEqual(meta["channel"], eva.SELF_HOSTED_CHANNEL)
+            self.assertEqual(meta["dtype"], "bfloat16")
+            self.assertEqual(meta["api"], "vllm_chat")
+            self.assertEqual(meta["model"], "google/gemma-4-31b-it")
+            self.assertEqual(meta["endpoint_host"], "1.2.3.4")
+            self.assertEqual(meta["scaffold_variant"], "alt_set")
+            self.assertEqual(meta["fewshot_k"], 5)
+            self.assertNotIn("quantizations", meta)
+
+    def test_no_keychain_read_on_self_hosted_path(self):
+        calls = []
+        orig = eva.keychain
+        eva.__dict__["keychain"] = lambda name: calls.append(name) or "leaked"
+        self.addCleanup(lambda: eva.__dict__.__setitem__("keychain", orig))
+        with tempfile.TemporaryDirectory() as d:
+            self._run(Path(d) / "post_verbalized.json", "baseline")
+        self.assertEqual(calls, [])
+
+    def test_variant_mismatch_still_hard_errors(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "post_verbalized.json"
+            self._run(out, "alt_set")
+            with self.assertRaises(RuntimeError):
+                self._run(out, "rev_order", cells=(Cell("c1"), Cell("c2")))
+
+    def test_endpoint_host_is_provenance_not_identity(self):
+        """A re-provisioned box (new IP, same model/dtype/variant) still resumes."""
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "post_verbalized.json"
+            self._run(out, "alt_set")
+            recs = self._run(out, "alt_set", base_url="http://5.6.7.8:41234",
+                             cells=(Cell("c1"), Cell("c2")))
+            self.assertEqual(len(recs), 2)
+            meta = json.loads(out.with_suffix(".meta.json").read_text())
+            self.assertEqual(meta["endpoint_host"], "5.6.7.8")
+
+    def test_transport_switch_hard_errors(self):
+        """An OpenRouter leg must not silently continue as a self-hosted one."""
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "post_verbalized.json"
+            eva.run_variant_api("google/gemma-4-31b-it", [Cell("c1")], str(out),
+                                fewshot_by_crit={"article_10": "fs"}, fewshot_k=5,
+                                workers=1, key="dummy", scaffold_variant="alt_set")
+            with self.assertRaises(RuntimeError):
+                self._run(out, "alt_set", cells=(Cell("c1"), Cell("c2")))
 
 
 class DriverWiringTests(unittest.TestCase):
