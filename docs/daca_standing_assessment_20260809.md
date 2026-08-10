@@ -102,9 +102,37 @@ Fig. 1 as elicitation-conditional, never as refuted. The DACA-facing sentences i
 and the control appendix should carry exactly this three-way split: method confirmed,
 premise ill-posed, channel choice setting-dependent.
 
-## 5. Scaffold-variant τ_DACA check — [PENDING; appended on completion]
+## 5. Scaffold-variant τ_DACA check — DONE 2026-08-09: SCAFFOLD-ROBUST, with shrinking margin
 
-Closes transfer-condition (iv): recompute τ_DACA with V1/V2 variant pre legs as
-references ($0, data on disk). Pre-specified: survives iff the F7 bar holds per variant;
-exploratory-only (F7 was registered for the baseline scaffold). Result doc:
+Closes transfer-condition (iv): τ_DACA recomputed with V1 (`alt_set`) / V2 (`rev_order`)
+variant pre legs as references, targets held at the study of record ($0, exploratory —
+F7 was registered for the baseline scaffold only). Driver
+`scripts/tau_daca_scaffold_variants.py`; result doc
 `docs/tau_daca_scaffold_variant_check_20260809.md`.
+
+Baseline reproduced exactly (12/12, median 0.9224116756; matched-W1 0.9884871022). Both
+variants: **12/12 valid cross-family fits, all inside [0.5765, 2.3060], all four targets
+PASS F7** — V1 median 0.8105 [0.7317, 1.0559], V2 median 0.8309 [0.6685, 1.0855].
+**The corroboration is scaffold-robust.**
+
+Three things to carry:
+1. **Direction as predicted, magnitude attenuated.** Variant references sharpen (mean
+   normalized entropy falls on all four legs, both variants) and τ_DACA falls with them
+   (Δ ln median −0.129 V1, −0.105 V2) — but that is only ~20–28% of the reference-side
+   `T_abs(pre)` inflation (+0.46–0.72 ln). The shift tracks Δ entropy, not
+   Δ `T_abs(pre)`: the agreement filter suppresses the location component that dominates
+   the absolute estimand.
+2. **Margin is eroding.** Log distance from the closest valid fit to the window's lower
+   edge: baseline +0.286 → V1 +0.238 → V2 +0.148.
+3. **One matched-objective breach.** Under the matched-W1 read (the objective T_J itself
+   was fitted under), V2's `qwen ← gemma31` fit is 0.4529, below the window; the qwen
+   target fails F7 under W1 while passing under the RPS fit of record. Not a saturation
+   or weak-identification artifact — W1 identifies strongly there (21.3% movement).
+
+Restate condition (iv) rather than strike it: the estimator is robust to scaffold
+perturbation of its references **at the factor-2 tolerance F7 was given, and only at that
+tolerance** — the point estimate is not stable (0.10–0.26 ln under perturbation), which
+further weakens τ_DACA as an adoption instrument while leaving its cross-check role
+intact across three scaffolds. Gate blemishes are inert (both are *post* legs; the primary
+swap is references-only, and a labeled both-sides arm passes with and without them), and
+the gemma31 cross-mode pairing moves no verdict (median shifts ≤ 0.011).
