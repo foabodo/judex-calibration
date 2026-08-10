@@ -295,8 +295,12 @@ Billed GPU 0.227 h (~13.6 min): ~1.2 min weight pull (58.25 GiB checkpoint, 74 s
 
 **Invoice polled to stability** per the standing rule. Post-teardown reads:
 **$0.696 → $0.757 → $0.790 → $0.821 → $0.821 → $0.821 (STABLE)** — the first read under-reported
-by **15.2%**, inside the 10–17% band the rule was written for and the worst under-report yet
-observed. Credit reconciliation: **$65.696634 → $64.875163**, a movement of **$0.821470** against
+by **15.2%** of the settled invoice, the worst under-report yet observed. *(This sentence
+originally added "inside the 10–17% band the rule was written for"; corrected 2026-08-09 —
+that "17%" is phase2c §5's figure taken against the **first read**, not the settled invoice,
+and restated on this doc's denominator that leg is 14.4%, so 15.2% is in fact the record. The
+arc's measured band on a consistent settled denominator is **0.0–15.2%**; see campaign report
+§13 item 1.)* Credit reconciliation: **$65.696634 → $64.875163**, a movement of **$0.821470** against
 a settled invoice sum of **$0.821** — reconciling to a twentieth of a cent. No auto top-up fired.
 
 Fleet verified after teardown: `vastai show instances` returns `[]`.

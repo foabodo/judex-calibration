@@ -492,6 +492,17 @@ constants.** None is saturated.
 
 ## 7. Cost — invoice-exact, per instance
 
+> **Scope of this ledger, and where the cumulative one lives** (added 2026-08-09, closing the
+> reconciliation finding that no source document carried a cumulative arc ledger). This §7 is
+> invoice-exact for **this campaign's three rentals only** — $30.013. It is deliberately not a
+> roll-up: the E1 arc also spent on the store-v2 re-annotation (corpus repo `cost_ledger.json`,
+> $2.589), the qwen gate ($0.888, gate doc §6), the gemma31 stop-loss ($0.853, recollection doc
+> §6) and the k=8 iteration ($0.821, k=8 doc §7). **The sole cumulative ledger of record — Part I
+> + the E1 arc + the $0 checks, reconciled end to end against the vast credit trail — is §12 of
+> `docs/verbalized_gap_closure_campaign_report_2026_08.md`** (E1-arc subtotal **$35.164**, project
+> total **$318.88**). Quote cumulative figures from there, never by summing per-campaign ledgers
+> by hand.
+
 Three rentals, on-demand, one leg per instance, at most one box alive at a time, each destroyed
 immediately on the gate read. Offers were selected on **cheapest expected total charge**, not
 cheapest `$/hr`: the Phase-2c ledger showed download dominating the 8×H200 bill ($12–13 per

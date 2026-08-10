@@ -91,7 +91,9 @@ below is extended by **§13**.
 
 Ops lessons recorded: autobill $5-increments cannot feed an 8×H200 download (need ≥$50
 single-increment float); teardown-time invoices under-report ~17% (poll until two reads
-agree); no SSH keys on the vast account (no warm-box model swaps); same-machine
+agree — that ~17% is expressed against the *first read*; restated on the settled-invoice
+denominator §13 uses it is 14.4%, see §13 item 1); no SSH keys on the vast account (no
+warm-box model swaps); same-machine
 re-rental can hit provider disk cache (time win only); build ALL harnesses before
 renting shared checkpoints ([[joint-infrastructure-campaign-planning]]).
 
@@ -256,17 +258,53 @@ backslash inside a JSON string is an illegal escape, and a LaTeX brace *before* 
 hijacks the first-`{` scan — `\frac{x}{12}` hands the extractor `{x}`, which is balanced,
 is not the answer, and fails `json.loads`. Only the first is reachable by store content.
 
-> *Counting-convention note, so the taxonomies reconcile.* Three thresholds are in use
-> across the record and they give three totals for Mode B: `raw_chars == 0` gives 133
-> (phase2c §4.1: gemma31 62/76, glm 53/60, maverick 18/25, qwen 0/16); reasoning span
-> ≤ 1 char gives 145 (the per-leg tables in the recollection, k=8 and final-panel docs); and
-> the store README's ≤ 2-char signature gives 153. The percentages above are the store-side
-> record and are the ones to quote; the per-leg tables are ≤ 1-char throughout and are
-> internally consistent. One genuine inconsistency remains, flagged rather than papered
-> over: the README's Mode-A brace count is **4**, while the gate doc §3 records **6**
-> `Expecting property name` cells on qwen pre alone (the other three base legs record 0), so
-> Mode A is 15 or 17 depending on the source. Nothing downstream turns on it — the class was
-> driven to zero on every base leg by CHANGE 2 either way.
+> *Counting-convention note — **RESOLVED 2026-08-09** by recount from the primary Phase-2c
+> records (`runs/control_mmlu_{qwen,gemma31,glm,maverick}/pre_control.json`; failure set =
+> the 177 cells with `parse_ok == false`). The note originally flagged three Mode-B totals
+> and one apparent Mode-A contradiction. Both close below; the flagged values are preserved
+> verbatim so the audit trail shows what the discrepancy was.*
+>
+> **Originally flagged:** "`raw_chars == 0` gives 133 (phase2c §4.1: gemma31 62/76, glm
+> 53/60, maverick 18/25, qwen 0/16); reasoning span ≤ 1 char gives 145 (the per-leg tables in
+> the recollection, k=8 and final-panel docs); and the store README's ≤ 2-char signature
+> gives 153."
+>
+> **Resolution — all three printed totals are correct; two were mislabelled *here*.** Each
+> source counts Mode B under a different predicate, and it is the predicates, not the data,
+> that differ:
+>
+> | printed | source | predicate, as recounted | qwen / gemma31 / glm / maverick |
+> |---:|---|---|---|
+> | **133** | phase2c §4.1, "empty generations" | `raw_chars == 0` **and** `reasoning_chars ≤ 1` | 0 / 62 / 53 / 18 |
+> | **145** | per-leg tables (recollection, k=8, final-panel) | `no_json_object` **and** `reasoning_chars ≤ 1` | 0 / 74 / 53 / 18 |
+> | **153** | store v2 README, Mode B | `reasoning_chars ≤ 2` (marginal, no conjunct) | 4 / 74 / 56 / 19 |
+>
+> Each source states its own predicate (phase2c §4.1 in prose, the per-leg tables in their
+> row labels, the README in the note added at its taxonomy table). The error was in *this*
+> note's shorthand: it named the first two predicates "`raw_chars == 0`" and "reasoning span
+> ≤ 1 char", dropping a conjunct from each. Those bare marginals are **138** and **148**, and
+> neither number appears anywhere in the record — the labels were wrong, the counts right.
+>
+> **Canonical for v15 prose: the ≤ 2-char marginal, 153 of 177 = 86%.** Criterion: it is the
+> figure the whole remediation arc is motivated by and quoted against, and it is the
+> store-side record that the scaffold appendix actually describes. Per-leg tables keep the
+> `no_json_object` + ≤ 1-char convention they were computed under — they are per-leg deltas
+> (74 → 19 and so on), and re-basing them would break every published delta for no gain.
+>
+> **The Mode-A "genuine inconsistency" was a partition-order artifact, not a miscount.**
+> Originally flagged as: "the README's Mode-A brace count is **4**, while the gate doc §3
+> records **6** `Expecting property name` cells on qwen pre alone (the other three base legs
+> record 0), so Mode A is 15 or 17 depending on the source." Recount: exactly **6** such
+> cells exist on qwen pre and **0** on each of the other three base legs, so the gate doc's
+> raw error-string count is right. Two of those 6 carry `reasoning_chars == 1`, so the
+> README's *disjoint* taxonomy — which applies Mode B first, at the ≤ 2-char threshold —
+> has already claimed them, and **4** is what remains in Mode A. Both documents are correct
+> in their own scope; **17 is not a valid total**, because it would double-count those two
+> cells. Reconciled statement, now carried in both documents: **6 brace-class cells on qwen
+> pre, of which 4 fall to Mode A and 2 to Mode B; Mode A = 15 within the README's
+> partition.** The README's taxonomy sums exactly — 153 + 15 + 7 + 2 = 177 — and every row
+> of it reproduces from the primary records. Nothing downstream turned on it either way:
+> the class was driven to zero on every base leg by CHANGE 2.
 
 ### 9.3 Store v2, and the two harness changes it implied
 
@@ -487,10 +525,17 @@ stability before the next rental): Phase-2c close **$42.437626** → gate −$0.
 invoice sum; no auto top-up fired at any point; `vastai show instances` returned `[]` after
 every teardown and at close.
 
-Two reconciliation notes. **(i)** No single source document carries the cumulative arc
-ledger — the final-panel doc §7 carries only its own $30.013 campaign, and the store line
-sits in the corpus repo's `cost_ledger.json` — so the arc subtotal above is assembled here
-from the five source ledgers. **(ii)** The store line is a mixed measured/estimated figure
+Two reconciliation notes. **(i) — RESOLVED 2026-08-09.** Originally flagged as: "No single
+source document carries the cumulative arc ledger — the final-panel doc §7 carries only its
+own $30.013 campaign, and the store line sits in the corpus repo's `cost_ledger.json` — so
+the arc subtotal above is assembled here from the five source ledgers." That description of
+the source documents is accurate and unchanged; what was missing was a designation. **This
+§12 is now the sole cumulative ledger of record for the whole project**, and the final-panel
+doc §7 carries a pointer to it (added 2026-08-09) saying so. The five per-campaign ledgers
+stay scoped to their own rentals deliberately: each is invoice-exact for the legs its
+document ran, and duplicating a cumulative roll-up into any one of them would create a
+second copy free to drift and would make that document appear to claim legs it never ran.
+Assembly here is the design, not a gap. **(ii)** The store line is a mixed measured/estimated figure
 (the credits-endpoint delta is authoritative for the five OpenRouter seats; the contract
 smoke and a killed pass-1 fragment are unmetered), so the project total is precise to about
 a cent, not to the tenth of a cent the vast rows reconcile to — which is the whole of the
@@ -511,6 +556,17 @@ confirms, quantifies and adds to it:
    re-polled after three further minutes rather than closed on the two-read rule alone.
    **Poll until two consecutive reads agree, and treat a first-read match as a reason to
    re-poll, not to stop.**
+   *Reconciliation with Part I's "~17%" — **RESOLVED 2026-08-09.*** The two figures measure
+   the **same** event (the first read taken immediately after teardown, not a mid-run read)
+   on **different denominators**: Part I's ~17% is phase2c §5's maverick-post leg expressed
+   against the *first read* ($12.003 → $14.016 = 16.8% of the first read), whereas every
+   percentage in this section is expressed against the *settled* invoice. On the settled
+   denominator used here that same leg is **14.4%**, which sits inside this arc's
+   **0.0–15.2%** band rather than above it. Part I's figure is not revised — it is correct
+   under its own denominator — but the two are only comparable once restated, and **the
+   settled denominator is canonical**. (The one genuinely different measurement in the record
+   is phase1b §5's mid-run read, $16.640 against a settled $18.703, which carries no
+   percentage and is a mid-run/post-teardown contrast, not a first-read/settled one.)
 2. **The $50 single-increment float rule is arithmetically unsatisfiable below ~$65 credit,
    and the substitution is a runway check.** With $64.88 at a campaign's start, any first
    8×H200 leg over $14.88 puts the second below $50 — and the measured cost was $15.29, so

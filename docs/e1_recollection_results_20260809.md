@@ -318,8 +318,13 @@ Wall clock ~14 min of billed GPU (0.210 h): ~6 min weight pull (54.3 GB) + engin
 ~7 min elicitation of 120 items at `--workers 8`. Download 54.3 GB at $0.003/GB = $0.141.
 
 **Invoice polled to stability** per the Phase-2c rule. Post-teardown reads:
-**$0.787 → $0.823 → $0.853 → $0.853 (STABLE)** — the first read under-reported by **7.7%**,
-inside the 10–17% band the rule was written for. Credit reconciliation:
+**$0.787 → $0.823 → $0.853 → $0.853 (STABLE)** — the first read under-reported by **7.7%**
+of the settled invoice. *(This sentence originally read "inside the 10–17% band the rule was
+written for"; corrected 2026-08-09. The 7.7% is unchanged and correct, but that comparison
+was wrong twice over: 7.7% is not inside 10–17%, and the "17%" it invoked is phase2c §5's
+figure taken against the **first read** rather than the settled invoice — restated on this
+doc's denominator that leg is 14.4%. The arc's measured band on a consistent settled
+denominator is **0.0–15.2%**; see campaign report §13 item 1.)* Credit reconciliation:
 **$66.549616 → $65.696634**, a movement of **$0.852982** against a settled invoice sum of
 **$0.853** — reconciling to a fifth of a cent. No auto top-up fired.
 

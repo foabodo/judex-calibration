@@ -222,6 +222,17 @@ Direct probe against the live gemma31 base box, `clinical_knowledge` item, greed
 Empty-generation counts among failures: gemma31 pre 62/76, glm pre 53/60, maverick pre
 18/25, qwen pre 0/16.
 
+> **Counting convention for those four counts** (added 2026-08-09; verified by recount from
+> `pre_control.json` and unchanged in value). They are the **conjunction** stated in the
+> paragraph above — `raw_chars == 0` **and** `reasoning_chars ≤ 1` — over failing cells, and
+> they total **133**. The conjunction is load-bearing: the bare `raw_chars == 0` marginal is
+> **138** (qwen 1, gemma31 62, glm 55, maverick 20), and the bare `reasoning_chars ≤ 1`
+> marginal is **148**. Two other Mode-B conventions are in use elsewhere in the record and
+> give different totals from the same 177 failures — `no_json_object` + span ≤ 1 char gives
+> **145** (the per-leg tables in the E1 arc docs), and a ≤ 2-char span marginal gives **153**,
+> which is the store-side figure behind the "86% of failures" headline and is **canonical for
+> v15 prose**. Full crosswalk: campaign report §9.2.
+
 **(b) JSON syntax invalidity — qwen's mode.** Zero empty generations; the model writes JSON
 but writes it invalidly, chiefly LaTeX backslashes inside justification strings
 (`json_decode: Invalid \escape`) and unquoted keys (`Expecting property name enclosed in
@@ -304,6 +315,13 @@ teardown" is necessary but not sufficient. The final instance's GPU line read **
 immediately after destroy, **$13.355** two minutes later, and settled at **$14.016** two
 minutes after that — a 17% under-report at the first post-teardown read. Poll the invoice
 until two consecutive reads agree before closing a ledger.
+
+> **Denominator note** (added 2026-08-09; the 17% is unchanged and correct). That 17% is
+> expressed **against the first read** ($2.013 short on $12.003 = 16.8%). The E1-arc ledgers
+> and campaign report §13 express the same quantity **against the settled invoice**, on which
+> this leg is **14.4%** — inside the arc's measured 0.0–15.2% band, not above it. Same event
+> (first read after teardown), different base; the settled denominator is canonical. Do not
+> compare the two without restating.
 
 **Why it came in 23% under the low estimate.** The control prompts are ~7× smaller than the
 AIReg prompts (max 2,263 tokens vs ~18.3k), so each 120-item leg ran in **1–4 minutes**
